@@ -5,10 +5,13 @@ import '../db_helper.dart';
 import '../../../state/song_state.dart';
 
 class SongDao {
+  static List<SongEntity>? _cachedAll;
+  static Future<List<SongEntity>>? _cachedAllFuture;
+
   Future<int> upsertSongs(List<SongEntity> songs) async {
     if (songs.isEmpty) return 0;
     final db = await DbHelper.instance.database;
-    return db.transaction<int>((txn) async {
+    final added = await db.transaction<int>((txn) async {
       var added = 0;
       final insertBatch = txn.batch();
       for (final song in songs) {
@@ -36,6 +39,8 @@ class SongDao {
       await updateBatch.commit(noResult: true);
       return added;
     });
+    _cachedAll = null;
+    return added;
   }
 
   Future<int> countBySource(String sourceId) async {
@@ -87,6 +92,19 @@ class SongDao {
     return rows.map(SongEntity.fromMap).toList();
   }
 
+  Future<List<SongEntity>> fetchAllCached() async {
+    final cached = _cachedAll;
+    if (cached != null) return cached;
+    final inflight = _cachedAllFuture;
+    if (inflight != null) return inflight;
+    final future = fetchAll();
+    _cachedAllFuture = future;
+    final list = await future;
+    _cachedAll = list;
+    _cachedAllFuture = null;
+    return list;
+  }
+
   Future<List<SongEntity>> fetchByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
     final db = await DbHelper.instance.database;
@@ -122,19 +140,23 @@ class SongDao {
     if (ids.isEmpty) return 0;
     final db = await DbHelper.instance.database;
     final placeholders = List.filled(ids.length, '?').join(',');
-    return db.delete(
+    final result = await db.delete(
       DbConstants.tableSongs,
       where: 'id IN ($placeholders)',
       whereArgs: ids,
     );
+    _cachedAll = null;
+    return result;
   }
 
   Future<int> deleteBySource(String sourceId) async {
     final db = await DbHelper.instance.database;
-    return db.delete(
+    final result = await db.delete(
       DbConstants.tableSongs,
       where: 'sourceId = ?',
       whereArgs: [sourceId],
     );
+    _cachedAll = null;
+    return result;
   }
 }

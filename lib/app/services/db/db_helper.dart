@@ -45,6 +45,44 @@ CREATE TABLE ${DbConstants.tableSongs} (
   tagsParsed INTEGER
 )
 ''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_songs_title ON ${DbConstants.tableSongs}(title COLLATE NOCASE)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_songs_artist ON ${DbConstants.tableSongs}(artist COLLATE NOCASE)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_songs_album ON ${DbConstants.tableSongs}(album COLLATE NOCASE)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_songs_source ON ${DbConstants.tableSongs}(sourceId)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_songs_source_title ON ${DbConstants.tableSongs}(sourceId, title COLLATE NOCASE)',
+        );
+        await db.execute('''
+CREATE TABLE ${DbConstants.tablePlaylists} (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  createdAtMs INTEGER NOT NULL,
+  isFavorite INTEGER NOT NULL,
+  sortOrder INTEGER NOT NULL
+)
+''');
+        await db.execute('''
+CREATE TABLE ${DbConstants.tablePlaylistSongs} (
+  playlistId TEXT NOT NULL,
+  songId TEXT NOT NULL,
+  sortOrder INTEGER NOT NULL,
+  PRIMARY KEY (playlistId, songId)
+)
+''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_playlist_songs_playlist ON ${DbConstants.tablePlaylistSongs}(playlistId, sortOrder)',
+        );
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_playlist_songs_song ON ${DbConstants.tablePlaylistSongs}(songId)',
+        );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -72,6 +110,48 @@ CREATE TABLE ${DbConstants.tableSongs} (
         if (oldVersion < 4) {
           await db.execute(
             'ALTER TABLE ${DbConstants.tableSongs} ADD COLUMN headersJson TEXT',
+          );
+        }
+        if (oldVersion < 5) {
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_songs_title ON ${DbConstants.tableSongs}(title COLLATE NOCASE)',
+          );
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_songs_artist ON ${DbConstants.tableSongs}(artist COLLATE NOCASE)',
+          );
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_songs_album ON ${DbConstants.tableSongs}(album COLLATE NOCASE)',
+          );
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_songs_source ON ${DbConstants.tableSongs}(sourceId)',
+          );
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_songs_source_title ON ${DbConstants.tableSongs}(sourceId, title COLLATE NOCASE)',
+          );
+        }
+        if (oldVersion < 6) {
+          await db.execute('''
+CREATE TABLE IF NOT EXISTS ${DbConstants.tablePlaylists} (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  createdAtMs INTEGER NOT NULL,
+  isFavorite INTEGER NOT NULL,
+  sortOrder INTEGER NOT NULL
+)
+''');
+          await db.execute('''
+CREATE TABLE IF NOT EXISTS ${DbConstants.tablePlaylistSongs} (
+  playlistId TEXT NOT NULL,
+  songId TEXT NOT NULL,
+  sortOrder INTEGER NOT NULL,
+  PRIMARY KEY (playlistId, songId)
+)
+''');
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_playlist_songs_playlist ON ${DbConstants.tablePlaylistSongs}(playlistId, sortOrder)',
+          );
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_playlist_songs_song ON ${DbConstants.tablePlaylistSongs}(songId)',
           );
         }
       },

@@ -558,22 +558,6 @@ class WebDavMusicService {
   }
 
   String _webDavAlbumFromHref(String href) {
-    String decodeSegment(String input) {
-      try {
-        return Uri.decodeComponent(input);
-      } catch (_) {
-        return input.replaceAll('%20', ' ');
-      }
-    }
-
-    try {
-      final uri = Uri.tryParse(href);
-      final segs = uri?.pathSegments ?? href.split('/');
-      final clean = segs.where((e) => e.isNotEmpty).toList();
-      if (clean.length >= 2) {
-        return decodeSegment(clean[clean.length - 2]);
-      }
-    } catch (_) {}
-    return '';
+    return '未知专辑';
   }
 }

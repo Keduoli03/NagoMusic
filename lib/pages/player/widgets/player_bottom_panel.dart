@@ -53,9 +53,11 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
     with SignalsMixin {
   static const String _prefsMiniEnabled = 'mini_lyrics_enabled';
   static const String _prefsShowTranslation = 'lyrics_view_show_translation';
+  static const String _prefsMiniAlignment = 'mini_lyrics_alignment';
 
   late final _enabled = createSignal(true);
   late final _showTranslation = createSignal(true);
+  late final _alignment = createSignal('center');
 
   @override
   void initState() {
@@ -79,6 +81,7 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
     if (!mounted) return;
     _enabled.value = prefs.getBool(_prefsMiniEnabled) ?? true;
     _showTranslation.value = prefs.getBool(_prefsShowTranslation) ?? true;
+    _alignment.value = prefs.getString(_prefsMiniAlignment) ?? 'center';
   }
 
   @override
@@ -94,7 +97,17 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
         final snap = lyrics.snapshotSignal.value;
         final model = lyrics.lyricModelSignal.value;
         final lines = model?.lines ?? const <LyricLine>[];
-        const textAlign = TextAlign.center;
+        final alignment = _alignment.value;
+        final textAlign = alignment == 'left'
+            ? TextAlign.left
+            : alignment == 'right'
+                ? TextAlign.right
+                : TextAlign.center;
+        final crossAlign = alignment == 'left'
+            ? CrossAxisAlignment.start
+            : alignment == 'right'
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.center;
 
         return Column(
           children: [
@@ -165,7 +178,7 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
 
                       return Column(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment: crossAlign,
                         children: [
                           Text(
                             prev.isEmpty ? ' ' : prev,
@@ -598,9 +611,7 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> with SignalsMixin {
     final useDarkText = preferLightBackground;
     final textColor = _primaryTextColor(useDarkText);
     final secondaryTextColor = _secondaryTextColor(useDarkText, 0.7);
-    final maskColor = preferLightBackground
-        ? Colors.white.withValues(alpha: 0.3)
-        : Colors.black.withValues(alpha: 0.28);
+    final maskColor = Theme.of(context).colorScheme.surface;
 
     final sheetHeight = MediaQuery.sizeOf(context).height * 0.4;
     return Watch.builder(
@@ -782,9 +793,7 @@ class _PlaylistSheetState extends State<_PlaylistSheet> {
     final useDarkText = preferLightBackground;
     final textColor = _primaryTextColor(useDarkText);
     final secondaryTextColor = _secondaryTextColor(useDarkText, 0.7);
-    final maskColor = preferLightBackground
-        ? Colors.white.withValues(alpha: 0.3)
-        : Colors.black.withValues(alpha: 0.28);
+    final maskColor = scheme.surface;
 
     return Watch.builder(
       builder: (context) {

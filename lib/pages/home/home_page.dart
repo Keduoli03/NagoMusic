@@ -3,14 +3,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
-import '../../app/router/app_router.dart';
 import '../../app/services/db/dao/song_dao.dart';
+import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
 import '../library/albums_page.dart';
 import '../library/artists_page.dart';
 import '../library/playlists_page.dart';
-
-enum _HomeFilter { all, local, webdav }
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,29 +20,49 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with SignalsMixin {
   static const String _prefsHomeFilter = 'home_filter';
 
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
   final SongDao _songDao = SongDao();
+  final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
 
-  late final _filter = createSignal(_HomeFilter.all);
+  late final _filter = createSignal('all');
   late final _loading = createSignal(true);
   late final _countAll = createSignal(0);
   late final _countLocal = createSignal(0);
   late final _countRemote = createSignal(0);
+  late final _webDavSources = createSignal<List<WebDavSource>>([]);
+  late final _webDavCounts = createSignal<Map<String, int>>({});
+
+  late final _webDavNameMap = computed<Map<String, String>>(() {
+    final map = <String, String>{};
+    for (final s in _webDavSources.value) {
+      final name = s.name.trim().isEmpty ? 'WebDAV' : s.name.trim();
+      map[s.id] = name;
+    }
+    return map;
+  });
 
   late final _filterTitle = computed<String>(() {
-    return switch (_filter.value) {
-      _HomeFilter.local => '本地音乐',
-      _HomeFilter.webdav => 'WebDAV',
-      _ => '全部',
-    };
+    final filter = _filter.value;
+    if (filter == 'local') return '本地音乐';
+    if (filter == 'webdav') return '云端（全部）';
+    if (filter.startsWith('webdav:')) {
+      final id = filter.substring('webdav:'.length);
+      final name = _webDavNameMap.value[id];
+      return '云端：${(name ?? id).trim()}';
+    }
+    return '全部';
   });
 
   late final _filterCount = computed<int>(() {
-    return switch (_filter.value) {
-      _HomeFilter.local => _countLocal.value,
-      _HomeFilter.webdav => _countRemote.value,
-      _ => _countAll.value,
-    };
+    final filter = _filter.value;
+    if (filter == 'local') return _countLocal.value;
+    if (filter == 'webdav') return _countRemote.value;
+    if (filter.startsWith('webdav:')) {
+      final id = filter.substring('webdav:'.length);
+      return _webDavCounts.value[id] ?? 0;
+    }
+    return _countAll.value;
   });
 
   @override
@@ -56,46 +74,115 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_prefsHomeFilter) ?? 'all';
-    final filter = switch (raw) {
-      'local' => _HomeFilter.local,
-      'webdav' => _HomeFilter.webdav,
-      _ => _HomeFilter.all,
-    };
 
     final counts = await Future.wait<int>([
       _songDao.countAll(),
       _songDao.countLocal(),
       _songDao.countRemote(),
     ]);
+    final sources = await _webDavRepo.loadSources();
+    final entries = await Future.wait(
+      sources.map(
+        (s) async => MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
+      ),
+    );
+    final webdavCounts = {for (final e in entries) e.key: e.value};
+    var filter = raw;
+    if (filter.startsWith('webdav:')) {
+      final id = filter.substring('webdav:'.length);
+      if (!sources.any((s) => s.id == id)) {
+        filter = 'webdav';
+      }
+    } else if (filter != 'local' && filter != 'webdav' && filter != 'all') {
+      filter = 'all';
+    }
     if (!mounted) return;
     _filter.value = filter;
     _countAll.value = counts[0];
     _countLocal.value = counts[1];
     _countRemote.value = counts[2];
+    _webDavSources.value = sources;
+    _webDavCounts.value = webdavCounts;
     _loading.value = false;
   }
 
-  Future<void> _setFilter(_HomeFilter next) async {
+  Future<void> _setFilter(String next) async {
     _filter.value = next;
     final prefs = await SharedPreferences.getInstance();
-    final raw = switch (next) {
-      _HomeFilter.local => 'local',
-      _HomeFilter.webdav => 'webdav',
-      _ => 'all',
-    };
-    await prefs.setString(_prefsHomeFilter, raw);
+    await prefs.setString(_prefsHomeFilter, next);
   }
 
-  void _handleBottomNavTap(int index) {
-    if (index == 0) return;
-    final target = index == 1 ? AppRoutes.songs : AppRoutes.source;
-    Navigator.pushNamedAndRemoveUntil(context, target, (route) => false);
+  Future<void> _showSourceSheet() async {
+    final sources = await _webDavRepo.loadSources();
+    final entries = await Future.wait(
+      sources.map(
+        (s) async => MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
+      ),
+    );
+    if (!mounted) return;
+    _webDavSources.value = sources;
+    _webDavCounts.value = {for (final e in entries) e.key: e.value};
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final items = [
+          const _HomeSourceItem(label: '全部', value: 'all'),
+          const _HomeSourceItem(label: '本地', value: 'local'),
+          const _HomeSourceItem(label: '云端（全部）', value: 'webdav'),
+        ];
+        final webdavIds = sources.map((s) => s.id).toList()..sort();
+        return AppSheetPanel(
+          title: '切换音源',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...items.map((item) {
+                final isSelected = _filter.value == item.value;
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                  title: Text(item.label),
+                  trailing: isSelected ? const Icon(Icons.check_rounded) : null,
+                  onTap: () {
+                    _setFilter(item.value);
+                    Navigator.pop(context);
+                  },
+                );
+              }),
+              if (webdavIds.isEmpty)
+                const ListTile(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 24),
+                  title: Text('暂无云端音源'),
+                  enabled: false,
+                )
+              else
+                ...webdavIds.map((id) {
+                  final value = 'webdav:$id';
+                  final isSelected = _filter.value == value;
+                  final name = _webDavNameMap.value[id];
+                  final label = (name ?? id).trim();
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                    title: Text('云端：$label'),
+                    trailing: isSelected ? const Icon(Icons.check_rounded) : null,
+                    onTap: () {
+                      _setFilter(value);
+                      Navigator.pop(context);
+                    },
+                  );
+                }),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
-      scaffoldKey: _scaffoldKey,
+      key: _scaffoldKey,
       extendBodyBehindAppBar: true,
       appBar: AppTopBar(
         title: '首页',
@@ -104,18 +191,9 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         actions: [
-          Watch.builder(
-            builder: (context) => PopupMenuButton<_HomeFilter>(
-              icon: const Icon(Icons.filter_list),
-              initialValue: _filter.value,
-              tooltip: '筛选',
-              onSelected: _setFilter,
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: _HomeFilter.all, child: Text('全部')),
-                PopupMenuItem(value: _HomeFilter.local, child: Text('本地音乐')),
-                PopupMenuItem(value: _HomeFilter.webdav, child: Text('WebDAV')),
-              ],
-            ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz_rounded),
+            onPressed: _showSourceSheet,
           ),
           const SizedBox(width: 8),
         ],
@@ -195,8 +273,6 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
           ),
         ),
       ),
-      bottomNavIndex: 0,
-      onBottomNavTap: _handleBottomNavTap,
     );
   }
 }
@@ -264,6 +340,16 @@ class _HomeStatsRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HomeSourceItem {
+  final String label;
+  final String value;
+
+  const _HomeSourceItem({
+    required this.label,
+    required this.value,
+  });
 }
 
 class _HomeEntryCard extends StatelessWidget {

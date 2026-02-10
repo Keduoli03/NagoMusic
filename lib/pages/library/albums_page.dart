@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
+import '../../app/services/block_list_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/state/song_state.dart';
+import '../../components/common/artwork_widget.dart';
+import '../../components/common/blocked_management_sheet.dart';
 import '../../components/index.dart';
 import 'library_detail_pages.dart';
 
@@ -38,7 +41,8 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
 
   final SongDao _songDao = SongDao();
   final ScrollController _controller = ScrollController();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
 
   late final _loading = createSignal(true);
   late final _groups = createSignal<List<_AlbumGroup>>([]);
@@ -109,13 +113,12 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
     if (cols < 2) cols = 2;
     if (cols > 4) cols = 4;
     final showBlocked = prefs.getBool(_prefsShowBlockedEntry) ?? true;
-    final blocked = prefs.getStringList(_prefsBlockedAlbums) ?? const <String>[];
+    final blocked = await BlockListService.instance.load(_prefsBlockedAlbums);
     _sortMode.value = mode;
     _ascending.value = asc;
     _gridColumns.value = cols;
     _showBlockedEntry.value = showBlocked;
-    _blockedAlbums.value =
-        blocked.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    _blockedAlbums.value = blocked;
   }
 
   Future<void> _savePrefs() async {
@@ -124,8 +127,6 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
     await prefs.setBool(_prefsSortAscending, _ascending.value);
     await prefs.setInt(_prefsGridColumns, _gridColumns.value);
     await prefs.setBool(_prefsShowBlockedEntry, _showBlockedEntry.value);
-    await prefs.setStringList(
-        _prefsBlockedAlbums, _blockedAlbums.value.toList()..sort());
   }
 
   Future<void> _load() async {
@@ -195,147 +196,81 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      isDismissible: true,
-      enableDrag: true,
       builder: (context) {
-        var nextMode = _sortMode.value;
-        var nextAsc = _ascending.value;
-        var nextCols = _gridColumns.value;
-        var nextShowBlockedEntry = _showBlockedEntry.value;
-
-        void apply() {
-          _sortMode.value = nextMode;
-          _ascending.value = nextAsc;
-          _gridColumns.value = nextCols;
-          _showBlockedEntry.value = nextShowBlockedEntry;
-          final groups = _groups.value.toList();
-          _sortGroups(groups);
-          _groups.value = groups;
-          _savePrefs();
-        }
-
-        Widget optionRow({
-          required String label,
-          required String mode,
-          required IconData icon,
-        }) {
-          final selected = nextMode == mode;
-          return ListTile(
-            leading: Icon(icon),
-            title: Text(label),
-            trailing: selected ? const Icon(Icons.check_rounded) : null,
-            onTap: () {
-              nextMode = mode;
-              apply();
-            },
-          );
-        }
-
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => Navigator.of(context).pop(),
-                child: const SizedBox.expand(),
-              ),
-            ),
-            DraggableScrollableSheet(
-              initialChildSize: 0.62,
-              minChildSize: 0.45,
-              maxChildSize: 0.95,
-              snap: true,
-              builder: (context, scrollController) {
-                return StatefulBuilder(
-                  builder: (context, setInner) {
-                    void update(void Function() fn) {
-                      setInner(fn);
-                      apply();
-                    }
-
-                    return AppSheetPanel(
-                      title: '排序',
-                      expand: true,
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            optionRow(
-                              label: '名称',
-                              mode: 'name',
-                              icon: Icons.sort_by_alpha,
+        return SortSheet(
+          title: '专辑排序',
+          options: const [
+            SortOption(key: 'name', label: '名称', icon: Icons.sort_by_alpha),
+            SortOption(key: 'songCount', label: '歌曲数', icon: Icons.music_note_outlined),
+            SortOption(key: 'artist', label: '艺术家', icon: Icons.person_outline),
+            SortOption(key: 'year', label: '年份', icon: Icons.calendar_today_outlined),
+          ],
+          currentKey: _sortMode.value,
+          ascending: _ascending.value,
+          onSelectKey: (value) {
+            _sortMode.value = value;
+            final groups = _groups.value.toList();
+            _sortGroups(groups);
+            _groups.value = groups;
+            _savePrefs();
+          },
+          onSelectAscending: (value) {
+            _ascending.value = value;
+            final groups = _groups.value.toList();
+            _sortGroups(groups);
+            _groups.value = groups;
+            _savePrefs();
+          },
+          extra: Watch.builder(
+            builder: (context) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SwitchListTile(
+                    title: const Text('显示已屏蔽入口'),
+                    value: _showBlockedEntry.value,
+                    onChanged: (v) {
+                      _showBlockedEntry.value = v;
+                      _savePrefs();
+                    },
+                  ),
+                  if (_sortMode.value != 'year')
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<int>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 2,
+                              label: Text('二列'),
+                              icon: Icon(Icons.grid_view_rounded),
                             ),
-                            optionRow(
-                              label: '歌曲数',
-                              mode: 'songCount',
-                              icon: Icons.music_note_outlined,
+                            ButtonSegment(
+                              value: 3,
+                              label: Text('三列'),
+                              icon: Icon(Icons.grid_view_rounded),
                             ),
-                            optionRow(
-                              label: '艺术家',
-                              mode: 'artist',
-                              icon: Icons.person_outline,
+                            ButtonSegment(
+                              value: 4,
+                              label: Text('四列'),
+                              icon: Icon(Icons.grid_view_rounded),
                             ),
-                            optionRow(
-                              label: '年份',
-                              mode: 'year',
-                              icon: Icons.calendar_today_outlined,
-                            ),
-                            const Divider(height: 1),
-                            SwitchListTile(
-                              title: const Text('升序'),
-                              value: nextAsc,
-                              onChanged: (v) => update(() => nextAsc = v),
-                            ),
-                            SwitchListTile(
-                              title: const Text('显示已屏蔽入口'),
-                              value: nextShowBlockedEntry,
-                              onChanged: (v) =>
-                                  update(() => nextShowBlockedEntry = v),
-                            ),
-                            if (nextMode != 'year')
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: SegmentedButton<int>(
-                                    segments: const [
-                                      ButtonSegment(
-                                        value: 2,
-                                        label: Text('二列'),
-                                        icon: Icon(Icons.grid_view_rounded),
-                                      ),
-                                      ButtonSegment(
-                                        value: 3,
-                                        label: Text('三列'),
-                                        icon: Icon(Icons.grid_view_rounded),
-                                      ),
-                                      ButtonSegment(
-                                        value: 4,
-                                        label: Text('四列'),
-                                        icon: Icon(Icons.grid_view_rounded),
-                                      ),
-                                    ],
-                                    selected: {nextCols},
-                                    onSelectionChanged: (selection) {
-                                      final v = selection.first;
-                                      update(() => nextCols = v);
-                                    },
-                                    showSelectedIcon: false,
-                                  ),
-                                ),
-                              ),
                           ],
+                          selected: {_gridColumns.value},
+                          onSelectionChanged: (selection) {
+                            final v = selection.first;
+                            _gridColumns.value = v;
+                            _savePrefs();
+                          },
+                          showSelectedIcon: false,
                         ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          ],
+                    ),
+                ],
+              );
+            },
+          ),
         );
       },
     );
@@ -344,21 +279,10 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
   Future<void> _blockAlbum(String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return;
-    _blockedAlbums.value = {..._blockedAlbums.value, trimmed};
-    await _savePrefs();
+    await BlockListService.instance.add(_prefsBlockedAlbums, trimmed);
+    _blockedAlbums.value = await BlockListService.instance.load(_prefsBlockedAlbums);
     if (!mounted) return;
     AppToast.show(context, '已屏蔽专辑: $trimmed', type: ToastType.success);
-    await _load();
-  }
-
-  Future<void> _unblockAlbum(String name) async {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return;
-    final next = _blockedAlbums.value.toSet();
-    next.remove(trimmed);
-    _blockedAlbums.value = next;
-    await _savePrefs();
-    if (!mounted) return;
     await _load();
   }
 
@@ -368,30 +292,18 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
-        final items = _blockedAlbums.value.toList()
-          ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b)));
-        return AppSheetPanel(
+        return BlockedManagementSheet(
           title: '已屏蔽的专辑',
-          expand: true,
-          child: items.isEmpty
-              ? const Center(child: Text('暂无'))
-              : ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final name = items[index];
-                    return ListTile(
-                      title: Text(name),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.undo_rounded),
-                        onPressed: () async {
-                          await _unblockAlbum(name);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                      ),
-                    );
-                  },
-                ),
+          items: _blockedAlbums.value.toList()
+            ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b))),
+          onUnblock: (name) async {
+            await BlockListService.instance.remove(_prefsBlockedAlbums, name);
+            _blockedAlbums.value = await BlockListService.instance.load(_prefsBlockedAlbums);
+            if (context.mounted) {
+              Navigator.pop(context);
+              _load();
+            }
+          },
         );
       },
     );
@@ -619,7 +531,7 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
-      scaffoldKey: _scaffoldKey,
+      key: _scaffoldKey,
       extendBodyBehindAppBar: true,
       appBar: AppTopBar(
         title: '专辑',

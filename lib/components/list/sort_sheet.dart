@@ -20,6 +20,8 @@ class SortSheet extends StatefulWidget {
   final bool ascending;
   final ValueChanged<String> onSelectKey;
   final ValueChanged<bool> onSelectAscending;
+  final String title;
+  final Widget? extra;
 
   const SortSheet({
     super.key,
@@ -28,6 +30,8 @@ class SortSheet extends StatefulWidget {
     required this.ascending,
     required this.onSelectKey,
     required this.onSelectAscending,
+    this.title = '歌曲排序',
+    this.extra,
   });
 
   @override
@@ -175,7 +179,7 @@ class _SortSheetState extends State<SortSheet> {
     }
 
     return AppSheetPanel(
-      title: '歌曲排序',
+      title: widget.title,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -228,6 +232,7 @@ class _SortSheetState extends State<SortSheet> {
               );
             },
           ),
+          if (widget.extra != null) widget.extra!,
           const SizedBox(height: 12),
         ],
       ),

@@ -1,0 +1,477 @@
+D/FlutterJNI(31610): Beginning load of flutter...
+D/FlutterJNI(31610): flutter (null) was loaded normally!
+I/flutter (31610): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+I/flutter (31610): ┌─────────────────────────────────────
+I/flutter (31610): │ AppConfig 初始化完成
+I/flutter (31610): │ API: https://api.tuchong.com
+I/flutter (31610): │ 版本: 1.0.0
+I/flutter (31610): │ 首次启动: false
+I/flutter (31610): │ 更新后首次: false
+I/flutter (31610): └─────────────────────────────────────
+I/flutter (31610): AppAudioService.init call
+I/flutter (31610): AudioService.init start
+I/flutter (31610): AudioService.init failed, fallback handler
+I/flutter (31610): AppAudioService.init done
+D/BLASTBufferQueue(31610): [VRI[MainActivity]#0](f:0,a:1) acquireNextBufferLocked size=1220x2712 mFrameNumber=1 applyTransaction=true mTimestamp=54889482050963(auto) mPendingTransactions.size=0 graphicBufferId=135763916226576 transform=0
+D/VRI[MainActivity](31610): vri.reportDrawFinished 0 0 Rect(0, 0 - 1220, 2712)
+I/HWUI    (31610): Davey! duration=752ms; Flags=129, FrameTimelineVsyncId=52594417, IntendedVsync=54888732345061, Vsync=54889389058710, InputEventId=0, HandleInputStart=54889393473117, AnimationStart=54889393474348, PerformTraversalsStart=54889393478040, DrawStart=54889394493425, FrameDeadline=54888743945061, FrameStartTime=54889393248194, FrameInterval=8312831, WorkloadTarget=11600000, FlingPosition=0, FlingFrameInterval=0, InputEventTime=0, InputEventAction=0, FirstTimeForInputEventAction=0, InputEventSignal=0, WindowMode=0, SyncQueued=54889395319271, SyncStart=54889395384502, IssueDrawCommandsStart=54889395955579, SwapBuffers=54889481494040, FrameCompleted=54889485403886, DequeueBufferDuration=884000, QueueBufferDuration=193230, GpuCompleted=54889485403886, SwapBuffersCompleted=54889482349117, DisplayPresentTime=511109677121, CommandSubmissionCompleted=54889481494040,
+I/flutter (31610): dynamic_color: Core palette detected.
+I/flutter (31610): Notification permission status: PermissionStatus.granted
+I/HandWritingStubImpl(31610): refreshLastKeyboardType: 1
+I/HandWritingStubImpl(31610): getCurrentKeyboardType: 1
+D/VRI[MainActivity](31610): getMiuiFreeformStackInfo mTmpFrames.miuiFreeFormStackInfo: null
+D/InsetsController(31610): hide(ime(), fromIme=false)
+I/ImeTracker(31610): com.lanke.music:6d1303a5: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+I/HandWritingStubImpl(31610): getCurrentKeyboardType: 1
+I/HandWritingStubImpl(31610): getCurrentKeyboardType: 1
+I/flutter (31610): Initializing Player. Force Soft Decoding: false
+I/flutter (31610): AudioService.playback playing=false state=AudioProcessingState.ready pos=0 dur=0
+I/flutter (31610): AudioService.playback playing=false state=AudioProcessingState.ready pos=0 dur=0
+I/flutter (31610): AudioService.playback playing=false state=AudioProcessingState.ready pos=0 dur=0
+I/flutter (31610): AudioService.playback playing=false state=AudioProcessingState.ready pos=0 dur=0
+D/AudioManager(31610): getMode: mode=0, callApp=com.lanke.music
+I/flutter (31610): PlayerViewModel.init done
+Syncing files to device 2407FRK8EC...                              156ms
+
+Flutter run key commands.
+r Hot reload.
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on 2407FRK8EC is available at: http://127.0.0.1:55689/_qwhVljmdTQ=/     
+The Flutter DevTools debugger and profiler on 2407FRK8EC is available at:
+http://127.0.0.1:55689/_qwhVljmdTQ=/devtools/?uri=ws://127.0.0.1:55689/_qwhVljmdTQ=/ws    
+D/ProfileInstaller(31610): Installing profile for com.lanke.music
+I/mple.vibe_music(31610): ProcessProfilingInfo new_methods=0 is saved saved_to_disk=1
+I/MIUIInput(31610): [MotionEvent] ViewRootImpl windowName 'com.lanke.music/com.lanke.music.MainActivity', { action=ACTION_DOWN, id[0]=0, pointerCount=1, eventTime=54899638, downTime=54899638, phoneEventTime=04:22:14.038 } moveCount:0
+D/VRI[MainActivity](31610): getMiuiFreeformStackInfo mTmpFrames.miuiFreeFormStackInfo: null
+I/MIUIInput(31610): [MotionEvent] ViewRootImpl windowName 'com.lanke.music/com.lanke.music.MainActivity', { action=ACTION_UP, id[0]=0, pointerCount=1, eventTime=54899703, downTime=54899638, phoneEventTime=04:22:14.103 } moveCount:1
+I/flutter (31610): PlayerViewModel.playCurrent Because of You autoPlay=true
+I/flutter (31610): AudioService.mediaItem Because of You
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.buffering pos=0 dur=0
+I/flutter (31610): AudioService.mediaItem Because of You
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.buffering pos=0 dur=0
+I/ExoPlayerImpl(31610): Init 8632b08 [AndroidXMedia3/1.4.1] [rothko, 2407FRK8EC, Xiaomi, 36]
+I/mple.vibe_music(31610): hiddenapi: Accessing hidden method Landroid/media/AudioTrack;->getLatency()I (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/media3/exoplayer/audio/AudioTrackPositionTracker; (domain=app) using reflection: allowed
+D/AudioSystem(31610): onNewServiceWithAdapter: media.audio_flinger service obtained 0xb4000079b7018820
+D/AudioSystem(31610): getService: checking for service media.audio_flinger: 0xb400007a66fe5260
+W/JobInfo (31610): Requested important-while-foreground flag for job285 is ignored and takes no effect
+W/System  (31610): ClassLoader referenced unknown path: /system/framework/tcmclient.jar
+W/System  (31610): ClassLoader referenced unknown path: /system/framework/tcmiface.jar    
+I/flutter (31610): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+D/DownloadWorker(31610): DownloadWorker{url=https://openlist.blueke.top/dav/115%E7%BD%91%E7%9B%98/%E9%9F%B3%E4%B9%90/Because%20of%20You%20-%20Kelly%20Clarkson.flac,filename=615075022.flac,savedDir=/data/user/0/com.lanke.music/cache/tag_cache,header={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36","Authorization":"Basic bGFua2U6d3Nsd3o1MjE=","Accept":"*/*"},isResume=false,status=ENQUEUED
+D/DownloadWorker(31610): Open connection to https://openlist.blueke.top/dav/115%E7%BD%91%E7%9B%98/%E9%9F%B3%E4%B9%90/Because%20of%20You%20-%20Kelly%20Clarkson.flac
+D/DownloadWorker(31610): Headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36","Authorization":"Basic bGFua2U6d3Nsd3o1MjE=","Accept":"*/*"}
+W/AudioCapabilities(31610): Unsupported mediaType audio/x-adpcm-dvi-ima
+W/AudioCapabilities(31610): Unsupported mediaType audio/x-adpcm-ms
+W/AudioCapabilities(31610): Unsupported mediaType audio/alac
+W/VideoCapabilities(31610): Unsupported mime image/vnd.android.heic
+W/VideoCapabilities(31610): Unsupported mime image/vnd.android.heic
+W/VideoCapabilities(31610): Unsupported mime video/dolby-vision
+W/VideoCapabilities(31610): Unsupported mime video/dolby-vision
+W/AudioCapabilities(31610): Unsupported mime audio/x-adpcm-dvi-ima
+W/AudioCapabilities(31610): Unsupported mime audio/x-adpcm-dvi-ima
+W/AudioCapabilities(31610): Unsupported mime audio/x-adpcm-ms
+W/AudioCapabilities(31610): Unsupported mime audio/x-adpcm-ms
+W/AudioCapabilities(31610): Unsupported mime audio/alac
+W/AudioCapabilities(31610): Unsupported mime audio/alac
+W/VideoCapabilities(31610): Unsupported mime image/vnd.android.heic
+W/VideoCapabilities(31610): Unsupported mime image/vnd.android.heic
+W/VideoCapabilities(31610): Unsupported mime image/vnd.android.heic
+W/VideoCapabilities(31610): Unsupported mime image/vnd.android.heic
+W/VideoCapabilities(31610): Unsupported mime video/dolby-vision
+W/VideoCapabilities(31610): Unsupported mime video/dolby-vision
+I/DMCodecAdapterFactory(31610): Creating an asynchronous MediaCodec adapter for track type audio
+D/MediaCodec(31610): CreateByComponentName: name c2.android.flac.decoder
+I/MediaCodec(31610): MediaCodec::MediaCodec()
+D/CCodecBufferChannel(31610): mBufferCountTrace=0 mIsUserLoad=1
+I/MediaCodec(31610): init video box disabled for codec not supported
+D/MediaCodec(31610): [0xb40000796710cb90] init: CCodec 0xb4000079770a3c80, CCodecBufferChannel 0xb400007b37029f10
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 1
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: INITIALIZING
+D/CCodec  (31610): allocate(c2.android.flac.decoder)
+I/ApexCodecsLazy(31610): Failed to load libcom.android.media.swcodec.apexcodecs.so: dlopen failed: library "libcom.android.media.swcodec.apexcodecs.so" not found
+I/Codec2Client(31610): Available Codec2 services: "default" "default1" "dolby" "software" 
+I/CCodec  (31610): setting up 'default' as default (vendor) store
+I/CCodec  (31610): Created component [c2.android.flac.decoder] for [c2.android.flac.decoder]
+D/CCodecBufferChannel(31610): [0xb400007b37029f10] setComponent: mName c2.android.flac.decoder#318, mPipelineWatcher 0xb400007b3702a408
+D/CCodecBufferChannel(31610): PipelineWatcher debug info [c2.android.flac.decoder#318] enable=0
+D/CCodecConfig(31610): read media type: audio/flac
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: algo.buffers.max-count.values
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: output.subscribed-indices.values
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: input.buffers.allocator-ids.values
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: output.buffers.allocator-ids.values
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: algo.buffers.allocator-ids.values
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: output.buffers.pool-ids.values
+D/ReflectedParamUpdater(31610): extent() != 1 for single value type: algo.buffers.pool-ids.values
+I/CCodecConfig(31610): query failed after returning 9 values (BAD_INDEX)
+D/CCodecConfig(31610): c2 config diff is Dict {
+D/CCodecConfig(31610):   c2::u32 coded.bitrate.value = 768000
+D/CCodecConfig(31610):   c2::u32 input.buffers.max-size.value = 32768
+D/CCodecConfig(31610):   c2::u32 input.delay.value = 0
+D/CCodecConfig(31610):   string input.media-type.value = "audio/flac"
+D/CCodecConfig(31610):   c2::u32 output.large-frame.max-size = 0
+D/CCodecConfig(31610):   c2::u32 output.large-frame.threshold-size = 0
+D/CCodecConfig(31610):   string output.media-type.value = "audio/raw"
+D/CCodecConfig(31610):   c2::u32 raw.channel-count.value = 1
+D/CCodecConfig(31610):   c2::u32 raw.pcm-encoding.value = 0
+D/CCodecConfig(31610):   c2::u32 raw.sample-rate.value = 44100
+D/CCodecConfig(31610): }
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 2
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: INITIALIZED
+I/MediaCodec(31610): MediaCodec will operate in async mode
+D/MediaCodec(31610): [0xb40000796710cb90] init: CCodec 0xb4000079770a3c80, CCodecBufferChannel 0xb400007b37029f10
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] configure: ClientName: com.lanke.music ComponentName: c2.android.flac.decoder
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] configure: ClientFormat: AMessage(what = 0x00000000) = {
+I/MediaCodec(31610):   string log-session-id = "FJHj7uP64HVXfjDc"
+I/MediaCodec(31610):   int32_t sample-rate = 44100
+I/MediaCodec(31610):   int32_t importance = 1000
+I/MediaCodec(31610):   string mime = "audio/flac"
+I/MediaCodec(31610):   int32_t channel-count = 2
+I/MediaCodec(31610):   int32_t priority = 0
+I/MediaCodec(31610):   int32_t max-output-channel-count = 99
+I/MediaCodec(31610):   int32_t max-input-size = 14260
+I/MediaCodec(31610):   Buffer csd-0 = {
+I/MediaCodec(31610):     00000000:  66 4c 61 43 80 00 00 22  10 00 10 00 00 02 96 00  fLaC..."........
+I/MediaCodec(31610):     00000010:  37 b4 0a c4 42 f0 00 93  b3 28 61 ca 01 79 6a 3b  7...B....(a..yj;
+I/MediaCodec(31610):     00000020:  5e b6 1c ba 8a bd f7 9e  91 32                    ^........2
+I/MediaCodec(31610):   }
+I/MediaCodec(31610): }
+E/MediaCodec(31610): Media Quality Service not found.
+I/MediaCodec(31610): configure : init video box disabled
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 3
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: CONFIGURING
+D/CCodec  (31610): [c2.android.flac.decoder] buffers are bound to CCodec for this session 
+D/CCodecConfig(31610): no c2 equivalents for log-session-id
+D/CCodecConfig(31610): no c2 equivalents for importance
+D/CCodecConfig(31610): no c2 equivalents for flags
+D/CCodecConfig(31610): config failed => CORRUPTED
+D/CCodecConfig(31610): c2 config diff is   c2::u32 raw.channel-count.value = 2
+W/Codec2Client(31610): query -- param skipped: index = 1107298332.
+D/CCodec  (31610): client requested max input size 14260, which is smaller than what component recommended (32768); overriding with component recommendation.
+W/CCodec  (31610): This behavior is subject to change. It is recommended that app developers double check whether the requested max input size is in reasonable range.
+D/CCodec  (31610): encoding statistics level = 0
+D/CCodec  (31610): setup formats input: AMessage(what = 0x00000000) = {
+D/CCodec  (31610):   int32_t android._codec-pcm-encoding = 2
+D/CCodec  (31610):   int32_t bitrate = 768000
+D/CCodec  (31610):   int32_t channel-count = 2
+D/CCodec  (31610):   int32_t max-input-size = 32768
+D/CCodec  (31610):   string mime = "audio/flac"
+D/CCodec  (31610):   int32_t pcm-encoding = 2
+D/CCodec  (31610):   int32_t sample-rate = 44100
+D/CCodec  (31610): }
+D/CCodec  (31610): setup formats output: AMessage(what = 0x00000000) = {
+D/CCodec  (31610):   int32_t android._codec-pcm-encoding = 2
+D/CCodec  (31610):   int32_t buffer-batch-max-output-size = 0
+D/CCodec  (31610):   int32_t buffer-batch-threshold-output-size = 0
+D/CCodec  (31610):   int32_t channel-count = 2
+D/CCodec  (31610):   string mime = "audio/raw"
+D/CCodec  (31610):   int32_t pcm-encoding = 2
+D/CCodec  (31610):   int32_t sample-rate = 44100
+D/CCodec  (31610):   int32_t android._config-pcm-encoding = 2
+D/CCodec  (31610): }
+I/CCodecConfig(31610): query failed after returning 9 values (BAD_INDEX)
+E/mple.vibe_music(31610): Failed to query component interface for required system resources: 6
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 4
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: CONFIGURED
+D/MediaCodec(31610): keep callback message for reclaim
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 5
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: STARTING
+W/Codec2Client(31610): query -- param skipped: index = 1342179345.
+W/Codec2Client(31610): query -- param skipped: index = 2415921170.
+D/C2Store (31610): Using DMABUF Heaps
+D/CCodecBufferChannel(31610): [c2.android.flac.decoder#318] Created input block pool with allocatorID 16 => poolID 17 - OK (0)
+I/CCodecBufferChannel(31610): [mId: 0] [audio-debug-dec] start: inputFormat: AMessage(what = 0x00000000) = {
+I/CCodecBufferChannel(31610):   int32_t android._codec-pcm-encoding = 2
+I/CCodecBufferChannel(31610):   int32_t bitrate = 768000
+I/CCodecBufferChannel(31610):   int32_t channel-count = 2
+I/CCodecBufferChannel(31610):   int32_t max-input-size = 32768
+I/CCodecBufferChannel(31610):   string mime = "audio/flac"
+I/CCodecBufferChannel(31610):   int32_t pcm-encoding = 2
+I/CCodecBufferChannel(31610):   int32_t sample-rate = 44100
+I/CCodecBufferChannel(31610): }
+I/CCodecBufferChannel(31610): [c2.android.flac.decoder#318] Created output block pool with allocatorID 16 => poolID 202 - OK
+D/CCodecBufferChannel(31610): [c2.android.flac.decoder#318] Configured output block pool ids 202 => OK
+D/CCodecBufferChannel(31610): [0xb400007b37029f10] [c2.android.flac.decoder#318] start: output->outputDelay 0, output->numSlots 4
+I/CCodecBufferChannel(31610): [mId: 0] [audio-debug-dec] start: outputFormat: AMessage(what = 0x00000000) = {
+I/CCodecBufferChannel(31610):   int32_t android._codec-pcm-encoding = 2
+I/CCodecBufferChannel(31610):   int32_t buffer-batch-max-output-size = 0
+I/CCodecBufferChannel(31610):   int32_t buffer-batch-threshold-output-size = 0
+I/CCodecBufferChannel(31610):   int32_t channel-count = 2
+I/CCodecBufferChannel(31610):   string mime = "audio/raw"
+I/CCodecBufferChannel(31610):   int32_t pcm-encoding = 2
+I/CCodecBufferChannel(31610):   int32_t sample-rate = 44100
+I/CCodecBufferChannel(31610):   int32_t android._config-pcm-encoding = 2
+I/CCodecBufferChannel(31610): }
+D/CCodecBuffers(31610): [c2.android.flac.decoder#318:1D-Output.Impl[N]] converted 0 buffers to array mode of 4
+I/DMABUFHEAPS(31610): Using DMA-BUF heap named: mtk_mm
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 6
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: STARTED
+D/CCodecBufferChannel(31610): The csd Sample queue
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] queueInputBuffer: index: 1 pts: 1000000000000 timediff: 0
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] queueInputBuffer: index: 2 pts: 1000000092879 timediff: 1
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] queueInputBuffer: index: 3 pts: 1000000185759 timediff: 2
+D/PipelineWatcher(31610): [0xb400007b3702a408] pipelineFull: too many frames in pipeline (4)
+I/MediaCodec(31610): isHDR: standard =0,transfer = 0
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=0 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=0 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=0 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=0 dur=219493
+D/AudioTrack(31610): getMinFrameCount(): getMinFrameCount = 3770: afFrameCount = 2048, afSampleRate = 48000, afLatency = 128
+E/AudioTrack(31610): Failed to load XML file: odm/etc/audio/audio_lowpower_app_list.xml
+D/AudioTrack(31610): INSP: type=audio,case=1,set=0xb400007b37024b60,stream_type=-1,sample_rate=44100,format=0x1,channel_mask=0x3,frame_count=15080,flags=0x0,notification_frames=0,session_id=5089,transfer_type=3,uid=10393,pid=31610
+D/AudioTrack(31610): INSP: type=audio,case=1,attributes=1,content_type=2,usage=1,source=-1,flags=0xa00
+D/AudioTrackStub(31610): AudioTrackStub() create
+I/AudioTrackImpl(31610): initAudioTrackImpl()
+V/xlog_client(31610): xlog_check_permission event name audio_track_message level 0        
+V/xlog_client(31610): xlog_check_permission event name audio_repeat_start_stop level 0    
+V/xlog_client(31610): xlog_check_permission event name audio_zero_data level 0
+D/AudioTrack(31610): set(): (sessionId=5089), mcallback is 1, streamType -1, sampleRate 44100, format 0x1, channelMask 0x3, frameCount 15080, flags 0, notificationFrames 0,transferType 3, mClientAttributionSource AttributionSourceState{pid: 31610, uid: 10393, deviceId: 0, packageName: com.lanke.music, attributionTag: (null), token: binder:0xb400007996f330f0, renouncedPermissions: [], next: []}
+D/AudioTrack(31610): set(): Building AudioTrack with attributes: usage = 1, content = 2, flags = 0xa00, tags = []
+D/AudioTrack(31610): set(): 0xb400007b37024b60, Create AudioTrackThread, tid = 32630      
+D/AudioTrack(31610): 0xb400007b37024b60 adjust notify for com.lanke.music from 0 to 1881.
+D/AudioTrack(31610): createTrack_l(971): 0xb400007b37024b60, mCblk = 0x7937d79000, mLatency = 469, mAfLatency = 128, frameCount = 15080, mSampleRate = 44100, mFlags = 0x8, mReqFrameCount = 15080, mNotificationFramesAct = 1881
+I/AudioTrackImpl(31610): before scaleVolumeForVideo L:1.000000 R:1.000000 and the pakage is com.lanke.music
+D/AudioTrack(31610): AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=5089
+D/BatteryNotifier(31610): Batteryhandler init with status: 0
+D/BatteryNotifier(31610): batteryHandler::send audio track volume update msg! 10393, 31610, 5089
+D/BatteryNotifier(31610): BatteryNotifier::update TrackVolume to power insight! 10393, 31610, 5089, volume 1.000000 1.000000
+D/android.media.AudioTrack(31610): setStereoVolume setParameters is 1.0, rightVolume is 1.0, isMuted is false, mIsLastMute is false, mNeedNotifyedNative is true
+D/AudioTrackImpl(31610): setMediaSetMute(971): Parameter media_set_track_muted is 0 return
+I/AudioTrackImpl(31610): before scaleVolumeForVideo L:1.000000 R:1.000000 and the pakage is com.lanke.music
+D/AudioTrack(31610): AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=5089
+D/BatteryNotifier(31610): batteryHandler::send audio track volume update msg! 10393, 31610, 5089
+D/BatteryNotifier(31610): BatteryNotifier::update TrackVolume to power insight! 10393, 31610, 5089, volume 1.000000 1.000000
+I/AudioTrack(31610): start(971): prior state:STATE_STOPPED packageName: com.lanke.music
+I/AudioTrackImpl(31610): before scaleVolumeForVideo L:1.000000 R:1.000000 and the pakage is com.lanke.music
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=73 dur=219493
+D/AudioTrack(31610): start(971): packageName is com.lanke.music , mFlags is 0x8
+D/AudioRepeatStartCheck(31610): [AudioRepeatStartStopCheck], enter: uid = 10393, session = 5089, uidnowTime = 0
+D/AudioRepeatStartCheck(31610): [AudioRepeatStartStopCheck] isAnomaly = 0
+D/AudioTrack(31610): AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=5089
+D/BatteryNotifier(31610): batteryHandler::send audio track volume update msg! 10393, 31610, 5089
+D/BatteryNotifier(31610): BatteryNotifier::update TrackVolume to power insight! 10393, 31610, 5089, volume 1.000000 1.000000
+W/EpFrameworkFactory(31610): activated: false jar exist: false
+D/AudioSystem(31610): +setParameters(): AudioTrack-Process=31610;AudioTrack-AudioThread=32580
+D/AudioTrack(31610): onAudioDeviceUpdate AudioPortDebug[ID:00000003] deviceType:AUDIO_DEVICE_OUT_SPEAKER(00000002)
+D/BatteryNotifier(31610): batteryHandler::send audio device update msg! 10393, 31610, 5089, 2
+D/BatteryNotifier(31610): BatteryNotifier::update device to power insight! 10393, 31610, 5089, 2
+D/DownloadWorker(31610): Response with redirection code
+D/DownloadWorker(31610): Location = https://cdnfhnfile.115cdn.net/68f198c30526836de3e373c6dc40f82b60cf6c19/Because%20of%20You%20-%20Kelly%20Clarkson.flac?t=1770238336&u=342091203&s=524288000&d=vip-1020113663-azxgpqdkbvim2h4ju-1-100197303&c=0&f=&k=01321e4380cde788bd46d6cb2747e21d&us=5242880000&uc=10&v=1
+D/DownloadWorker(31610): New url: https://cdnfhnfile.115cdn.net/68f198c30526836de3e373c6dc40f82b60cf6c19/Because%20of%20You%20-%20Kelly%20Clarkson.flac?t=1770238336&u=342091203&s=524288000&d=vip-1020113663-azxgpqdkbvim2h4ju-1-100197303&c=0&f=&k=01321e4380cde788bd46d6cb2747e21d&us=5242880000&uc=10&v=1
+D/DownloadWorker(31610): Open connection to https://cdnfhnfile.115cdn.net/68f198c30526836de3e373c6dc40f82b60cf6c19/Because%20of%20You%20-%20Kelly%20Clarkson.flac?t=1770238336&u=342091203&s=524288000&d=vip-1020113663-azxgpqdkbvim2h4ju-1-100197303&c=0&f=&k=01321e4380cde788bd46d6cb2747e21d&us=5242880000&uc=10&v=1
+D/DownloadWorker(31610): Headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36","Authorization":"Basic bGFua2U6d3Nsd3o1MjE=","Accept":"*/*"}
+D/AudioTrack(31610): getTimestamp_l(971): device stall time corrected using current time 54901416810964
+D/AudioTrack(31610): getTimestamp_l(971): stale timestamp time corrected, currentTimeNanos: 51258362394516 < limitNs: 54901091830733 < mStartNs: 54901219830733
+W/AudioTrack(31610): getTimestamp_l(971): retrograde timestamp time corrected, 54901091830733 < 54901416810964
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=275 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=18 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=220 dur=219493
+D/DownloadWorker(31610): Content-Type = application/octet-stream
+D/DownloadWorker(31610): Content-Length = 27966062
+D/DownloadWorker(31610): Charset = null
+D/DownloadWorker(31610): fileName = 615075022.flac
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=420 dur=219493
+I/HandWritingStubImpl(31610): refreshLastKeyboardType: 1
+I/HandWritingStubImpl(31610): getCurrentKeyboardType: 1
+D/InsetsController(31610): hide(ime(), fromIme=false)
+I/ImeTracker(31610): com.lanke.music:597a6f0b: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=620 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=820 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=1020 dur=219493
+I/mple.vibe_music(31610): This is non sticky GC, maxfree is 33554432 minfree is 8388608
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=1220 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=1421 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=1620 dur=219493
+I/MIUIInput(31610): [MotionEvent] ViewRootImpl windowName 'com.lanke.music/com.lanke.music.MainActivity', { action=ACTION_DOWN, id[0]=0, pointerCount=1, eventTime=54903131, downTime=54903131, phoneEventTime=04:22:17.531 } moveCount:0
+D/VRI[MainActivity](31610): getMiuiFreeformStackInfo mTmpFrames.miuiFreeFormStackInfo: null
+I/MIUIInput(31610): [MotionEvent] ViewRootImpl windowName 'com.lanke.music/com.lanke.music.MainActivity', { action=ACTION_UP, id[0]=0, pointerCount=1, eventTime=54903218, downTime=54903131, phoneEventTime=04:22:17.618 } moveCount:0
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=1908 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=2022 dur=219493
+D/DownloadWorker(31610): File downloaded
+I/WM-WorkerWrapper(31610): Worker result SUCCESS for Work [ id=7c7d5e9a-a8d9-4e53-a653-e201b0b9aa14, tags={ vn.hunghd.flutterdownloader.DownloadWorker, flutter_download_task } ]   
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:STREAMINFO DataLength:34 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:SEEKTABLE DataLength:396 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:VORBIS_COMMENT DataLength:3727 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:PICTURE DataLength:292323 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:PADDING DataLength:4096 isLastBlock:true
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:STREAMINFO DataLength:34 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:SEEKTABLE DataLength:396 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:VORBIS_COMMENT DataLength:3727 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:PICTURE DataLength:292323 isLastBlock:false
+I/flac    (31610): /data/user/0/com.lanke.music/cache/tag_cache/615075022.flac BlockType:PADDING DataLength:4096 isLastBlock:true
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=2220 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=2421 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=2669 dur=219493
+I/MIUIInput(31610): [MotionEvent] ViewRootImpl windowName 'com.lanke.music/com.lanke.music.MainActivity', { action=ACTION_DOWN, id[0]=0, pointerCount=1, eventTime=54904238, downTime=54904238, phoneEventTime=04:22:18.638 } moveCount:0
+D/VRI[MainActivity](31610): getMiuiFreeformStackInfo mTmpFrames.miuiFreeFormStackInfo: null
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=2820 dur=219493
+I/MIUIInput(31610): [MotionEvent] ViewRootImpl windowName 'com.lanke.music/com.lanke.music.MainActivity', { action=ACTION_UP, id[0]=0, pointerCount=1, eventTime=54904328, downTime=54904238, phoneEventTime=04:22:18.728 } moveCount:1
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=50969 dur=219493
+D/AudioTrack(31610): pause(971): 0xb400007b37024b60, prior state:STATE_ACTIVE packageName: com.lanke.music
+D/AudioTrackShared(31610): this(0xb400007b1701c4f0), mCblk(0x7937d79000), front(139238), mIsOut 1, interrupt() FUTEX_WAKE
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=50971 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.buffering pos=50971 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=50969 dur=219493
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 7
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: FLUSHING
+I/CCodecBufferChannel(31610): [mId: 0] [audio-debug-dec] flush: flushing 0 works
+D/CCodecBuffers(31610): [c2.android.flac.decoder#318:1D-Output.Impl[N]] Client returned a buffer it does not own according to our record: 0
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 8
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: FLUSHED
+D/MediaCodec(31610): keep callback message for reclaim
+D/MediaCodec(31610): [0xb40000796710cb90] setState: 6
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] setState: STARTED
+I/CCodecConfig(31610): query failed after returning 9 values (BAD_INDEX)
+W/Codec2Client(31610): query -- param skipped: index = 1342179345.
+W/Codec2Client(31610): query -- param skipped: index = 2415921170.
+D/AudioTrack(31610): flush(971): 0xb400007b37024b60, prior state:STATE_PAUSED
+D/AudioTrack(31610): stop(971): 0xb400007b37024b60, prior state:STATE_FLUSHED packageName: com.lanke.music
+D/AudioTrack(31610): stop(971): prior state:STATE_FLUSHED
+D/AudioTrack(31610): ~AudioTrack(sessionID=5089)
+D/AudioTrack(31610): ~AudioTrack(971): 0xb400007b37024b60, calling stop()
+D/AudioTrack(31610): stop(971): 0xb400007b37024b60, prior state:STATE_FLUSHED packageName: com.lanke.music
+D/AudioTrack(31610): stop(971): prior state:STATE_FLUSHED
+D/AudioTrack(31610): stopAndJoinCallbacks(971) done
+D/AudioTrackStub(31610): ~AudioTrackStub() destroy
+E/AudioTrack(31610): Failed to load XML file: odm/etc/audio/audio_lowpower_app_list.xml
+D/AudioTrack(31610): INSP: type=audio,case=1,set=0xb400007b37024b60,stream_type=-1,sample_rate=44100,format=0x1,channel_mask=0x3,frame_count=15080,flags=0x0,notification_frames=0,session_id=5089,transfer_type=3,uid=10393,pid=31610
+D/AudioTrack(31610): INSP: type=audio,case=1,attributes=1,content_type=2,usage=1,source=-1,flags=0xa00
+D/AudioTrackStub(31610): AudioTrackStub() create
+I/AudioTrackImpl(31610): initAudioTrackImpl()
+V/xlog_client(31610): xlog_check_permission event name audio_track_message level 0        
+V/xlog_client(31610): xlog_check_permission event name audio_repeat_start_stop level 0    
+V/xlog_client(31610): xlog_check_permission event name audio_zero_data level 0
+D/AudioTrack(31610): set(): (sessionId=5089), mcallback is 1, streamType -1, sampleRate 44100, format 0x1, channelMask 0x3, frameCount 15080, flags 0, notificationFrames 0,transferType 3, mClientAttributionSource AttributionSourceState{pid: 31610, uid: 10393, deviceId: 0, packageName: com.lanke.music, attributionTag: (null), token: binder:0xb400007996f330f0, renouncedPermissions: [], next: []}
+D/AudioTrack(31610): set(): Building AudioTrack with attributes: usage = 1, content = 2, flags = 0xa00, tags = []
+D/AudioTrack(31610): set(): 0xb400007b37024b60, Create AudioTrackThread, tid = 32648      
+D/AudioTrack(31610): 0xb400007b37024b60 adjust notify for com.lanke.music from 0 to 1881.
+D/AudioTrack(31610): createTrack_l(972): 0xb400007b37024b60, mCblk = 0x7937d79000, mLatency = 553, mAfLatency = 212, frameCount = 15080, mSampleRate = 44100, mFlags = 0x8, mReqFrameCount = 15080, mNotificationFramesAct = 1881
+I/AudioTrackImpl(31610): before scaleVolumeForVideo L:1.000000 R:1.000000 and the pakage is com.lanke.music
+D/AudioTrack(31610): AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=5089
+D/BatteryNotifier(31610): batteryHandler::send audio track volume update msg! 10393, 31610, 5089
+D/android.media.AudioTrack(31610): setStereoVolume setParameters is 1.0, rightVolume is 1.0, isMuted is false, mIsLastMute is false, mNeedNotifyedNative is true
+D/AudioTrackImpl(31610): setMediaSetMute(972): Parameter media_set_track_muted is 0 return
+I/AudioTrackImpl(31610): before scaleVolumeForVideo L:1.000000 R:1.000000 and the pakage is com.lanke.music
+D/AudioTrack(31610): AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=5089
+D/BatteryNotifier(31610): batteryHandler::send audio track volume update msg! 10393, 31610, 5089
+D/BatteryNotifier(31610): BatteryNotifier::update TrackVolume to power insight! 10393, 31610, 5089, volume 1.000000 1.000000
+D/AudioSystem(31610): +setParameters(): AudioTrack-Process=31610;AudioTrack-AudioThread=32580
+D/BatteryNotifier(31610): BatteryNotifier::update TrackVolume to power insight! 10393, 31610, 5089, volume 1.000000 1.000000
+I/AudioTrack(31610): start(972): prior state:STATE_STOPPED packageName: com.lanke.music
+I/AudioTrackImpl(31610): before scaleVolumeForVideo L:1.000000 R:1.000000 and the pakage is com.lanke.music
+D/AudioTrack(31610): start(972): packageName is com.lanke.music , mFlags is 0x8
+D/AudioRepeatStartCheck(31610): [AudioRepeatStartStopCheck], enter: uid = 10393, session = 5089, uidnowTime = 1770236535
+D/AudioRepeatStartCheck(31610): [AudioRepeatStartStopCheck] uid = 10393, uidbeforeTimeGap = 0, uidnowTimeGap = 3, consecutiveStartCnt = 2
+D/AudioRepeatStartCheck(31610): [AudioRepeatStartStopCheck] isAnomaly = 0
+D/AudioTrack(31610): AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=5089
+D/BatteryNotifier(31610): batteryHandler::send audio track volume update msg! 10393, 31610, 5089
+D/BatteryNotifier(31610): BatteryNotifier::update TrackVolume to power insight! 10393, 31610, 5089, volume 1.000000 1.000000
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=50969 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=50970 dur=219493
+D/AudioTrack(31610): onAudioDeviceUpdate AudioPortDebug[ID:00000003] deviceType:AUDIO_DEVICE_OUT_SPEAKER(00000002)
+D/BatteryNotifier(31610): batteryHandler::send audio device update msg! 10393, 31610, 5089, 2
+D/BatteryNotifier(31610): BatteryNotifier::update device to power insight! 10393, 31610, 5089, 2
+D/AudioTrack(31610): getTimestamp_l(972): device stall time corrected using current time 54904515081733
+W/1.raster(31610): type=1400 audit(0.0:1665325): avc:  denied  { getattr } for  path="/sys/module/metis/parameters/minor_window_app" dev="sysfs" ino=136615 scontext=u:r:untrusted_app:s0:c137,c257,c512,c768 tcontext=u:object_r:sysfs_migt:s0 tclass=file permissive=0 app=com.lanke.music
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=51094 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=50994 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=51195 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=51395 dur=219493
+I/SmartPower: com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessServicebackground->idle(97202ms) R(adj below visible) adj=401.
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=51426 dur=219493
+D/PipelineWatcher(31610): [0xb400007b3702a408] pipelineFull: too many frames in pipeline (4)
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=51627 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=51827 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=52027 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=52227 dur=219493
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] Stats 5071ms:Client:com.lanke.music,Component:c2.android.flac.decoder,Qin:69,DQin:0/0,Render:0,Drop:57,DQout:0/0
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=52429 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=52628 dur=219493
+D/BufferPoolAccessor2.0(31610): bufferpool2 0xb4000079770a3368 : 5(163840 size) total buffers - 1(32768 size) used buffers - 68/73 (recycle/alloc) - 6/140 (fetch/transfer)
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=52828 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=53028 dur=219493
+I/HandWritingStubImpl(31610): refreshLastKeyboardType: 1
+I/HandWritingStubImpl(31610): getCurrentKeyboardType: 1
+D/InsetsController(31610): hide(ime(), fromIme=false)
+I/ImeTracker(31610): com.lanke.music:35c3cc31: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=53227 dur=219493
+D/PipelineWatcher(31610): [0xb400007b3702a408] pipelineFull: too many frames in pipeline (4)
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=53427 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=53628 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=53827 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=54027 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=54227 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=54427 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=54630 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=54827 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=55028 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=55227 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=55427 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=55627 dur=219493
+D/AudioTrackImpl(31610): [audioTrackData][fine] 5s(f:5006 m:0 s:0 k:0 z:0) : pid 31610 uid 10393 sessionId 5089 sr 44100 ch 2 fmt 1 maxAmplitude 15420
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=55827 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=56027 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=56227 dur=219493
+D/PipelineWatcher(31610): [0xb400007b3702a408] pipelineFull: too many frames in pipeline (4)
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=56430 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=56629 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=56829 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=57028 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=57229 dur=219493
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] Stats 5033ms:Client:com.lanke.music,Component:c2.android.flac.decoder,Qin:52,DQin:0/0,Render:0,Drop:54,DQout:0/0
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=57427 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=57627 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=57829 dur=219493
+D/BufferPoolAccessor2.0(31610): bufferpool2 0xb4000079770a3368 : 5(163840 size) total buffers - 1(32768 size) used buffers - 124/129 (recycle/alloc) - 6/252 (fetch/transfer)       
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=58027 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=58227 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=58427 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=58627 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=58827 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=58956 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=59158 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=59359 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=59559 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=59758 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=59958 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=60158 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=60359 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=60558 dur=219493
+D/AudioTrackImpl(31610): [audioTrackData][fine] 10s(f:10003 m:0 s:0 k:0 z:0) : pid 31610 uid 10393 sessionId 5089 sr 44100 ch 2 fmt 1 maxAmplitude 26160
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=60758 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=60958 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=61162 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=61358 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=61560 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=61760 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=61959 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=62159 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=62358 dur=219493
+I/MediaCodec(31610): [mId: 0] [audio-debug-dec] Stats 5076ms:Client:com.lanke.music,Component:c2.android.flac.decoder,Qin:56,DQin:0/0,Render:0,Drop:55,DQout:0/0
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=62558 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=62760 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=62958 dur=219493
+D/BufferPoolAccessor2.0(31610): bufferpool2 0xb4000079770a3368 : 5(163840 size) total buffers - 1(32768 size) used buffers - 180/185 (recycle/alloc) - 6/364 (fetch/transfer)       
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=63158 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=63358 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=63558 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=63761 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=63958 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=64158 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=64358 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=64558 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=64758 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=64958 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=65158 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=65360 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=65560 dur=219493
+D/PipelineWatcher(31610): [0xb400007b3702a408] pipelineFull: too many frames in pipeline (4)
+D/AudioTrackImpl(31610): [audioTrackData][fine] 15s(f:15004 m:0 s:0 k:0 z:0) : pid 31610 uid 10393 sessionId 5089 sr 44100 ch 2 fmt 1 maxAmplitude 13362
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=65759 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=65959 dur=219493
+I/flutter (31610): AudioService.playback playing=true state=AudioProcessingState.ready pos=66158 dur=219493
+Lost connection to device

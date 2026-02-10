@@ -60,6 +60,10 @@ class LyricsRepository {
     }
   }
 
+  Future<String?> loadCachedLrc(String songId) async {
+    return _readFromCache(songId);
+  }
+
   Future<String?> _readFromCache(String songId) async {
     try {
       final file = await _cacheFileForSongId(songId);

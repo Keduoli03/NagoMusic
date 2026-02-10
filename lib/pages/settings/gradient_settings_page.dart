@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../components/index.dart';
+import '../player/widgets/player_background.dart';
 
 class GradientSettingsPage extends StatefulWidget {
   const GradientSettingsPage({super.key});
@@ -13,9 +13,6 @@ class GradientSettingsPage extends StatefulWidget {
 
 class _GradientSettingsPageState extends State<GradientSettingsPage>
     with SignalsMixin {
-  static const String _prefsSaturation = 'gradient_saturation';
-  static const String _prefsHueShift = 'gradient_hue_shift';
-
   late final _saturation = createSignal(1.0);
   late final _hueShift = createSignal(0.0);
   late final _loading = createSignal(true);
@@ -27,25 +24,21 @@ class _GradientSettingsPageState extends State<GradientSettingsPage>
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saturation = prefs.getDouble(_prefsSaturation);
-    final hueShift = prefs.getDouble(_prefsHueShift);
+    await PlayerBackgroundSettings.ensureLoaded();
     if (!mounted) return;
-    _saturation.value = saturation ?? 1.0;
-    _hueShift.value = hueShift ?? 0.0;
+    _saturation.value = PlayerBackgroundSettings.saturation.value;
+    _hueShift.value = PlayerBackgroundSettings.hueShift.value;
     _loading.value = false;
   }
 
-  Future<void> _updateSaturation(double value) async {
+  void _updateSaturation(double value) {
     _saturation.value = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_prefsSaturation, value);
+    PlayerBackgroundSettings.setSaturation(value);
   }
 
-  Future<void> _updateHueShift(double value) async {
+  void _updateHueShift(double value) {
     _hueShift.value = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_prefsHueShift, value);
+    PlayerBackgroundSettings.setHueShift(value);
   }
 
   @override

@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
+import '../../components/common/artwork_widget.dart';
 import 'lyrics/lyric_view.dart';
 import 'widgets/player_background.dart';
 import 'widgets/player_bottom_panel.dart';
@@ -33,7 +32,9 @@ class _PlayerPageState extends State<PlayerPage> {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          PlayerBackground(songSignal: _player.currentSongSignal),
+          RepaintBoundary(
+            child: PlayerBackground(songSignal: _player.currentSongSignal),
+          ),
           SafeArea(
             child: Column(
               children: [
@@ -99,8 +100,6 @@ class _PlayerArtwork extends StatelessWidget {
       builder: (context) {
         final song = songSignal.value;
         final border = BorderRadius.circular(12);
-        final cover = song?.localCoverPath;
-        final hasCover = cover != null && cover.isNotEmpty;
         if (song == null) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -119,24 +118,21 @@ class _PlayerArtwork extends StatelessWidget {
             aspectRatio: 1,
             child: _ArtworkShadowContainer(
               border: border,
-              child: hasCover
-                  ? ClipRRect(
-                      borderRadius: border,
-                      child: Image.file(
-                        File(cover),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stack) {
-                          return _ArtworkPlaceholder(
-                            border: border,
-                            label: song.title,
-                          );
-                        },
-                      ),
-                    )
-                  : _ArtworkPlaceholder(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final size = constraints.maxWidth;
+                  return ArtworkWidget(
+                    song: song,
+                    size: size,
+                    borderRadius: 12,
+                    preferOriginal: true,
+                    placeholder: _ArtworkPlaceholder(
                       border: border,
                       label: song.title,
                     ),
+                  );
+                },
+              ),
             ),
           ),
         );

@@ -42,13 +42,19 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final settings = await _service.loadSettings();
-    final albums =
-        await _service.loadAudioAlbums(minDurationMs: settings.minDurationMs);
-    final localCount = await _service.getLocalSongCount();
-    final counts = <String, int>{};
-    for (final album in albums) {
-      counts[album.id] = await album.assetCountAsync;
+    
+    List<AssetPathEntity> albums = [];
+    Map<String, int> counts = {};
+
+    if (!settings.useSystemLibrary) {
+      albums = await _service.loadAudioAlbums(minDurationMs: settings.minDurationMs);
+      for (final album in albums) {
+        counts[album.id] = await album.assetCountAsync;
+      }
     }
+
+    final localCount = await _service.getLocalSongCount();
+
     if (!mounted) return;
     setState(() {
       _settings = settings;
@@ -65,6 +71,16 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
   }
 
   Future<void> _reloadAlbums() async {
+    if (_settings.useSystemLibrary) {
+      if (_albums.isNotEmpty) {
+        setState(() {
+          _albums = [];
+          _albumCounts = {};
+        });
+      }
+      return;
+    }
+
     final albums =
         await _service.loadAudioAlbums(minDurationMs: _settings.minDurationMs);
     final counts = <String, int>{};
@@ -78,8 +94,10 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
     });
   }
 
-  void _toggleMode(bool value) {
-    _saveSettings(_settings.copyWith(useSystemLibrary: value));
+  Future<void> _toggleMode(bool value) async {
+    await _saveSettings(_settings.copyWith(useSystemLibrary: value));
+    if (!mounted) return;
+    _reloadAlbums();
   }
 
   void _toggleCacheArtwork(bool value) {
@@ -118,6 +136,13 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
     final ms = (value * 1000).round();
     await _saveSettings(_settings.copyWith(minDurationMs: ms));
     await _reloadAlbums();
+  }
+
+  Future<void> _updateMetadataConcurrency(double value) async {
+    final next = value.round().clamp(1, 12);
+    await _saveSettings(
+      _settings.copyWith(localMetadataConcurrency: next),
+    );
   }
 
   void _showScanDialog() {
@@ -264,6 +289,16 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
                 subtitle: '扫描时压缩并缓存本地封面',
                 value: _settings.cacheArtwork,
                 onChanged: _toggleCacheArtwork,
+              ),
+              AppSettingSlider(
+                title: '标签并发',
+                description: '并发越高扫描越快，但更耗资源',
+                value: _settings.localMetadataConcurrency.toDouble(),
+                min: 1,
+                max: 12,
+                divisions: 11,
+                valueText: '${_settings.localMetadataConcurrency}',
+                onChanged: _updateMetadataConcurrency,
               ),
             ],
           ),

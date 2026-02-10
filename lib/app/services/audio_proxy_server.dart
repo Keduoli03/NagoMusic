@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart' as dio;
@@ -420,12 +421,29 @@ class AudioProxyServer {
   }) async* {
     Object? error;
     var written = 0;
+    // Use a larger buffer size (64KB) to reduce stream events and overhead
+    final buffer = BytesBuilder(copy: false);
+    const bufferSize = 64 * 1024; 
+
     try {
       await for (final data in remoteStream) {
         if (data.isEmpty) continue;
-        written += data.length;
-        sink?.add(data);
-        yield data;
+        buffer.add(data);
+        
+        if (buffer.length >= bufferSize) {
+          final chunk = buffer.takeBytes();
+          written += chunk.length;
+          sink?.add(chunk);
+          yield chunk;
+        }
+      }
+      
+      // Yield remaining bytes
+      if (buffer.isNotEmpty) {
+        final chunk = buffer.takeBytes();
+        written += chunk.length;
+        sink?.add(chunk);
+        yield chunk;
       }
     } catch (e) {
       error = e;

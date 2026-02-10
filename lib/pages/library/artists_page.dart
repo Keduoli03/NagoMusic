@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
+import '../../app/services/block_list_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/state/song_state.dart';
+import '../../components/common/artwork_widget.dart';
+import '../../components/common/blocked_management_sheet.dart';
 import '../../components/index.dart';
 import 'library_detail_pages.dart';
 
@@ -39,7 +42,8 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
 
   final SongDao _songDao = SongDao();
   final ScrollController _controller = ScrollController();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
 
   late final _loading = createSignal(true);
   late final _groups = createSignal<List<_ArtistGroup>>([]);
@@ -71,13 +75,12 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
     final asc = prefs.getBool(_prefsSortAscending) ?? true;
     final filterUnknown = prefs.getBool(_prefsFilterUnknown) ?? false;
     final showBlockedEntry = prefs.getBool(_prefsShowBlockedEntry) ?? true;
-    final blocked = prefs.getStringList(_prefsBlockedArtists) ?? const <String>[];
+    final blocked = await BlockListService.instance.load(_prefsBlockedArtists);
     _sortKey.value = key;
     _ascending.value = asc;
     _filterUnknown.value = filterUnknown;
     _showBlockedEntry.value = showBlockedEntry;
-    _blockedArtists.value =
-        blocked.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    _blockedArtists.value = blocked;
   }
 
   Future<void> _savePrefs() async {
@@ -86,8 +89,6 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
     await prefs.setBool(_prefsSortAscending, _ascending.value);
     await prefs.setBool(_prefsFilterUnknown, _filterUnknown.value);
     await prefs.setBool(_prefsShowBlockedEntry, _showBlockedEntry.value);
-    await prefs.setStringList(
-        _prefsBlockedArtists, _blockedArtists.value.toList()..sort());
   }
 
   Future<void> _load() async {
@@ -153,87 +154,57 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        var nextKey = _sortKey.value;
-        var nextAsc = _ascending.value;
-        var nextFilterUnknown = _filterUnknown.value;
-        var nextShowBlockedEntry = _showBlockedEntry.value;
-
-        void apply() {
-          _sortKey.value = nextKey;
-          _ascending.value = nextAsc;
-          _filterUnknown.value = nextFilterUnknown;
-          _showBlockedEntry.value = nextShowBlockedEntry;
-          final groups = _groups.value.toList();
-          _sortGroups(groups);
-          _groups.value = groups;
-          _savePrefs();
-        }
-
-        Widget optionRow({
-          required String label,
-          required String key,
-          required IconData icon,
-        }) {
-          final selected = nextKey == key;
-          return ListTile(
-            leading: Icon(icon),
-            title: Text(label),
-            trailing: selected ? const Icon(Icons.check_rounded) : null,
-            onTap: () {
-              nextKey = key;
-              apply();
-            },
-          );
-        }
-
-        return StatefulBuilder(
-          builder: (context, setInner) {
-            void update(void Function() fn) {
-              setInner(fn);
-              apply();
-            }
-
-            return AppSheetPanel(
-              title: '排序',
-              child: Column(
+        return SortSheet(
+          title: '艺术家排序',
+          options: const [
+            SortOption(key: 'name', label: '名称', icon: Icons.sort_by_alpha),
+            SortOption(key: 'songCount', label: '歌曲数', icon: Icons.music_note_outlined),
+            SortOption(key: 'albumCount', label: '专辑数', icon: Icons.album_outlined),
+          ],
+          currentKey: _sortKey.value,
+          ascending: _ascending.value,
+          onSelectKey: (value) {
+            _sortKey.value = value;
+            final groups = _groups.value.toList();
+            _sortGroups(groups);
+            _groups.value = groups;
+            _savePrefs();
+          },
+          onSelectAscending: (value) {
+            _ascending.value = value;
+            final groups = _groups.value.toList();
+            _sortGroups(groups);
+            _groups.value = groups;
+            _savePrefs();
+          },
+          extra: Watch.builder(
+            builder: (context) {
+              return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  optionRow(
-                    label: '名称',
-                    key: 'name',
-                    icon: Icons.sort_by_alpha,
-                  ),
-                  optionRow(
-                    label: '歌曲数',
-                    key: 'songCount',
-                    icon: Icons.music_note_outlined,
-                  ),
-                  optionRow(
-                    label: '专辑数',
-                    key: 'albumCount',
-                    icon: Icons.album_outlined,
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    title: const Text('升序'),
-                    value: nextAsc,
-                    onChanged: (v) => update(() => nextAsc = v),
-                  ),
                   SwitchListTile(
                     title: const Text('过滤未知艺术家'),
-                    value: nextFilterUnknown,
-                    onChanged: (v) => update(() => nextFilterUnknown = v),
+                    value: _filterUnknown.value,
+                    onChanged: (v) {
+                      _filterUnknown.value = v;
+                      final groups = _groups.value.toList();
+                      _sortGroups(groups);
+                      _groups.value = groups;
+                      _savePrefs();
+                    },
                   ),
                   SwitchListTile(
                     title: const Text('显示已屏蔽入口'),
-                    value: nextShowBlockedEntry,
-                    onChanged: (v) => update(() => nextShowBlockedEntry = v),
+                    value: _showBlockedEntry.value,
+                    onChanged: (v) {
+                      _showBlockedEntry.value = v;
+                      _savePrefs();
+                    },
                   ),
-                  const SizedBox(height: 8),
                 ],
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
@@ -242,21 +213,10 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
   Future<void> _blockArtist(String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return;
-    _blockedArtists.value = {..._blockedArtists.value, trimmed};
-    await _savePrefs();
+    await BlockListService.instance.add(_prefsBlockedArtists, trimmed);
+    _blockedArtists.value = await BlockListService.instance.load(_prefsBlockedArtists);
     if (!mounted) return;
     AppToast.show(context, '已屏蔽艺术家: $trimmed', type: ToastType.success);
-    await _load();
-  }
-
-  Future<void> _unblockArtist(String name) async {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return;
-    final next = _blockedArtists.value.toSet();
-    next.remove(trimmed);
-    _blockedArtists.value = next;
-    await _savePrefs();
-    if (!mounted) return;
     await _load();
   }
 
@@ -266,30 +226,18 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
-        final items = _blockedArtists.value.toList()
-          ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b)));
-        return AppSheetPanel(
+        return BlockedManagementSheet(
           title: '已屏蔽的艺术家',
-          expand: true,
-          child: items.isEmpty
-              ? const Center(child: Text('暂无'))
-              : ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final name = items[index];
-                    return ListTile(
-                      title: Text(name),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.undo_rounded),
-                        onPressed: () async {
-                          await _unblockArtist(name);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                      ),
-                    );
-                  },
-                ),
+          items: _blockedArtists.value.toList()
+            ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b))),
+          onUnblock: (name) async {
+            await BlockListService.instance.remove(_prefsBlockedArtists, name);
+            _blockedArtists.value = await BlockListService.instance.load(_prefsBlockedArtists);
+            if (context.mounted) {
+              Navigator.pop(context);
+              _load();
+            }
+          },
         );
       },
     );
@@ -298,7 +246,7 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
-      scaffoldKey: _scaffoldKey,
+      key: _scaffoldKey,
       extendBodyBehindAppBar: true,
       appBar: AppTopBar(
         title: '艺术家',
@@ -326,7 +274,7 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
               itemExtent: _itemExtent,
               isLoading: false,
               emptyText: '暂无艺术家',
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 160),
               indexLabelBuilder: (index) {
                 if (index < headerCount) return '';
                 final name = _groups.value[index - headerCount].name;
@@ -335,15 +283,32 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
               },
               itemBuilder: (context, index) {
                 if (headerCount == 1 && index == 0) {
-                  return MediaListTile(
-                    leading: const Icon(Icons.person_off_outlined, color: Colors.red),
-                    title: '已屏蔽的艺术家',
-                    subtitle: '${_blockedArtists.value.length} 个',
-                    selected: false,
-                    multiSelect: false,
-                    isHighlighted: false,
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: _showBlockedArtists,
+                  final theme = Theme.of(context);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SizedBox(
+                      height: 64,
+                      child: Material(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: _showBlockedArtists,
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 16),
+                              Icon(Icons.person_off_outlined, color: theme.colorScheme.error),
+                              const SizedBox(width: 12),
+                              const Expanded(child: Text('已屏蔽的艺术家')),
+                              Text('${_blockedArtists.value.length} 个'),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.chevron_right_rounded),
+                              const SizedBox(width: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   );
                 }
                 final g = _groups.value[index - headerCount];

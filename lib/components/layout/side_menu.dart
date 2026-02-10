@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/router/app_router.dart';
 import '../feedback/app_toast.dart';
+import 'base/app_page_scaffold.dart';
 
 class SideMenu extends StatelessWidget {
   const SideMenu({super.key});
@@ -19,7 +20,7 @@ class SideMenu extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
+              padding: const EdgeInsets.fromLTRB(24, 36, 24, 16),
               child: Row(
                 children: [
                   Container(
@@ -30,29 +31,17 @@ class SideMenu extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      Icons.person,
+                      Icons.music_note_rounded,
                       color: colorScheme.onPrimaryContainer,
                       size: 28,
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'NagoMusic',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '本地音乐库',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color?.withAlpha(179),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'NagoMusic',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -83,15 +72,15 @@ class SideMenu extends StatelessWidget {
                     ),
                     _buildMenuItem(
                       context,
-                      Icons.folder_rounded,
-                      '文件夹',
-                      () => _showPending(context),
-                    ),
-                    _buildMenuItem(
-                      context,
                       Icons.queue_music_rounded,
                       '歌单',
                       () => _navigateAndClose(context, AppRoutes.playlists),
+                    ),
+                    _buildMenuItem(
+                      context,
+                      Icons.library_music_rounded,
+                      '音乐库',
+                      () => _navigateAndClose(context, AppRoutes.home),
                     ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -100,14 +89,8 @@ class SideMenu extends StatelessWidget {
                     _buildMenuItem(
                       context,
                       Icons.radar_rounded,
-                      '扫描音乐',
+                      '音源',
                       () => _navigateAndClose(context, AppRoutes.source),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.library_music_rounded,
-                      '音乐库',
-                      () => _showPending(context),
                     ),
                     _buildMenuItem(
                       context,
@@ -120,12 +103,6 @@ class SideMenu extends StatelessWidget {
                       Icons.settings_rounded,
                       '设置',
                       () => _pushAndClose(context, AppRoutes.settings),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.info_outline_rounded,
-                      '关于',
-                      () => _showPending(context),
                     ),
                   ],
                 ),
@@ -163,17 +140,22 @@ class SideMenu extends StatelessWidget {
   }
 
   void _navigateAndClose(BuildContext context, String route) {
-    Navigator.pop(context);
+    _closeDrawer(context);
     Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
   }
 
   void _pushAndClose(BuildContext context, String route) {
-    Navigator.pop(context);
+    _closeDrawer(context);
     Navigator.pushNamed(context, route);
   }
 
   void _showPending(BuildContext context) {
-    Navigator.pop(context);
+    _closeDrawer(context);
     AppToast.show(context, '功能待接入');
+  }
+
+  void _closeDrawer(BuildContext context) {
+    final state = context.findAncestorStateOfType<AppPageScaffoldState>();
+    state?.closeDrawer();
   }
 }

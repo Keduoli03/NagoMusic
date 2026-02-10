@@ -12,6 +12,7 @@ import '../../pages/settings/settings_page.dart';
 import '../../pages/library/albums_page.dart';
 import '../../pages/library/artists_page.dart';
 import '../../pages/library/playlists_page.dart';
+import '../../pages/search/search_page.dart';
 
 class AppRoutes {
   static const home = '/home';
@@ -26,6 +27,7 @@ class AppRoutes {
   static const artists = '/artists';
   static const albums = '/albums';
   static const playlists = '/playlists';
+  static const search = '/search';
 }
 
 class AppRouter {
@@ -44,5 +46,6 @@ class AppRouter {
         AppRoutes.artists: (_) => const ArtistsPage(),
         AppRoutes.albums: (_) => const AlbumsPage(),
         AppRoutes.playlists: (_) => const PlaylistsPage(),
+        AppRoutes.search: (_) => const SearchPage(),
       };
 }

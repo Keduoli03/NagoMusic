@@ -19,6 +19,7 @@ class LocalSourceSettings {
   final List<String> includePaths;
   final int lastScanCount;
   final bool cacheArtwork;
+  final int localMetadataConcurrency;
 
   const LocalSourceSettings({
     required this.useSystemLibrary,
@@ -27,6 +28,7 @@ class LocalSourceSettings {
     required this.includePaths,
     required this.lastScanCount,
     required this.cacheArtwork,
+    required this.localMetadataConcurrency,
   });
 
   factory LocalSourceSettings.defaults() {
@@ -37,6 +39,7 @@ class LocalSourceSettings {
       includePaths: [],
       lastScanCount: 0,
       cacheArtwork: false,
+      localMetadataConcurrency: 6,
     );
   }
 
@@ -47,6 +50,7 @@ class LocalSourceSettings {
     List<String>? includePaths,
     int? lastScanCount,
     bool? cacheArtwork,
+    int? localMetadataConcurrency,
   }) {
     return LocalSourceSettings(
       useSystemLibrary: useSystemLibrary ?? this.useSystemLibrary,
@@ -55,6 +59,8 @@ class LocalSourceSettings {
       includePaths: includePaths ?? this.includePaths,
       lastScanCount: lastScanCount ?? this.lastScanCount,
       cacheArtwork: cacheArtwork ?? this.cacheArtwork,
+      localMetadataConcurrency:
+          localMetadataConcurrency ?? this.localMetadataConcurrency,
     );
   }
 
@@ -66,6 +72,7 @@ class LocalSourceSettings {
       'includePaths': includePaths,
       'lastScanCount': lastScanCount,
       'cacheArtwork': cacheArtwork,
+      'localMetadataConcurrency': localMetadataConcurrency,
     };
   }
 
@@ -79,6 +86,8 @@ class LocalSourceSettings {
           (json['includePaths'] as List<dynamic>?)?.cast<String>() ?? [],
       lastScanCount: json['lastScanCount'] as int? ?? 0,
       cacheArtwork: json['cacheArtwork'] as bool? ?? false,
+      localMetadataConcurrency:
+          json['localMetadataConcurrency'] as int? ?? 6,
     );
   }
 }
@@ -102,6 +111,20 @@ class LocalScanResult {
   const LocalScanResult({
     required this.processed,
     required this.added,
+  });
+}
+
+class _LocalScanCandidate {
+  final String path;
+  final int? durationMs;
+  final String? titleHint;
+  final String? albumHint;
+
+  const _LocalScanCandidate({
+    required this.path,
+    required this.durationMs,
+    required this.titleHint,
+    required this.albumHint,
   });
 }
 
@@ -185,11 +208,12 @@ class LocalMusicService {
     final scannedSongs = <SongEntity>[];
     final existingIds = await _songDao.fetchIdsBySource('local');
     final seenPaths = <String>{};
+    final candidates = <_LocalScanCandidate>[];
     final customFiles = await _collectCustomFiles(
       settings.includePaths,
       isCancelled,
     );
-    var total = customFiles.length;
+    var total = 0;
 
     List<AssetPathEntity> selectedAlbums = [];
     final includeSet = settings.includeAlbumIds.toSet();
@@ -216,16 +240,9 @@ class LocalMusicService {
       }
     }
 
-    final albumCounts = <String, int>{};
-    for (final album in selectedAlbums) {
-      final count = await album.assetCountAsync;
-      albumCounts[album.id] = count;
-      total += count;
-    }
-
     for (final album in selectedAlbums) {
       if (isCancelled()) break;
-      final count = albumCounts[album.id] ?? 0;
+      final count = await album.assetCountAsync;
       var start = 0;
       const pageSize = 200;
       while (start < count) {
@@ -246,66 +263,14 @@ class LocalMusicService {
           if (!seenPaths.add(file.path)) {
             continue;
           }
-          final stat = await file.stat();
-          final tagInfo = await _tagProbe.probeSongDedup(
-            uri: file.path,
-            isLocal: true,
-            includeArtwork: settings.cacheArtwork,
-          );
-          final title = _firstNonEmpty(
-                tagInfo?.title,
-                entity.title,
-                p.basenameWithoutExtension(file.path),
-              ) ??
-              '未知标题';
-          final artist =
-              _firstNonEmpty(tagInfo?.artist, '未知艺术家') ?? '未知艺术家';
-          final albumName =
-              _firstNonEmpty(tagInfo?.album, album.name) ?? album.name;
-          final durationMs =
-              tagInfo?.durationMs ?? (entity.duration * 1000).round();
-          final coverPath = await _cacheArtwork(
-            file: file,
-            fileModifiedMs: stat.modified.millisecondsSinceEpoch,
-            artwork: tagInfo?.artwork,
-            enabled: settings.cacheArtwork,
-          );
-          final embeddedLyrics = tagInfo?.lyrics;
-          if (embeddedLyrics != null && embeddedLyrics.trim().isNotEmpty) {
-            await _lyricsRepo.saveLrcToCache(
-              file.path,
-              embeddedLyrics,
-              overwrite: true,
-            );
-          }
-          scannedSongs.add(
-            SongEntity(
-              id: file.path,
-              title: title,
-              artist: artist,
-              album: albumName.isNotEmpty ? albumName : null,
-              uri: file.path,
-              isLocal: true,
-              durationMs: durationMs > 0 ? durationMs : null,
-              bitrate: tagInfo?.bitrate,
-              sampleRate: tagInfo?.sampleRate,
-              fileSize: tagInfo?.fileSize ?? stat.size,
-              format: tagInfo?.format,
-              sourceId: 'local',
-              fileModifiedMs: stat.modified.millisecondsSinceEpoch,
-              localCoverPath: coverPath,
-              tagsParsed: tagInfo != null,
+          candidates.add(
+            _LocalScanCandidate(
+              path: file.path,
+              durationMs: (entity.duration * 1000).round(),
+              titleHint: entity.title,
+              albumHint: album.name,
             ),
           );
-          processed += 1;
-          if (!existingIds.contains(file.path)) {
-            added += 1;
-          }
-          if (processed % 20 == 0) {
-            onProgress(
-              LocalScanProgress(processed: processed, added: added, total: total),
-            );
-          }
         }
         start = end;
       }
@@ -316,63 +281,109 @@ class LocalMusicService {
       if (!seenPaths.add(file.path)) {
         continue;
       }
-      final stat = await file.stat();
-      final tagInfo = await _tagProbe.probeSongDedup(
-        uri: file.path,
-        isLocal: true,
-        includeArtwork: settings.cacheArtwork,
-      );
-      final title =
-          _firstNonEmpty(tagInfo?.title, p.basenameWithoutExtension(file.path)) ??
-              '未知标题';
-      final albumName =
-          _firstNonEmpty(tagInfo?.album, p.basename(p.dirname(file.path))) ??
-              '';
-      final artist =
-          _firstNonEmpty(tagInfo?.artist, '未知艺术家') ?? '未知艺术家';
-      final coverPath = await _cacheArtwork(
-        file: file,
-        fileModifiedMs: stat.modified.millisecondsSinceEpoch,
-        artwork: tagInfo?.artwork,
-        enabled: settings.cacheArtwork,
-      );
-      final embeddedLyrics = tagInfo?.lyrics;
-      if (embeddedLyrics != null && embeddedLyrics.trim().isNotEmpty) {
-        await _lyricsRepo.saveLrcToCache(
-          file.path,
-          embeddedLyrics,
-          overwrite: true,
-        );
-      }
-      scannedSongs.add(
-        SongEntity(
-          id: file.path,
-          title: title,
-          artist: artist,
-          album: albumName.isNotEmpty ? albumName : null,
-          uri: file.path,
-          isLocal: true,
-          durationMs: tagInfo?.durationMs,
-          bitrate: tagInfo?.bitrate,
-          sampleRate: tagInfo?.sampleRate,
-          fileSize: tagInfo?.fileSize ?? stat.size,
-          format: tagInfo?.format,
-          sourceId: 'local',
-          fileModifiedMs: stat.modified.millisecondsSinceEpoch,
-          localCoverPath: coverPath,
-          tagsParsed: tagInfo != null,
+      candidates.add(
+        _LocalScanCandidate(
+          path: file.path,
+          durationMs: null,
+          titleHint: null,
+          albumHint: null,
         ),
       );
-      processed += 1;
-      if (!existingIds.contains(file.path)) {
-        added += 1;
-      }
-      if (processed % 20 == 0) {
-        onProgress(
-          LocalScanProgress(processed: processed, added: added, total: total),
+    }
+
+    total = candidates.length;
+    onProgress(
+      LocalScanProgress(processed: processed, added: added, total: total),
+    );
+
+    final int concurrency = settings.localMetadataConcurrency.clamp(1, 12);
+    var nextIndex = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        if (isCancelled()) return;
+        final idx = nextIndex;
+        if (idx >= candidates.length) return;
+        nextIndex += 1;
+        final candidate = candidates[idx];
+        final file = File(candidate.path);
+        if (!await file.exists()) {
+          processed += 1;
+          if (processed % 20 == 0) {
+            onProgress(
+              LocalScanProgress(processed: processed, added: added, total: total),
+            );
+          }
+          continue;
+        }
+        final stat = await file.stat();
+        final tagInfo = await _tagProbe.probeSongDedup(
+          uri: candidate.path,
+          isLocal: true,
+          includeArtwork: settings.cacheArtwork,
         );
+        final title = _firstNonEmpty(
+              tagInfo?.title,
+              candidate.titleHint,
+              p.basenameWithoutExtension(candidate.path),
+            ) ??
+            '未知标题';
+        final artist =
+            _firstNonEmpty(tagInfo?.artist, '未知艺术家') ?? '未知艺术家';
+        final albumName = _firstNonEmpty(
+              tagInfo?.album,
+              candidate.albumHint,
+              '未知专辑',
+            ) ??
+            '未知专辑';
+        final durationMs = tagInfo?.durationMs ?? candidate.durationMs;
+        final coverPath = await _cacheArtwork(
+          file: file,
+          fileModifiedMs: stat.modified.millisecondsSinceEpoch,
+          artwork: tagInfo?.artwork,
+          enabled: settings.cacheArtwork,
+        );
+        final embeddedLyrics = tagInfo?.lyrics;
+        if (embeddedLyrics != null && embeddedLyrics.trim().isNotEmpty) {
+          await _lyricsRepo.saveLrcToCache(
+            candidate.path,
+            embeddedLyrics,
+            overwrite: true,
+          );
+        }
+        scannedSongs.add(
+          SongEntity(
+            id: candidate.path,
+            title: title,
+            artist: artist,
+            album: albumName.isNotEmpty ? albumName : null,
+            uri: candidate.path,
+            isLocal: true,
+            durationMs: durationMs != null && durationMs > 0 ? durationMs : null,
+            bitrate: tagInfo?.bitrate,
+            sampleRate: tagInfo?.sampleRate,
+            fileSize: tagInfo?.fileSize ?? stat.size,
+            format: tagInfo?.format,
+            sourceId: 'local',
+            fileModifiedMs: stat.modified.millisecondsSinceEpoch,
+            localCoverPath: coverPath,
+            tagsParsed: tagInfo != null,
+          ),
+        );
+        processed += 1;
+        if (!existingIds.contains(candidate.path)) {
+          added += 1;
+        }
+        if (processed % 20 == 0) {
+          onProgress(
+            LocalScanProgress(processed: processed, added: added, total: total),
+          );
+        }
       }
     }
+
+    final workers = List.generate(concurrency, (_) => worker());
+    await Future.wait(workers);
 
     onProgress(
       LocalScanProgress(processed: processed, added: added, total: total),

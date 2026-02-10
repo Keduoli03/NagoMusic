@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lpinyin/lpinyin.dart';
-import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../components/index.dart';
+import '../../components/common/artwork_widget.dart';
 import '../songs/song_detail_sheet.dart';
 
 List<String> splitArtists(String raw) {
@@ -178,7 +177,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       useSafeArea: false,
       appBar: AppTopBar(
         title: widget.artistName,
@@ -196,8 +195,8 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
           final representative = _representative.value;
 
           return ListView(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
+                  padding: const EdgeInsets.only(
+                    top: 0,
                     bottom: 160,
                   ),
                   children: [
@@ -503,7 +502,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       useSafeArea: false,
       appBar: AppTopBar(
         title: widget.albumName,
@@ -532,8 +531,8 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
             ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b)));
 
           return ListView(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
+                  padding: const EdgeInsets.only(
+                    top: 12,
                     bottom: 160,
                   ),
                   children: [
@@ -782,225 +781,4 @@ class _AlbumGroup {
   });
 }
 
-class ArtworkWidget extends StatefulWidget {
-  final SongEntity song;
-  final double size;
-  final double borderRadius;
-  final Widget? placeholder;
-
-  const ArtworkWidget({
-    super.key,
-    required this.song,
-    required this.size,
-    required this.borderRadius,
-    this.placeholder,
-  });
-
-  @override
-  State<ArtworkWidget> createState() => _ArtworkWidgetState();
-}
-
-class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
-  static const _maxCache = 200;
-  static const _maxConcurrent = 2;
-  static final _bytesCache = <String, Uint8List?>{};
-  static final _loadingFutures = <String, Future<Uint8List?>>{};
-  static final _queue = <_ArtworkTask>[];
-  static int _active = 0;
-
-  late final _bytes = createSignal<Uint8List?>(null);
-  late final _loading = createSignal(false);
-
-  @override
-  void initState() {
-    super.initState();
-    _tryLoad();
-  }
-
-  @override
-  void didUpdateWidget(covariant ArtworkWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.song.id != widget.song.id) {
-      _bytes.value = null;
-      _loading.value = false;
-      _tryLoad();
-    }
-  }
-
-  Future<void> _tryLoad() async {
-    final cachedPath = widget.song.localCoverPath;
-    if (cachedPath != null && cachedPath.trim().isNotEmpty) {
-      final file = File(cachedPath);
-      if (await file.exists()) {
-        _loading.value = false;
-        return;
-      }
-    }
-    if (!widget.song.isLocal) return;
-    final uri = widget.song.uri;
-    if (uri == null || uri.isEmpty) return;
-    if (_bytesCache.containsKey(uri)) {
-      final cached = _bytesCache[uri];
-      if (cached != null && cached.isNotEmpty) {
-        _bytes.value = cached;
-      }
-      _loading.value = false;
-      return;
-    }
-    final inflight = _loadingFutures[uri];
-    if (inflight != null) {
-      _loading.value = true;
-      final bytes = await inflight;
-      if (!mounted) return;
-      if (bytes != null && bytes.isNotEmpty) {
-        _bytes.value = bytes;
-      }
-      _loading.value = false;
-      return;
-    }
-    _loading.value = true;
-    final completer = Completer<Uint8List?>();
-    _loadingFutures[uri] = completer.future;
-    _queue.add(_ArtworkTask(uri, completer));
-    _drainQueue();
-    final bytes = await completer.future.whenComplete(() {
-      _loadingFutures.remove(uri);
-    });
-    if (!mounted) return;
-    if (bytes != null && bytes.isNotEmpty) {
-      _bytes.value = bytes;
-    }
-    _loading.value = false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cachedPath = widget.song.localCoverPath;
-    final dpr = MediaQuery.of(context).devicePixelRatio;
-    final cacheSize = (widget.size * dpr).round();
-    final cacheWidth = cacheSize > 0 ? cacheSize : null;
-    final cacheHeight = cacheWidth;
-    final placeholder = widget.placeholder ??
-        Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-          ),
-        );
-
-    return Watch.builder(
-      builder: (context) {
-        Widget child;
-        final bytes = _bytes.value;
-        final isLoading = _loading.value;
-        if (cachedPath != null && cachedPath.trim().isNotEmpty) {
-          child = ClipRRect(
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            child: Image.file(
-              File(cachedPath),
-              width: widget.size,
-              height: widget.size,
-            cacheWidth: cacheWidth,
-            cacheHeight: cacheHeight,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => placeholder,
-            ),
-          );
-        } else if (bytes != null && bytes.isNotEmpty) {
-          child = ClipRRect(
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            child: Image.memory(
-              bytes,
-              width: widget.size,
-              height: widget.size,
-            cacheWidth: cacheWidth,
-            cacheHeight: cacheHeight,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => placeholder,
-            ),
-          );
-        } else if (isLoading) {
-          child = SizedBox(
-            width: widget.size,
-            height: widget.size,
-            child: Center(
-              child: SizedBox(
-                width: widget.size * 0.35,
-                height: widget.size * 0.35,
-                child: const CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        } else {
-          child = placeholder;
-        }
-
-        return SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: child,
-        );
-      },
-    );
-  }
-}
-
-class _ArtworkTask {
-  final String uri;
-  final Completer<Uint8List?> completer;
-
-  _ArtworkTask(this.uri, this.completer);
-}
-
-void _drainQueue() {
-  while (_ArtworkWidgetState._active < _ArtworkWidgetState._maxConcurrent &&
-      _ArtworkWidgetState._queue.isNotEmpty) {
-    final task = _ArtworkWidgetState._queue.removeAt(0);
-    _ArtworkWidgetState._active += 1;
-    compute(_readArtworkBytes, task.uri)
-        .then((bytes) {
-          if (!task.completer.isCompleted) {
-            task.completer.complete(bytes);
-          }
-          if (bytes != null) {
-            _ArtworkWidgetState._bytesCache.remove(task.uri);
-            _ArtworkWidgetState._bytesCache[task.uri] = bytes;
-            if (_ArtworkWidgetState._bytesCache.length >
-                _ArtworkWidgetState._maxCache) {
-              _ArtworkWidgetState._bytesCache
-                  .remove(_ArtworkWidgetState._bytesCache.keys.first);
-            }
-          } else {
-            _ArtworkWidgetState._bytesCache.putIfAbsent(task.uri, () => null);
-          }
-        })
-        .catchError((_) {
-          if (!task.completer.isCompleted) {
-            task.completer.complete(null);
-          }
-          _ArtworkWidgetState._bytesCache.putIfAbsent(task.uri, () => null);
-        })
-        .whenComplete(() {
-          _ArtworkWidgetState._active -= 1;
-          _drainQueue();
-        });
-  }
-}
-
-Future<Uint8List?> _readArtworkBytes(String uri) async {
-  try {
-    final file = File(uri);
-    if (!await file.exists()) return null;
-    final metadata = readMetadata(file, getImage: true);
-    if (metadata.pictures.isEmpty) return null;
-    final bytes = metadata.pictures.first.bytes;
-    if (bytes.isEmpty) return null;
-    return bytes;
-  } catch (_) {
-    return null;
-  }
-}
 

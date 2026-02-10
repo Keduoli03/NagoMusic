@@ -664,17 +664,27 @@ class PlayerService with WidgetsBindingObserver {
   void _emitSnapshot({bool force = false}) {
     if (force) {
       _snapshotTimer?.cancel();
+      _snapshotTimer = null;
       _applySnapshot();
       return;
     }
+    
     final now = DateTime.now();
     final last = _lastSnapshotEmit;
+    
+    // If enough time has passed, emit immediately
     if (last == null || now.difference(last) >= const Duration(milliseconds: 250)) {
       _snapshotTimer?.cancel();
+      _snapshotTimer = null;
       _applySnapshot();
       return;
     }
-    _snapshotTimer?.cancel();
+    
+    // If a timer is already scheduled, do nothing (it will fire at the correct time)
+    if (_snapshotTimer != null && _snapshotTimer!.isActive) {
+      return;
+    }
+
     final delay = const Duration(milliseconds: 250) - now.difference(last);
     _snapshotTimer = Timer(delay, _applySnapshot);
   }

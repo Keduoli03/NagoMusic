@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,8 +17,10 @@ import '../../app/services/artwork_cache_helper.dart';
 import '../../app/services/cache/audio_cache_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
+import '../../app/services/local_music_service.dart';
 import '../../app/services/metadata/tag_probe_service.dart';
 import '../../app/services/player_service.dart';
+import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../app/state/song_state.dart';
 import '../../components/index.dart';
 import '../library/library_detail_pages.dart';
@@ -53,22 +56,29 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   static const String _prefsSortKey = 'songs_sort_key';
   static const String _prefsSortAsc = 'songs_sort_asc';
   static List<SongEntity>? _cachedSongs;
+  static List<SongEntity>? _cachedVisibleAll;
+  static List<SongEntity>? _cachedVisibleSongsRef;
+  static String? _cachedVisibleKey;
   static final LinkedHashMap<String, Uint8List> _artworkCache =
       LinkedHashMap<String, Uint8List>();
   static final Map<String, Future<Uint8List?>> _artworkLoading = {};
   static final List<_ArtworkTask> _artworkQueue = [];
   static int _artworkActive = 0;
-  static const int _artworkMaxConcurrent = 3;
-  static const int _artworkCacheMax = 200;
+  static const int _artworkMaxConcurrent = 12;
+  static const int _artworkCacheMax = 300;
   static const double _itemExtent = 64;
   static const int _pageSize = 80;
   final ScrollController _listController = ScrollController();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
   final SongDao _songDao = SongDao();
+  final LocalMusicService _localService = LocalMusicService();
+  final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
   String _lastPrefetchKey = '';
   int _lastPrefetchCount = -1;
   int _currentMaxCount = _pageSize;
   int _visibleBuildToken = 0;
+  bool _cacheArtworkEnabled = false;
   late final _selectedIds = createSignal<Set<String>>(<String>{});
   late final _visibleSongs = createSignal<List<SongEntity>>([]);
   late final _visibleSongsAll = createSignal<List<SongEntity>>([]);
@@ -80,6 +90,7 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   late final _isLoading = createSignal(true);
   late final _sourceFilter = createSignal('all');
   late final _songs = createSignal<List<SongEntity>>([]);
+  late final _webDavNameMap = createSignal<Map<String, String>>({});
 
   late final _isScraping = createSignal(false);
   late final _scrapeTotal = createSignal(0);
@@ -109,7 +120,21 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
 
   Future<void> _initPage() async {
     await _restoreViewPrefs();
+    final settings = await _localService.loadSettings();
+    _cacheArtworkEnabled = settings.cacheArtwork;
+    await _loadWebDavNames();
     await _loadSongs();
+  }
+
+  Future<void> _loadWebDavNames() async {
+    final sources = await _webDavRepo.loadSources();
+    final map = <String, String>{};
+    for (final s in sources) {
+      final name = s.name.trim().isEmpty ? 'WebDAV' : s.name.trim();
+      map[s.id] = name;
+    }
+    if (!mounted) return;
+    _webDavNameMap.value = map;
   }
 
   Future<void> _restoreViewPrefs() async {
@@ -144,7 +169,7 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
     } else {
       _isLoading.value = true;
     }
-    final list = await _songDao.fetchAll();
+    final list = await _songDao.fetchAllCached();
     if (!mounted) return;
     _cachedSongs = list;
     _songs.value = list;
@@ -158,6 +183,25 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
     final sourceFilter = _sourceFilter.value;
     final sortKey = _sortKey.value;
     final ascending = _ascending.value;
+    final cacheKey = '$sourceFilter|$sortKey|${ascending ? 1 : 0}';
+    final cached = _cachedVisibleAll;
+    if (cached != null &&
+        identical(_cachedVisibleSongsRef, songs) &&
+        _cachedVisibleKey == cacheKey) {
+      _visibleSongsAll.value = cached;
+      if (_currentMaxCount < _pageSize) {
+        _currentMaxCount = _pageSize;
+      }
+      if (_currentMaxCount > cached.length) {
+        _currentMaxCount = cached.length;
+      }
+      _visibleSongs.value = cached.take(_currentMaxCount).toList();
+      final prefetchEnd = _currentMaxCount - 1;
+      if (prefetchEnd >= 0) {
+        _scheduleRangePrefetch(0, prefetchEnd > 29 ? 29 : prefetchEnd, cached);
+      }
+      return;
+    }
     final token = ++_visibleBuildToken;
     final visible = await _buildVisibleSongsAsync(
       songs: songs,
@@ -166,6 +210,9 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
       ascending: ascending,
     );
     if (!mounted || token != _visibleBuildToken) return;
+    _cachedVisibleAll = visible;
+    _cachedVisibleSongsRef = songs;
+    _cachedVisibleKey = cacheKey;
     _visibleSongsAll.value = visible;
     if (_currentMaxCount < _pageSize) {
       _currentMaxCount = _pageSize;
@@ -252,17 +299,6 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   }
 
 
-  String _currentSourceTitle() {
-    final sourceFilter = _sourceFilter.value;
-    if (sourceFilter == 'all') return '全部';
-    if (sourceFilter == 'local') return '本地';
-    if (sourceFilter == 'webdav') return '云端';
-    if (sourceFilter.startsWith('webdav:')) {
-      return '云端：${sourceFilter.substring('webdav:'.length)}';
-    }
-    return '音源';
-  }
-
   void _toggleSelectAll(List<SongEntity> visible) {
     if (visible.isEmpty) return;
     final current = _selectedIds.value;
@@ -306,7 +342,7 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   }
 
   void _openSearch() {
-    AppToast.show(context, '搜索功能待接入');
+    Navigator.pushNamed(context, AppRoutes.search);
   }
 
   void _removeScrapeOverlay() {
@@ -614,7 +650,8 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   void _drainArtworkQueue() {
     while (_artworkActive < _artworkMaxConcurrent &&
         _artworkQueue.isNotEmpty) {
-      final task = _artworkQueue.removeAt(0);
+      // Use LIFO strategy
+      final task = _artworkQueue.removeLast();
       _artworkActive += 1;
       _loadArtworkInternal(task.song)
           .then((bytes) {
@@ -650,8 +687,35 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
     final uri = song.uri;
     if (uri == null || uri.isEmpty) return null;
     try {
-      final bytes = await compute(_readArtworkBytes, uri);
-      if (bytes == null || bytes.isEmpty) return null;
+      final original = await _readArtworkBytes(uri);
+      if (original == null || original.isEmpty) return null;
+      var bytes = original;
+
+      try {
+        final compressed = await FlutterImageCompress.compressWithList(
+          bytes,
+          minWidth: 144,
+          minHeight: 144,
+          quality: 80,
+        );
+        if (compressed.isNotEmpty) {
+          bytes = compressed;
+        }
+      } catch (_) {
+      }
+
+      if (_cacheArtworkEnabled &&
+          (song.localCoverPath ?? '').trim().isEmpty) {
+        final cached = await ArtworkCacheHelper.cacheCompressedArtwork(
+          bytes: bytes,
+          key: '${song.id}_${song.fileModifiedMs ?? 0}',
+        );
+        if (cached != null && cached.isNotEmpty) {
+          final updated = song.copyWith(localCoverPath: cached);
+          unawaited(_songDao.upsertSongs([updated]));
+          _applySongUpdate(updated);
+        }
+      }
       _rememberArtwork(song.id, bytes);
       return bytes;
     } catch (_) {
@@ -688,7 +752,9 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
     Future.microtask(() => _prefetchArtworkRange(songs, start, end));
   }
 
-  void _showSourceSheet() {
+  Future<void> _showSourceSheet() async {
+    await _loadWebDavNames();
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -734,9 +800,11 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
                 ...webdavIds.map((id) {
                   final value = 'webdav:$id';
                   final isSelected = _sourceFilter.value == value;
+                  final name = _webDavNameMap.value[id];
+                  final label = (name ?? id).trim();
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                    title: Text('云端：$id'),
+                    title: Text('云端：$label'),
                     trailing:
                         isSelected ? const Icon(Icons.check_rounded) : null,
                     onTap: () {
@@ -752,12 +820,6 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
         );
       },
     );
-  }
-
-  void _handleBottomNavTap(int index) {
-    if (index == 1) return;
-    final target = index == 0 ? AppRoutes.home : AppRoutes.source;
-    Navigator.pushNamedAndRemoveUntil(context, target, (route) => false);
   }
 
   void _showSortSheet() {
@@ -863,11 +925,11 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
       builder: (context) {
         if (_isLoading.value) {
           return AppPageScaffold(
-            scaffoldKey: _scaffoldKey,
+            key: _scaffoldKey,
             extendBodyBehindAppBar: true,
             showMiniPlayer: !_multiSelect.value,
             appBar: AppTopBar(
-              title: _currentSourceTitle(),
+              title: '歌曲',
               leading: IconButton(
                 icon: const Icon(Icons.menu_rounded),
                 onPressed: _openDrawer,
@@ -909,11 +971,11 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
         final isAllSelected = totalCount > 0 && selectedCount == totalCount;
 
         return AppPageScaffold(
-          scaffoldKey: _scaffoldKey,
+          key: _scaffoldKey,
           extendBodyBehindAppBar: true,
           showMiniPlayer: !_multiSelect.value,
           appBar: AppTopBar(
-            title: _currentSourceTitle(),
+            title: '歌曲',
             leading: IconButton(
               icon: const Icon(Icons.menu_rounded),
               onPressed: _openDrawer,
@@ -1156,8 +1218,6 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
                 ),
             ],
           ),
-          bottomNavIndex: _multiSelect.value ? null : 1,
-          onBottomNavTap: _multiSelect.value ? null : _handleBottomNavTap,
         );
       },
     );

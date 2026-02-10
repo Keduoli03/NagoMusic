@@ -25,13 +25,18 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
   static const String _prefsAlignment = 'lyrics_view_alignment';
   static const String _prefsShowTranslation = 'lyrics_view_show_translation';
   static const String _prefsDragToSeek = 'lyrics_view_drag_to_seek';
+  static const String _prefsDragLyrics = 'lyrics_view_drag_lyrics';
+  static const String _prefsDragSeek = 'lyrics_view_drag_seek';
   static const String _prefsForceKaraoke = 'lyrics_view_force_karaoke';
   static const String _prefsMiniEnabled = 'mini_lyrics_enabled';
+  static const String _prefsMiniAlignment = 'mini_lyrics_alignment';
 
   late final _showTranslation = createSignal(true);
-  late final _dragToSeek = createSignal(true);
+  late final _dragLyrics = createSignal(true);
+  late final _dragSeek = createSignal(true);
   late final _forceKaraoke = createSignal(false);
   late final _miniEnabled = createSignal(true);
+  late final _miniAlignment = createSignal('center');
   late final _fontSize = createSignal(16.0);
   late final _activeFontSize = createSignal(20.0);
   late final _lineGap = createSignal(14.0);
@@ -82,9 +87,14 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     _showTranslation.value = prefs.getBool(_prefsShowTranslation) ?? true;
-    _dragToSeek.value = prefs.getBool(_prefsDragToSeek) ?? true;
+    final legacyDrag = prefs.getBool(_prefsDragToSeek);
+    _dragLyrics.value =
+        prefs.getBool(_prefsDragLyrics) ?? legacyDrag ?? true;
+    _dragSeek.value = prefs.getBool(_prefsDragSeek) ?? legacyDrag ?? true;
     _forceKaraoke.value = prefs.getBool(_prefsForceKaraoke) ?? false;
     _miniEnabled.value = prefs.getBool(_prefsMiniEnabled) ?? true;
+    _miniAlignment.value =
+        prefs.getString(_prefsMiniAlignment) ?? 'center';
     _fontSize.value = prefs.getDouble(_prefsFontSize) ?? 16;
     _activeFontSize.value = prefs.getDouble(_prefsActiveFontSize) ?? 20;
     _lineGap.value = prefs.getDouble(_prefsLineGap) ?? 14;
@@ -136,8 +146,11 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       builder: (context) {
         return DraggableScrollableSheet(
+          expand: false,
           initialChildSize: 0.55,
           minChildSize: 0.5,
           maxChildSize: 0.95,
@@ -149,9 +162,11 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                 final activeFontSize = _activeFontSize.value;
                 final lineGap = _lineGap.value;
                 final alignment = _alignment.value;
-                final dragToSeek = _dragToSeek.value;
+                final dragLyrics = _dragLyrics.value;
+                final dragSeek = _dragSeek.value;
                 final forceKaraoke = _forceKaraoke.value;
                 final miniEnabled = _miniEnabled.value;
+                final miniAlignment = _miniAlignment.value;
                 return AppSheetPanel(
                   title: '歌词设置',
                   expand: true,
@@ -237,15 +252,25 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                         const SizedBox(height: 12),
                         AppSettingSection(
                           title: '交互',
+                          showDividers: false,
                           children: [
                             AppSettingSwitchTile(
-                              title: '拖动调节进度',
-                              value: dragToSeek,
+                              title: '拖动歌词',
+                              value: dragLyrics,
                               onChanged: (v) {
-                                _dragToSeek.value = v;
-                                _setPrefBool(_prefsDragToSeek, v);
+                                _dragLyrics.value = v;
+                                _setPrefBool(_prefsDragLyrics, v);
                               },
                             ),
+                            if (dragLyrics)
+                              AppSettingSwitchTile(
+                                title: '拖动调节进度',
+                                value: dragSeek,
+                                onChanged: (v) {
+                                  _dragSeek.value = v;
+                                  _setPrefBool(_prefsDragSeek, v);
+                                },
+                              ),
                             AppSettingSwitchTile(
                               title: '强制逐字',
                               subtitle: '对非逐字歌词进行逐字处理',
@@ -262,6 +287,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                         const SizedBox(height: 12),
                         AppSettingSection(
                           title: '三行歌词',
+                          showDividers: false,
                           children: [
                             AppSettingSwitchTile(
                               title: '显示三行歌词',
@@ -271,6 +297,40 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                                 _setPrefBool(_prefsMiniEnabled, v);
                               },
                             ),
+                            if (miniEnabled)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: SegmentedButton<String>(
+                                    segments: const [
+                                      ButtonSegment(
+                                        value: 'left',
+                                        label: Text('居左'),
+                                        icon: Icon(Icons.format_align_left),
+                                      ),
+                                      ButtonSegment(
+                                        value: 'center',
+                                        label: Text('居中'),
+                                        icon: Icon(Icons.format_align_center),
+                                      ),
+                                      ButtonSegment(
+                                        value: 'right',
+                                        label: Text('居右'),
+                                        icon: Icon(Icons.format_align_right),
+                                      ),
+                                    ],
+                                    selected: {miniAlignment},
+                                    onSelectionChanged: (selection) {
+                                      final v = selection.first;
+                                      _miniAlignment.value = v;
+                                      _setPrefString(_prefsMiniAlignment, v);
+                                    },
+                                    showSelectedIcon: false,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ],
@@ -295,7 +355,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
 
     return Watch.builder(
       builder: (context) {
-        final dragToSeek = _dragToSeek.value;
+        final dragLyrics = _dragLyrics.value;
+        final dragSeek = _dragSeek.value;
         final showTranslation = _showTranslation.value;
         final forceKaraoke = _forceKaraoke.value;
         final fontSize = _fontSize.value;
@@ -318,7 +379,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
               children: [
                 Expanded(
                   child: LyricsDragToSeek(
-                    enabled: dragToSeek,
+                    enabled: dragLyrics,
                     player: player,
                     lyrics: lyrics,
                     child: () {
@@ -412,7 +473,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                         activeAutoResumeDuration: isPlaying
                             ? const Duration(seconds: 3)
                             : const Duration(days: 365),
-                        disableTouchEvent: !dragToSeek,
+                        disableTouchEvent: !dragLyrics,
                         enableSwitchAnimation: false,
                         activeHighlightGradient: karaokeMode
                             ? LinearGradient(
@@ -430,7 +491,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                             controller: lyrics.controller,
                             style: style,
                           ),
-                          if (!dragToSeek || !selecting)
+                          if (!dragLyrics || !selecting)
                             const SizedBox.shrink()
                           else
                             Align(
@@ -471,7 +532,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                                         ),
                                         if (showDetails)
                                           const SizedBox(width: 8),
-                                        if (showDetails)
+                                        if (showDetails && dragSeek)
                                           GestureDetector(
                                             behavior: HitTestBehavior.opaque,
                                             onTap: () {

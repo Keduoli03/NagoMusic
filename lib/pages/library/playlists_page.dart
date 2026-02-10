@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/db/dao/song_dao.dart';
@@ -19,42 +20,114 @@ class PlaylistsPage extends StatefulWidget {
 }
 
 class _PlaylistsPageState extends State<PlaylistsPage> with SignalsMixin {
+  static const String _prefsSortMode = 'playlists_sort_mode_v1';
+  static const String _prefsSortAscending = 'playlists_sort_ascending_v1';
+
   final PlaylistsService _service = PlaylistsService.instance;
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
 
   late final _loading = createSignal(true);
   late final _playlists = createSignal<List<PlaylistEntity>>([]);
+  late final _sortMode = createSignal('custom');
+  late final _ascending = createSignal(true);
+  List<PlaylistEntity> _allPlaylists = [];
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await _loadPrefs();
+    await _load();
+  }
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    var mode = (prefs.getString(_prefsSortMode) ?? 'custom').trim();
+    if (mode.isEmpty) mode = 'custom';
+    final asc = prefs.getBool(_prefsSortAscending) ?? true;
+    _sortMode.value = mode;
+    _ascending.value = asc;
+  }
+
+  Future<void> _savePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsSortMode, _sortMode.value);
+    await prefs.setBool(_prefsSortAscending, _ascending.value);
   }
 
   Future<void> _load() async {
     _loading.value = true;
     final playlists = await _service.loadAll();
     if (!mounted) return;
-    _playlists.value = playlists;
+    _allPlaylists = playlists;
+    _applySortFromBase();
     _loading.value = false;
   }
 
+  void _applySortFromBase() {
+    final playlists = _allPlaylists;
+    if (_sortMode.value == 'custom') {
+      _playlists.value = playlists;
+      return;
+    }
+
+    final favorite = playlists.where((p) => p.isFavorite).toList();
+    final others = playlists.where((p) => !p.isFavorite).toList();
+
+    int compare(PlaylistEntity a, PlaylistEntity b) {
+      switch (_sortMode.value) {
+        case 'name':
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        case 'count':
+          return a.songIds.length.compareTo(b.songIds.length);
+        case 'recent':
+        default:
+          return a.createdAtMs.compareTo(b.createdAtMs);
+      }
+    }
+
+    others.sort(compare);
+    if (!_ascending.value) {
+      others.replaceRange(0, others.length, others.reversed);
+    }
+
+    _playlists.value = [...favorite, ...others];
+  }
+
   Future<void> _createPlaylist() async {
-    final name = await _showNameDialog(context, title: '新建歌单', initial: '');
-    if (name == null) return;
-    await _service.createPlaylist(name);
-    if (!mounted) return;
-    AppToast.show(context, '已创建歌单');
-    await _load();
+    await _showPlaylistNameDialog(
+      context,
+      title: '新建歌单',
+      initial: '',
+      confirmText: '创建',
+      fallbackName: '新建歌单',
+      onSubmit: (name) async {
+        await _service.createPlaylist(name);
+        if (!mounted) return;
+        AppToast.show(context, '已创建歌单');
+        await _load();
+      },
+    );
   }
 
   Future<void> _renamePlaylist(PlaylistEntity playlist) async {
-    final name =
-        await _showNameDialog(context, title: '重命名歌单', initial: playlist.name);
-    if (name == null) return;
-    await _service.renamePlaylist(playlist.id, name);
-    if (!mounted) return;
-    AppToast.show(context, '已重命名');
-    await _load();
+    await _showPlaylistNameDialog(
+      context,
+      title: '重命名歌单',
+      initial: playlist.name,
+      confirmText: '保存',
+      fallbackName: null,
+      onSubmit: (name) async {
+        await _service.renamePlaylist(playlist.id, name);
+        if (!mounted) return;
+        AppToast.show(context, '已重命名');
+        await _load();
+      },
+    );
   }
 
   Future<void> _deletePlaylist(PlaylistEntity playlist) async {
@@ -74,15 +147,135 @@ class _PlaylistsPageState extends State<PlaylistsPage> with SignalsMixin {
     await _load();
   }
 
+  void _showPlaylistSheet(PlaylistEntity playlist) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return AppSheetPanel(
+          title: playlist.name,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!playlist.isFavorite)
+                AppListTile(
+                  leading: const Icon(Icons.vertical_align_top_rounded),
+                  title: '置顶',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pinPlaylist(playlist);
+                  },
+                ),
+              AppListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: '重命名',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _renamePlaylist(playlist);
+                },
+              ),
+              if (!playlist.isFavorite)
+                AppListTile(
+                  leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                  title: '删除',
+                  titleColor: Colors.red,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _deletePlaylist(playlist);
+                  },
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pinPlaylist(PlaylistEntity playlist) async {
+    await _service.movePlaylistToTop(playlist.id);
+    if (!mounted) return;
+    _sortMode.value = 'custom';
+    await _savePrefs();
+    await _load();
+  }
+
+  Future<void> _reorderPlaylists(int oldIndex, int newIndex) async {
+    if (_sortMode.value != 'custom') {
+      AppToast.show(context, '切换到自定义排序后可拖拽');
+      return;
+    }
+    if (oldIndex < 0 || oldIndex >= _playlists.value.length) return;
+    if (newIndex < 0 || newIndex > _playlists.value.length) return;
+    if (oldIndex < newIndex) newIndex -= 1;
+    final list = _allPlaylists.toList();
+    final item = list[oldIndex];
+    if (item.isFavorite) return;
+    list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    final favIndex = list.indexWhere((p) => p.isFavorite);
+    if (favIndex > 0) {
+      final fav = list.removeAt(favIndex);
+      list.insert(0, fav);
+    }
+    _allPlaylists = list;
+    _playlists.value = list;
+    await _service.reorderPlaylists(
+      list.where((p) => !p.isFavorite).map((p) => p.id).toList(),
+    );
+  }
+
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  void _showSortSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return SortSheet(
+          title: '歌单排序',
+          options: const [
+            SortOption(key: 'custom', label: '自定义拖拽', icon: Icons.drag_handle_rounded),
+            SortOption(key: 'recent', label: '创建时间', icon: Icons.schedule_rounded),
+            SortOption(key: 'name', label: '名称', icon: Icons.sort_by_alpha_rounded),
+            SortOption(key: 'count', label: '歌曲数量', icon: Icons.queue_music_rounded),
+          ],
+          currentKey: _sortMode.value,
+          ascending: _ascending.value,
+          onSelectKey: (value) {
+            _sortMode.value = value;
+            _applySortFromBase();
+            _savePrefs();
+          },
+          onSelectAscending: (value) {
+            _ascending.value = value;
+            _applySortFromBase();
+            _savePrefs();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
+      key: _scaffoldKey,
       extendBodyBehindAppBar: true,
       appBar: AppTopBar(
         title: '歌单',
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded),
+          onPressed: _openDrawer,
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          SortActionButton(onTap: _showSortSheet),
           IconButton(
             tooltip: '新建歌单',
             icon: const Icon(Icons.add),
@@ -91,6 +284,7 @@ class _PlaylistsPageState extends State<PlaylistsPage> with SignalsMixin {
           const SizedBox(width: 8),
         ],
       ),
+      drawer: const SideMenu(),
       body: Watch.builder(
         builder: (context) => RefreshIndicator(
           onRefresh: _load,
@@ -98,56 +292,58 @@ class _PlaylistsPageState extends State<PlaylistsPage> with SignalsMixin {
               ? const Center(child: CircularProgressIndicator())
               : _playlists.value.isEmpty
                   ? const Center(child: Text('暂无歌单'))
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
-                      itemCount: _playlists.value.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final p = _playlists.value[index];
-                        final isFavorite = p.isFavorite;
-                        return ListTile(
-                          leading: Icon(
-                            isFavorite
-                                ? Icons.favorite
-                                : Icons.queue_music_rounded,
-                            color: isFavorite ? Colors.red : null,
-                          ),
-                          title: Text(
-                            p.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text('${p.songIds.length} 首歌曲'),
-                          trailing: isFavorite
-                              ? null
-                              : PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'rename') {
-                                      _renamePlaylist(p);
-                                    } else if (value == 'delete') {
-                                      _deletePlaylist(p);
-                                    }
+                      : ReorderableListView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
+                          itemCount: _playlists.value.length,
+                          buildDefaultDragHandles: false,
+                          onReorder: _reorderPlaylists,
+                          itemBuilder: (context, index) {
+                            final p = _playlists.value[index];
+                            final isFavorite = p.isFavorite;
+                            final canReorder =
+                                _sortMode.value == 'custom' && !isFavorite;
+                            return Column(
+                              key: ValueKey(p.id),
+                              children: [
+                                ListTile(
+                                  leading: Icon(
+                                    isFavorite
+                                        ? Icons.favorite
+                                        : Icons.queue_music_rounded,
+                                    color: isFavorite ? Colors.red : null,
+                                  ),
+                                  title: Text(
+                                    p.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text('${p.songIds.length} 首歌曲'),
+                                  trailing: canReorder
+                                      ? ReorderableDragStartListener(
+                                          index: index,
+                                          child: const Icon(
+                                            Icons.drag_handle_rounded,
+                                          ),
+                                        )
+                                      : null,
+                                  onTap: () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            PlaylistDetailPage(playlistId: p.id),
+                                      ),
+                                    );
+                                    if (!mounted) return;
+                                    await _load();
                                   },
-                                  itemBuilder: (context) => const [
-                                    PopupMenuItem(
-                                      value: 'rename',
-                                      child: Text('重命名'),
-                                    ),
-                                    PopupMenuItem(value: 'delete', child: Text('删除')),
-                                  ],
+                                  onLongPress: () => _showPlaylistSheet(p),
                                 ),
-                          onTap: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => PlaylistDetailPage(playlistId: p.id),
-                              ),
+                                if (index != _playlists.value.length - 1)
+                                  const Divider(height: 1),
+                              ],
                             );
-                            if (!mounted) return;
-                            await _load();
                           },
-                        );
-                      },
-                    ),
+                        ),
         ),
       ),
     );
@@ -729,13 +925,23 @@ class _PlaylistPickerSheetState extends State<PlaylistPickerSheet>
   }
 
   Future<void> _createAndAdd() async {
-    final name = await _showNameDialog(context, title: '新建歌单', initial: '');
-    if (name == null) return;
-    final created = await _service.createPlaylist(name);
-    await _service.addSongs(created.id, widget.songIds);
-    if (!mounted) return;
-    AppToast.show(context, '已收藏到歌单');
-    Navigator.of(context).pop(true);
+    await _showPlaylistNameDialog(
+      context,
+      title: '新建歌单',
+      initial: '',
+      confirmText: '创建',
+      fallbackName: '新建歌单',
+      onSubmit: (name) async {
+        final created = await _service.createPlaylist(name);
+        await _service.addSongs(created.id, widget.songIds);
+        if (!mounted) return;
+        AppToast.show(context, '已收藏到歌单');
+        Future.delayed(const Duration(milliseconds: 80), () {
+          if (!mounted) return;
+          Navigator.of(context).pop(true);
+        });
+      },
+    );
   }
 
   Future<void> _addToPlaylist(PlaylistEntity playlist) async {
@@ -803,15 +1009,6 @@ Future<bool> showAddToPlaylistDialog(
   final playlists = await service.loadAll();
   if (!context.mounted) return false;
 
-  Future<void> showCreateDialog() async {
-    final name = await _showNameDialog(context, title: '新建歌单', initial: '');
-    if (name == null) return;
-    final created = await service.createPlaylist(name);
-    await service.addSongs(created.id, ids);
-    if (!context.mounted) return;
-    AppToast.show(context, '已添加到歌单: ${created.name}');
-  }
-
   final result = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
@@ -819,7 +1016,22 @@ Future<bool> showAddToPlaylistDialog(
         title: '添加到歌单',
         confirmText: '新建歌单',
         onConfirm: () {
-          Future.microtask(showCreateDialog);
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (!context.mounted) return;
+            _showPlaylistNameDialog(
+              context,
+              title: '新建歌单',
+              initial: '',
+              confirmText: '创建',
+              fallbackName: '新建歌单',
+              onSubmit: (name) async {
+                final created = await service.createPlaylist(name);
+                await service.addSongs(created.id, ids);
+                if (!context.mounted) return;
+                AppToast.show(context, '已添加到歌单: ${created.name}');
+              },
+            );
+          });
         },
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 300),
@@ -865,74 +1077,156 @@ Future<bool> showAddToPlaylistDialog(
   return result == true;
 }
 
-Future<String?> _showNameDialog(
+Future<void> _showPlaylistNameDialog(
   BuildContext context, {
   required String title,
   required String initial,
+  required String confirmText,
+  required String? fallbackName,
+  required Future<void> Function(String name) onSubmit,
 }) async {
-  final controller = TextEditingController(text: initial);
-  final result = await showDialog<String>(
+  await showModalBottomSheet<void>(
     context: context,
-    builder: (context) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '歌单名称',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(null),
-                        child: const Text('取消'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          final name = controller.text.trim();
-                          Navigator.of(context).pop(name.isEmpty ? '新建歌单' : name);
-                        },
-                        child: const Text('确定'),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: _PlaylistNameDialog(
+          title: title,
+          initial: initial,
+          confirmText: confirmText,
+          fallbackName: fallbackName,
+          onSubmit: onSubmit,
         ),
       );
     },
   );
-  controller.dispose();
-  return result;
 }
 
 extension _FirstOrNullExt<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _PlaylistNameDialog extends StatefulWidget {
+  final String title;
+  final String initial;
+  final String confirmText;
+  final String? fallbackName;
+  final Future<void> Function(String name) onSubmit;
+
+  const _PlaylistNameDialog({
+    required this.title,
+    required this.initial,
+    required this.confirmText,
+    required this.fallbackName,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_PlaylistNameDialog> createState() => _PlaylistNameDialogState();
+}
+
+class _PlaylistNameDialogState extends State<_PlaylistNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final trimmed = _controller.text.trim();
+    if (trimmed.isEmpty && widget.fallbackName == null) return;
+    final name = trimmed.isEmpty ? widget.fallbackName! : trimmed;
+    await widget.onSubmit(name);
+  }
+
+  Future<void> _submitAndClose() async {
+    await _submit();
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AppSheetPanel(
+      title: widget.title,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '歌单名称',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onSubmitted: (_) => _submitAndClose(),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      backgroundColor: isDark
+                          ? Colors.white.withAlpha(20)
+                          : Colors.grey.withAlpha(26),
+                      foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      '取消',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: _submitAndClose,
+                    child: Text(
+                      widget.confirmText,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -46,6 +46,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
       elevation: elevation,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
       toolbarHeight: height,
       bottom: bottom,
     );

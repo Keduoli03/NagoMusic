@@ -1,18 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
-import '../../app/router/app_router.dart';
 import '../../app/services/local_music_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/webdav/webdav_music_service.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
+import 'local/local_folder_browser.dart';
 import 'local_source_settings_page.dart';
 import 'webdav/webdav_edit_page.dart';
+import 'webdav/webdav_folder_browser.dart';
 
 enum SourceType { local, webdav }
 
@@ -56,7 +56,8 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   final WebDavMusicService _webDavService = WebDavMusicService();
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
   final SongDao _songDao = SongDao();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
   final Map<String, ValueNotifier<_ScanProgress>> _scanNotifiers = {};
   final Set<String> _scanRunning = {};
   final Map<String, bool> _scanCancelSignals = {};
@@ -379,26 +380,31 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   }
 
   Future<void> _openSource(SourceItem source) async {
-    final prefs = await SharedPreferences.getInstance();
     if (source.type == SourceType.local) {
-      await prefs.setString('songs_source_filter', 'local');
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LocalFolderBrowser()),
+      );
     } else {
-      await prefs.setString('songs_source_filter', 'webdav:${source.id}');
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WebDavFolderBrowser(
+            sourceId: source.id,
+            sourceName: source.name,
+          ),
+        ),
+      );
     }
-    if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.songs, (route) => false);
-  }
-
-  void _handleBottomNavTap(int index) {
-    if (index == 2) return;
-    final target = index == 0 ? AppRoutes.home : AppRoutes.songs;
-    Navigator.pushNamedAndRemoveUntil(context, target, (route) => false);
+    if (mounted) {
+      _load();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return AppPageScaffold(
-      scaffoldKey: _scaffoldKey,
+      key: _scaffoldKey,
       extendBodyBehindAppBar: true,
       appBar: AppTopBar(
         title: '音源',
@@ -483,8 +489,6 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           );
         },
       ),
-      bottomNavIndex: 2,
-      onBottomNavTap: _handleBottomNavTap,
     );
   }
 }

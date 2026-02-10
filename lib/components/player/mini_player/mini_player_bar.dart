@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
-import '../../../app/router/app_router.dart';
 import '../../../app/services/player_service.dart';
 import '../../../app/state/song_state.dart';
+import '../../common/artwork_widget.dart';
+import '../../../pages/player/player_page.dart';
 import '../../../pages/player/widgets/player_bottom_panel.dart';
 
 class MiniPlayerBar extends StatelessWidget {
@@ -42,7 +41,7 @@ class MiniPlayerBar extends StatelessWidget {
         final hasSong = song != null;
         final scheme = Theme.of(context).colorScheme;
         final openPlayer = onOpenPlayer ??
-            () => Navigator.pushNamed(context, AppRoutes.player);
+            () => Navigator.of(context).push(_playerRoute());
         final openQueue =
             onOpenQueue ?? () => showPlayerPlaylistSheet(context, player);
 
@@ -113,6 +112,25 @@ class MiniPlayerBar extends StatelessWidget {
       },
     );
   }
+
+  Route _playerRoute() {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => const PlayerPage(),
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeOutCubic,
+        );
+        final offset =
+            Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .animate(curved);
+        return SlideTransition(position: offset, child: child);
+      },
+    );
+  }
 }
 
 class MiniPlayerArtwork extends StatelessWidget {
@@ -130,30 +148,22 @@ class MiniPlayerArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final coverPath = song?.localCoverPath;
-    final hasCover = coverPath != null && coverPath.isNotEmpty;
-    if (hasCover) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Image.file(
-          File(coverPath),
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stack) {
-            return _ArtworkFallback(
-              size: size,
-              borderRadius: borderRadius,
-              color: scheme.surfaceContainerHighest,
-            );
-          },
-        ),
+    if (song == null) {
+      return _ArtworkFallback(
+        size: size,
+        borderRadius: borderRadius,
+        color: scheme.surfaceContainerHighest,
       );
     }
-    return _ArtworkFallback(
+    return ArtworkWidget(
+      song: song!,
       size: size,
       borderRadius: borderRadius,
-      color: scheme.surfaceContainerHighest,
+      placeholder: _ArtworkFallback(
+        size: size,
+        borderRadius: borderRadius,
+        color: scheme.surfaceContainerHighest,
+      ),
     );
   }
 }

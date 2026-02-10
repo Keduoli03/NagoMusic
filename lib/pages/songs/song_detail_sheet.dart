@@ -166,11 +166,12 @@ class SongDetailSheet extends StatelessWidget {
               leading: const Icon(Icons.add_to_photos_outlined),
               title: '添加到歌单',
               onTap: () async {
-                Navigator.of(context).pop();
                 await showAddToPlaylistDialog(
                   context,
                   songIds: [song.id],
                 );
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
               },
             ),
             AppListTile(

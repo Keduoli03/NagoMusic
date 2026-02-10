@@ -20,6 +20,7 @@ class SourceTile extends StatelessWidget {
   final String subtitle;
   final List<SourceTileAction> actions;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const SourceTile({
     super.key,
@@ -28,6 +29,7 @@ class SourceTile extends StatelessWidget {
     required this.subtitle,
     required this.actions,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -56,6 +58,7 @@ class SourceTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }
