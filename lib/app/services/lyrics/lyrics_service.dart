@@ -1,0 +1,233 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_lyric/core/lyric_controller.dart';
+import 'package:flutter_lyric/core/lyric_model.dart' as fl;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../player_service.dart';
+import '../../state/song_state.dart';
+import 'lyrics_parser.dart';
+import 'lyrics_repository.dart';
+import 'lyricon_service.dart';
+
+enum LyricsLoadStatus {
+  idle,
+  loading,
+  loaded,
+  empty,
+  failed,
+}
+
+class LyricsSnapshot {
+  final LyricsLoadStatus status;
+  final SongEntity? song;
+  final fl.LyricModel? model;
+  final Object? error;
+
+  const LyricsSnapshot({
+    required this.status,
+    required this.song,
+    required this.model,
+    required this.error,
+  });
+
+  factory LyricsSnapshot.idle() {
+    return const LyricsSnapshot(
+      status: LyricsLoadStatus.idle,
+      song: null,
+      model: null,
+      error: null,
+    );
+  }
+
+  LyricsSnapshot copyWith({
+    LyricsLoadStatus? status,
+    SongEntity? song,
+    Object? error,
+    fl.LyricModel? model,
+  }) {
+    return LyricsSnapshot(
+      status: status ?? this.status,
+      song: song ?? this.song,
+      model: model ?? this.model,
+      error: error,
+    );
+  }
+}
+
+class LyricsService {
+  static final LyricsService instance = LyricsService._internal();
+
+  static const String _prefsLyriconEnabled = 'lyrics_lyricon_enabled';
+  static const String _prefsLyriconForceKaraoke = 'lyrics_lyricon_force_karaoke';
+  static const String _prefsLyriconHideTranslation =
+      'lyrics_lyricon_hide_translation';
+  static const String _prefsViewForceKaraoke = 'lyrics_view_force_karaoke';
+
+  final LyricsRepository _repo = LyricsRepository();
+  final PlayerService _player = PlayerService.instance;
+  final LyricController controller = LyricController();
+  final ValueNotifier<LyricsSnapshot> snapshot =
+      ValueNotifier(LyricsSnapshot.idle());
+  final ValueNotifier<int> viewSettingsTick = ValueNotifier(0);
+
+  int _loadSeq = 0;
+  Timer? _lyriconPosTimer;
+  int _lastLyriconPositionMs = -1;
+  bool _lyriconEnabled = false;
+  bool _lyriconForceKaraoke = false;
+  bool _lyriconHideTranslation = false;
+  bool _viewForceKaraoke = false;
+
+  LyricsService._internal() {
+    controller.setOnTapLineCallback((pos) {
+      controller.stopSelection();
+      _player.seek(pos);
+    });
+    _player.currentSong.addListener(_onSongChanged);
+    _player.position.addListener(_onPositionChanged);
+    _player.isPlaying.addListener(_onPlayingChanged);
+    refreshSettings();
+    _onSongChanged();
+  }
+
+  void notifyViewSettingsChanged() {
+    viewSettingsTick.value = viewSettingsTick.value + 1;
+  }
+
+  Future<void> refreshSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _lyriconEnabled = prefs.getBool(_prefsLyriconEnabled) ?? false;
+    _lyriconForceKaraoke = prefs.getBool(_prefsLyriconForceKaraoke) ?? false;
+    _lyriconHideTranslation =
+        prefs.getBool(_prefsLyriconHideTranslation) ?? false;
+    _viewForceKaraoke = prefs.getBool(_prefsViewForceKaraoke) ?? false;
+    await LyriconService.setServiceEnabled(_lyriconEnabled);
+    if (!_lyriconEnabled) {
+      _lyriconPosTimer?.cancel();
+      _lyriconPosTimer = null;
+    } else {
+      final song = _player.currentSong.value;
+      await _syncLyriconSong(song, snapshot.value.model);
+    }
+  }
+
+  void _onSongChanged() {
+    final song = _player.currentSong.value;
+    _loadForSong(song);
+  }
+
+  void _onPositionChanged() {
+    final pos = _player.position.value;
+    controller.setProgress(pos);
+    _scheduleLyriconPosition(pos);
+  }
+
+  void _onPlayingChanged() {
+    _syncLyriconPlaybackState();
+  }
+
+  void reloadCurrentSong() {
+    _loadForSong(_player.currentSong.value);
+  }
+
+  Future<void> _loadForSong(SongEntity? song) async {
+    final seq = ++_loadSeq;
+    snapshot.value = snapshot.value.copyWith(
+      status: LyricsLoadStatus.loading,
+      song: song,
+      model: null,
+      error: null,
+    );
+    controller.lyricNotifier.value = null;
+
+    if (song == null) {
+      snapshot.value = snapshot.value.copyWith(
+        status: LyricsLoadStatus.empty,
+        song: null,
+        model: null,
+        error: null,
+      );
+      await _syncLyriconSong(null, null);
+      return;
+    }
+
+    try {
+      await refreshSettings();
+      final lrc = await _repo.loadLrc(song);
+      if (seq != _loadSeq) return;
+
+      if (lrc == null || lrc.trim().isEmpty) {
+        snapshot.value = snapshot.value.copyWith(
+          status: LyricsLoadStatus.empty,
+          song: song,
+          model: null,
+          error: null,
+        );
+        await _syncLyriconSong(song, null);
+        return;
+      }
+
+      final model = LyricsParser.buildModelFromRaw(
+        lrc,
+        songDuration: (song.durationMs == null)
+            ? null
+            : Duration(milliseconds: song.durationMs!),
+        predictDuration: false,
+        forceKaraoke: _viewForceKaraoke || _lyriconForceKaraoke,
+      );
+      controller.loadLyricModel(model);
+      snapshot.value = snapshot.value.copyWith(
+        status: LyricsLoadStatus.loaded,
+        song: song,
+        model: model,
+        error: null,
+      );
+      await _syncLyriconSong(song, model);
+    } catch (e) {
+      if (seq != _loadSeq) return;
+      snapshot.value = snapshot.value.copyWith(
+        status: LyricsLoadStatus.failed,
+        song: song,
+        model: null,
+        error: e,
+      );
+      await _syncLyriconSong(song, null);
+    }
+  }
+
+  Future<void> _syncLyriconPlaybackState() async {
+    if (!_lyriconEnabled) return;
+    await LyriconService.setPlaybackState(_player.isPlaying.value);
+  }
+
+  void _scheduleLyriconPosition(Duration position) {
+    if (!_lyriconEnabled) return;
+    _lyriconPosTimer ??=
+        Timer.periodic(const Duration(milliseconds: 250), (_) async {
+      await _flushLyriconPosition();
+    });
+  }
+
+  Future<void> _flushLyriconPosition() async {
+    if (!_lyriconEnabled) return;
+    final ms = _player.position.value.inMilliseconds;
+    if ((ms - _lastLyriconPositionMs).abs() < 150) return;
+    _lastLyriconPositionMs = ms;
+    await LyriconService.updatePosition(ms);
+  }
+
+  Future<void> _syncLyriconSong(SongEntity? song, fl.LyricModel? model) async {
+    await LyriconService.setServiceEnabled(_lyriconEnabled);
+    if (!_lyriconEnabled) return;
+    if (song == null) return;
+    await LyriconService.setSong(
+      song,
+      model,
+      hideTranslation: _lyriconHideTranslation,
+    );
+    await LyriconService.setDisplayTranslation(!_lyriconHideTranslation);
+    await LyriconService.setPlaybackState(_player.isPlaying.value);
+  }
+}
