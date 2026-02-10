@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:lpinyin/lpinyin.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 
 import '../../app/router/app_router.dart';
@@ -46,43 +48,43 @@ class _ArtworkTask {
   _ArtworkTask(this.song, this.completer);
 }
 
-class _SongsPageState extends State<SongsPage> {
+class _SongsPageState extends State<SongsPage> with SignalsMixin {
   static const String _prefsSourceFilter = 'songs_source_filter';
   static const String _prefsSortKey = 'songs_sort_key';
   static const String _prefsSortAsc = 'songs_sort_asc';
   static List<SongEntity>? _cachedSongs;
-  static final Map<String, Uint8List> _artworkCache = {};
+  static final LinkedHashMap<String, Uint8List> _artworkCache =
+      LinkedHashMap<String, Uint8List>();
   static final Map<String, Future<Uint8List?>> _artworkLoading = {};
   static final List<_ArtworkTask> _artworkQueue = [];
   static int _artworkActive = 0;
-  static const int _artworkMaxConcurrent = 1;
+  static const int _artworkMaxConcurrent = 3;
+  static const int _artworkCacheMax = 200;
   static const double _itemExtent = 64;
   static const int _pageSize = 80;
   final ScrollController _listController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final SongDao _songDao = SongDao();
-  final Set<String> _selectedIds = {};
-  final ValueNotifier<List<SongEntity>> _visibleSongsNotifier =
-      ValueNotifier(const []);
   String _lastPrefetchKey = '';
   int _lastPrefetchCount = -1;
   int _currentMaxCount = _pageSize;
-  bool _multiSelect = false;
-  bool _isSequentialPlay = false;
-  String _sortKey = 'title';
-  bool _ascending = true;
-  String? _currentId;
-  bool _isLoading = true;
-  String _sourceFilter = 'all';
+  int _visibleBuildToken = 0;
+  late final _selectedIds = createSignal<Set<String>>(<String>{});
+  late final _visibleSongs = createSignal<List<SongEntity>>([]);
+  late final _visibleSongsAll = createSignal<List<SongEntity>>([]);
+  late final _multiSelect = createSignal(false);
+  late final _isSequentialPlay = createSignal(false);
+  late final _sortKey = createSignal('title');
+  late final _ascending = createSignal(true);
+  late final _currentId = createSignal<String?>(null);
+  late final _isLoading = createSignal(true);
+  late final _sourceFilter = createSignal('all');
+  late final _songs = createSignal<List<SongEntity>>([]);
 
-  List<SongEntity> _songs = [];
-  List<SongEntity> _visibleSongsAll = [];
-  final Map<String, String> _pinyinCache = {};
-
-  bool _isScraping = false;
-  int _scrapeTotal = 0;
-  int _scrapeDone = 0;
-  int _scrapeSuccess = 0;
+  late final _isScraping = createSignal(false);
+  late final _scrapeTotal = createSignal(0);
+  late final _scrapeDone = createSignal(0);
+  late final _scrapeSuccess = createSignal(0);
   OverlayEntry? _scrapeOverlay;
   final LayerLink _scrapeLayerLink = LayerLink();
   final LyricsRepository _lyricsRepo = LyricsRepository();
@@ -102,7 +104,6 @@ class _SongsPageState extends State<SongsPage> {
     PlayerService.instance.currentSong.removeListener(_handlePlayerSongChanged);
     _listController.removeListener(_handleScroll);
     _listController.dispose();
-    _visibleSongsNotifier.dispose();
     super.dispose();
   }
 
@@ -117,76 +118,84 @@ class _SongsPageState extends State<SongsPage> {
     final sortKey = prefs.getString(_prefsSortKey);
     final sortAsc = prefs.getBool(_prefsSortAsc);
     if (!mounted) return;
-    setState(() {
-      if (source != null && source.isNotEmpty) {
-        _sourceFilter = source;
-      }
-      if (sortKey != null && sortKey.isNotEmpty) {
-        _sortKey = sortKey;
-      }
-      if (sortAsc != null) {
-        _ascending = sortAsc;
-      }
-    });
+    if (source != null && source.isNotEmpty) {
+      _sourceFilter.value = source;
+    }
+    if (sortKey != null && sortKey.isNotEmpty) {
+      _sortKey.value = sortKey;
+    }
+    if (sortAsc != null) {
+      _ascending.value = sortAsc;
+    }
   }
 
   Future<void> _saveViewPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsSourceFilter, _sourceFilter);
-    await prefs.setString(_prefsSortKey, _sortKey);
-    await prefs.setBool(_prefsSortAsc, _ascending);
+    await prefs.setString(_prefsSourceFilter, _sourceFilter.value);
+    await prefs.setString(_prefsSortKey, _sortKey.value);
+    await prefs.setBool(_prefsSortAsc, _ascending.value);
   }
 
   Future<void> _loadSongs() async {
     if (_cachedSongs != null && _cachedSongs!.isNotEmpty) {
-      setState(() {
-        _songs = _cachedSongs!;
-        _isLoading = false;
-      });
-      _updateVisibleSongs();
+      _songs.value = _cachedSongs!;
+      _isLoading.value = false;
+      await _updateVisibleSongs();
     } else {
-      setState(() => _isLoading = true);
+      _isLoading.value = true;
     }
     final list = await _songDao.fetchAll();
     if (!mounted) return;
     _cachedSongs = list;
-    setState(() {
-      _songs = list;
-      _isLoading = false;
-    });
-    _updateVisibleSongs();
+    _songs.value = list;
+    await _updateVisibleSongs();
+    if (!mounted) return;
+    _isLoading.value = false;
   }
 
-  void _updateVisibleSongs() {
-    _visibleSongsAll = _buildVisibleSongs();
+  Future<void> _updateVisibleSongs() async {
+    final songs = _songs.value;
+    final sourceFilter = _sourceFilter.value;
+    final sortKey = _sortKey.value;
+    final ascending = _ascending.value;
+    final token = ++_visibleBuildToken;
+    final visible = await _buildVisibleSongsAsync(
+      songs: songs,
+      sourceFilter: sourceFilter,
+      sortKey: sortKey,
+      ascending: ascending,
+    );
+    if (!mounted || token != _visibleBuildToken) return;
+    _visibleSongsAll.value = visible;
     if (_currentMaxCount < _pageSize) {
       _currentMaxCount = _pageSize;
     }
-    if (_currentMaxCount > _visibleSongsAll.length) {
-      _currentMaxCount = _visibleSongsAll.length;
+    if (_currentMaxCount > visible.length) {
+      _currentMaxCount = visible.length;
     }
-    _visibleSongsNotifier.value =
-        _visibleSongsAll.take(_currentMaxCount).toList();
-    _scheduleRangePrefetch(0, _currentMaxCount - 1, _visibleSongsAll);
+    _visibleSongs.value = visible.take(_currentMaxCount).toList();
+    final prefetchEnd = _currentMaxCount - 1;
+    if (prefetchEnd >= 0) {
+      _scheduleRangePrefetch(0, prefetchEnd > 29 ? 29 : prefetchEnd, visible);
+    }
   }
 
   void _rebuildVisibleSongs() {
-    _updateVisibleSongs();
+    unawaited(_updateVisibleSongs());
   }
 
   void _handleScroll() {
-    if (!_listController.hasClients || _visibleSongsAll.isEmpty) return;
+    final visibleAll = _visibleSongsAll.value;
+    if (!_listController.hasClients || visibleAll.isEmpty) return;
     final offset = _listController.offset;
     final index = (offset / _itemExtent).floor();
-    final displayCount = _visibleSongsNotifier.value.length;
-    if (displayCount < _visibleSongsAll.length && index + 20 >= displayCount) {
+    final displayCount = _visibleSongs.value.length;
+    if (displayCount < visibleAll.length && index + 20 >= displayCount) {
       final next = _currentMaxCount + _pageSize;
-      _currentMaxCount =
-          next > _visibleSongsAll.length ? _visibleSongsAll.length : next;
-      _visibleSongsNotifier.value =
-          _visibleSongsAll.take(_currentMaxCount).toList();
+      _currentMaxCount = next > visibleAll.length ? visibleAll.length : next;
+      _visibleSongs.value = visibleAll.take(_currentMaxCount).toList();
     }
-    _scheduleRangePrefetch(index - 10, index + 50, _visibleSongsAll);
+    _scheduleRangePrefetch(index - 6, index + 24, visibleAll);
   }
 
   void _handlePlayerSongChanged() {
@@ -197,10 +206,11 @@ class _SongsPageState extends State<SongsPage> {
   }
 
   void _applySongUpdate(SongEntity updated) {
-    final idx = _songs.indexWhere((s) => s.id == updated.id);
+    final current = _songs.value;
+    final idx = current.indexWhere((s) => s.id == updated.id);
     if (idx < 0) return;
 
-    final old = _songs[idx];
+    final old = current[idx];
     final same = old.title == updated.title &&
         old.artist == updated.artist &&
         old.album == updated.album &&
@@ -214,89 +224,15 @@ class _SongsPageState extends State<SongsPage> {
       _artworkLoading.remove(updated.id);
     }
 
-    setState(() {
-      final next = List<SongEntity>.from(_songs);
-      next[idx] = updated;
-      _songs = next;
-      _cachedSongs = next;
-    });
-    _updateVisibleSongs();
-  }
-
-  List<SongEntity> _buildVisibleSongs() {
-    final list = _filteredSongs();
-    String sortKeyStr(String s) {
-      final trimmed = s.trim();
-      if (trimmed.isEmpty) return '';
-      final cached = _pinyinCache[trimmed];
-      if (cached != null) return cached;
-      final p = PinyinHelper.getPinyin(
-        trimmed,
-        separator: '',
-        format: PinyinFormat.WITHOUT_TONE,
-      );
-      final key = (p.isNotEmpty ? p : trimmed).toLowerCase();
-      _pinyinCache[trimmed] = key;
-      return key;
-    }
-
-    bool isUnknownTitle(SongEntity s) => s.title.trim().isEmpty || s.title == '未知标题';
-    bool isUnknownArtist(SongEntity s) =>
-        s.artist.trim().isEmpty || s.artist == '未知艺术家';
-    bool isUnknownAlbum(SongEntity s) {
-      final a = (s.album ?? '').trim();
-      return a.isEmpty || a == '未知专辑';
-    }
-
-    int compare(SongEntity a, SongEntity b) {
-      int result;
-      switch (_sortKey) {
-        case 'artist':
-          result = sortKeyStr(isUnknownArtist(a) ? '' : a.artist)
-              .compareTo(sortKeyStr(isUnknownArtist(b) ? '' : b.artist));
-          break;
-        case 'album':
-          result = sortKeyStr(isUnknownAlbum(a) ? '' : (a.album ?? ''))
-              .compareTo(sortKeyStr(isUnknownAlbum(b) ? '' : (b.album ?? '')));
-          break;
-        case 'duration':
-          result = (a.durationMs ?? 0).compareTo(b.durationMs ?? 0);
-          break;
-        case 'title':
-        default:
-          result = sortKeyStr(isUnknownTitle(a) ? '' : a.title)
-              .compareTo(sortKeyStr(isUnknownTitle(b) ? '' : b.title));
-      }
-      return _ascending ? result : -result;
-    }
-
-    list.sort(compare);
-
-    if (_sortKey == 'artist') {
-      final unknown = list.where(isUnknownArtist).toList();
-      if (unknown.isNotEmpty) {
-        list.removeWhere(isUnknownArtist);
-        list.insertAll(0, unknown);
-      }
-    } else if (_sortKey == 'album') {
-      final unknown = list.where(isUnknownAlbum).toList();
-      if (unknown.isNotEmpty) {
-        list.removeWhere(isUnknownAlbum);
-        list.insertAll(0, unknown);
-      }
-    } else if (_sortKey == 'title') {
-      final unknown = list.where(isUnknownTitle).toList();
-      if (unknown.isNotEmpty) {
-        list.removeWhere(isUnknownTitle);
-        list.insertAll(0, unknown);
-      }
-    }
-
-    return list;
+    final next = List<SongEntity>.from(current);
+    next[idx] = updated;
+    _songs.value = next;
+    _cachedSongs = next;
+    unawaited(_updateVisibleSongs());
   }
 
   String _indexLabelForSong(SongEntity song) {
-    switch (_sortKey) {
+    switch (_sortKey.value) {
       case 'artist':
         final artist = song.artist.trim();
         if (artist.isEmpty || artist == '未知艺术家') return '↑';
@@ -315,53 +251,37 @@ class _SongsPageState extends State<SongsPage> {
     }
   }
 
-  List<SongEntity> _filteredSongs() {
-    if (_sourceFilter == 'local') {
-      return _songs.where((song) => song.sourceId == 'local').toList();
-    }
-    if (_sourceFilter == 'webdav') {
-      return _songs.where((song) => song.sourceId != 'local').toList();
-    }
-    if (_sourceFilter.startsWith('webdav:')) {
-      final id = _sourceFilter.substring('webdav:'.length);
-      return _songs.where((song) => song.sourceId == id).toList();
-    }
-    return List<SongEntity>.from(_songs);
-  }
 
   String _currentSourceTitle() {
-    if (_sourceFilter == 'all') return '全部';
-    if (_sourceFilter == 'local') return '本地';
-    if (_sourceFilter == 'webdav') return '云端';
-    if (_sourceFilter.startsWith('webdav:')) {
-      return '云端：${_sourceFilter.substring('webdav:'.length)}';
+    final sourceFilter = _sourceFilter.value;
+    if (sourceFilter == 'all') return '全部';
+    if (sourceFilter == 'local') return '本地';
+    if (sourceFilter == 'webdav') return '云端';
+    if (sourceFilter.startsWith('webdav:')) {
+      return '云端：${sourceFilter.substring('webdav:'.length)}';
     }
     return '音源';
   }
 
   void _toggleSelectAll(List<SongEntity> visible) {
     if (visible.isEmpty) return;
-    setState(() {
-      if (_selectedIds.length == visible.length) {
-        _selectedIds.clear();
-      } else {
-        _selectedIds
-          ..clear()
-          ..addAll(visible.map((e) => e.id));
-      }
-    });
+    final current = _selectedIds.value;
+    if (current.length == visible.length) {
+      _selectedIds.value = <String>{};
+    } else {
+      _selectedIds.value = visible.map((e) => e.id).toSet();
+    }
   }
 
   void _toggleMultiSelect() {
-    setState(() {
-      _multiSelect = !_multiSelect;
-      _selectedIds.clear();
-    });
+    _multiSelect.value = !_multiSelect.value;
+    _selectedIds.value = <String>{};
   }
 
   Future<void> _openAddToPlaylistSheet() async {
-    if (_selectedIds.isEmpty) return;
-    final ids = _selectedIds.toList(growable: false);
+    final selected = _selectedIds.value;
+    if (selected.isEmpty) return;
+    final ids = selected.toList(growable: false);
     final added = await showAddToPlaylistDialog(
       context,
       songIds: ids,
@@ -374,10 +294,11 @@ class _SongsPageState extends State<SongsPage> {
 
   void _togglePlayMode() {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _isSequentialPlay = !_isSequentialPlay;
-    });
-    AppToast.show(context, _isSequentialPlay ? '已切换为顺序播放' : '已切换为随机播放');
+    _isSequentialPlay.value = !_isSequentialPlay.value;
+    AppToast.show(
+      context,
+      _isSequentialPlay.value ? '已切换为顺序播放' : '已切换为随机播放',
+    );
   }
 
   void _openDrawer() {
@@ -399,9 +320,9 @@ class _SongsPageState extends State<SongsPage> {
     _scrapeOverlay = OverlayEntry(
       builder: (context) {
         final scheme = Theme.of(context).colorScheme;
-        final total = _scrapeTotal;
-        final done = _scrapeDone;
-        final success = _scrapeSuccess;
+        final total = _scrapeTotal.value;
+        final done = _scrapeDone.value;
+        final success = _scrapeSuccess.value;
         return Positioned(
           width: 300,
           child: CompositedTransformFollower(
@@ -422,7 +343,7 @@ class _SongsPageState extends State<SongsPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          _isScraping ? '正在刮削' : '刮削完成',
+                          _isScraping.value ? '正在刮削' : '刮削完成',
                           style: TextStyle(
                             color: scheme.onPrimary,
                             fontWeight: FontWeight.w600,
@@ -603,14 +524,15 @@ class _SongsPageState extends State<SongsPage> {
   }
 
   Future<void> _openBatchScrape() async {
-    if (_isScraping) {
+    if (_isScraping.value) {
       _showScrapeOverlay();
       return;
     }
 
-    final visible = _visibleSongsAll;
-    final candidates = _multiSelect && _selectedIds.isNotEmpty
-        ? visible.where((s) => _selectedIds.contains(s.id)).toList()
+    final visible = _visibleSongsAll.value;
+    final selected = _selectedIds.value;
+    final candidates = _multiSelect.value && selected.isNotEmpty
+        ? visible.where((s) => selected.contains(s.id)).toList()
         : visible;
     if (candidates.isEmpty) {
       AppToast.show(context, '列表为空');
@@ -630,12 +552,10 @@ class _SongsPageState extends State<SongsPage> {
     }
 
     if (!mounted) return;
-    setState(() {
-      _isScraping = true;
-      _scrapeTotal = toScrape.length;
-      _scrapeDone = 0;
-      _scrapeSuccess = 0;
-    });
+    _isScraping.value = true;
+    _scrapeTotal.value = toScrape.length;
+    _scrapeDone.value = 0;
+    _scrapeSuccess.value = 0;
     _showScrapeOverlay();
 
     var nextIndex = 0;
@@ -657,10 +577,9 @@ class _SongsPageState extends State<SongsPage> {
         if (updated != null) {
           await _songDao.upsertSongs([updated]);
           _applySongUpdate(updated);
-          _scrapeSuccess += 1;
+          _scrapeSuccess.value = _scrapeSuccess.value + 1;
         }
-        _scrapeDone += 1;
-        setState(() {});
+        _scrapeDone.value = _scrapeDone.value + 1;
         _updateScrapeOverlay();
       }
     }
@@ -669,9 +588,7 @@ class _SongsPageState extends State<SongsPage> {
     await Future.wait(workers);
 
     if (!mounted) return;
-    setState(() {
-      _isScraping = false;
-    });
+    _isScraping.value = false;
     _updateScrapeOverlay();
     if (!mounted) return;
     await Future.delayed(const Duration(seconds: 2));
@@ -681,7 +598,10 @@ class _SongsPageState extends State<SongsPage> {
   Future<Uint8List?> _loadArtwork(SongEntity song) {
     final id = song.id;
     final cached = _artworkCache[id];
-    if (cached != null) return Future.value(cached);
+    if (cached != null) {
+      _rememberArtwork(id, cached);
+      return Future.value(cached);
+    }
     final inflight = _artworkLoading[id];
     if (inflight != null) return inflight;
     final completer = Completer<Uint8List?>();
@@ -721,7 +641,7 @@ class _SongsPageState extends State<SongsPage> {
       if (await file.exists()) {
         final bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
-          _artworkCache[song.id] = bytes;
+          _rememberArtwork(song.id, bytes);
           return bytes;
         }
       }
@@ -732,10 +652,19 @@ class _SongsPageState extends State<SongsPage> {
     try {
       final bytes = await compute(_readArtworkBytes, uri);
       if (bytes == null || bytes.isEmpty) return null;
-      _artworkCache[song.id] = bytes;
+      _rememberArtwork(song.id, bytes);
       return bytes;
     } catch (_) {
       return null;
+    }
+  }
+
+  void _rememberArtwork(String id, Uint8List bytes) {
+    _artworkCache.remove(id);
+    _artworkCache[id] = bytes;
+    while (_artworkCache.length > _artworkCacheMax) {
+      final oldestKey = _artworkCache.keys.first;
+      _artworkCache.remove(oldestKey);
     }
   }
 
@@ -751,7 +680,8 @@ class _SongsPageState extends State<SongsPage> {
 
   void _scheduleRangePrefetch(int start, int end, List<SongEntity> songs) {
     if (songs.isEmpty) return;
-    final key = '$_sourceFilter|$_sortKey|$_ascending|$start|$end|${songs.length}';
+    final key =
+        '${_sourceFilter.value}|${_sortKey.value}|${_ascending.value}|$start|$end|${songs.length}';
     if (key == _lastPrefetchKey && songs.length == _lastPrefetchCount) return;
     _lastPrefetchKey = key;
     _lastPrefetchCount = songs.length;
@@ -768,7 +698,7 @@ class _SongsPageState extends State<SongsPage> {
           const _SourceFilterItem(label: '本地', value: 'local'),
           const _SourceFilterItem(label: '云端（全部）', value: 'webdav'),
         ];
-        final webdavIds = _songs
+        final webdavIds = _songs.value
             .map((song) => song.sourceId ?? '')
             .where((id) => id.isNotEmpty && id != 'local')
             .toSet()
@@ -781,16 +711,14 @@ class _SongsPageState extends State<SongsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ...items.map((item) {
-                final isSelected = _sourceFilter == item.value;
+                final isSelected = _sourceFilter.value == item.value;
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                   title: Text(item.label),
                   trailing: isSelected ? const Icon(Icons.check_rounded) : null,
                   onTap: () {
-                    setState(() {
-                      _sourceFilter = item.value;
-                      _rebuildVisibleSongs();
-                    });
+                    _sourceFilter.value = item.value;
+                    _rebuildVisibleSongs();
                     _saveViewPrefs();
                     Navigator.pop(context);
                   },
@@ -805,17 +733,15 @@ class _SongsPageState extends State<SongsPage> {
               else
                 ...webdavIds.map((id) {
                   final value = 'webdav:$id';
-                  final isSelected = _sourceFilter == value;
+                  final isSelected = _sourceFilter.value == value;
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                     title: Text('云端：$id'),
                     trailing:
                         isSelected ? const Icon(Icons.check_rounded) : null,
                     onTap: () {
-                      setState(() {
-                        _sourceFilter = value;
-                        _rebuildVisibleSongs();
-                      });
+                      _sourceFilter.value = value;
+                      _rebuildVisibleSongs();
                       _saveViewPrefs();
                       Navigator.pop(context);
                     },
@@ -846,20 +772,16 @@ class _SongsPageState extends State<SongsPage> {
             SortOption(key: 'album', label: '专辑名称', icon: Icons.album_outlined),
             SortOption(key: 'duration', label: '歌曲时长', icon: Icons.schedule),
           ],
-          currentKey: _sortKey,
-          ascending: _ascending,
+          currentKey: _sortKey.value,
+          ascending: _ascending.value,
           onSelectKey: (value) {
-            setState(() {
-              _sortKey = value;
-              _rebuildVisibleSongs();
-            });
+            _sortKey.value = value;
+            _rebuildVisibleSongs();
             _saveViewPrefs();
           },
           onSelectAscending: (value) {
-            setState(() {
-              _ascending = value;
-              _rebuildVisibleSongs();
-            });
+            _ascending.value = value;
+            _rebuildVisibleSongs();
             _saveViewPrefs();
           },
         );
@@ -884,10 +806,10 @@ class _SongsPageState extends State<SongsPage> {
   }
 
   Future<void> _removeSelectedSongs() async {
-    final ids = _selectedIds.toList(growable: false);
+    final ids = _selectedIds.value.toList(growable: false);
     if (ids.isEmpty) return;
     final removedSongs =
-        _songs.where((s) => ids.contains(s.id)).toList(growable: false);
+        _songs.value.where((s) => ids.contains(s.id)).toList(growable: false);
     final removed = await _songDao.deleteByIds(ids);
     if (!mounted) return;
     await PlayerService.instance.removeSongsById(ids);
@@ -895,16 +817,16 @@ class _SongsPageState extends State<SongsPage> {
     await _cleanupCachesForSongs(removedSongs);
     if (!mounted) return;
     AppToast.show(context, '已移除 $removed 首');
-    setState(() {
-      _songs = _songs.where((s) => !ids.contains(s.id)).toList();
-      _cachedSongs = _songs;
-      if (_currentId != null && ids.contains(_currentId)) {
-        _currentId = null;
-      }
-      _selectedIds.clear();
-      _multiSelect = false;
-    });
-    _updateVisibleSongs();
+    final nextSongs = _songs.value.where((s) => !ids.contains(s.id)).toList();
+    _songs.value = nextSongs;
+    _cachedSongs = nextSongs;
+    final currentId = _currentId.value;
+    if (currentId != null && ids.contains(currentId)) {
+      _currentId.value = null;
+    }
+    _selectedIds.value = <String>{};
+    _multiSelect.value = false;
+    unawaited(_updateVisibleSongs());
   }
 
   Future<void> _cleanupCachesForSongs(List<SongEntity> songs) async {
@@ -937,105 +859,106 @@ class _SongsPageState extends State<SongsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return AppPageScaffold(
-        scaffoldKey: _scaffoldKey,
-        extendBodyBehindAppBar: true,
-        showMiniPlayer: !_multiSelect,
-        appBar: AppTopBar(
-          title: _currentSourceTitle(),
-          leading: IconButton(
-            icon: const Icon(Icons.menu_rounded),
-            onPressed: _openDrawer,
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.swap_horiz_rounded),
-              onPressed: _showSourceSheet,
+    return Watch.builder(
+      builder: (context) {
+        if (_isLoading.value) {
+          return AppPageScaffold(
+            scaffoldKey: _scaffoldKey,
+            extendBodyBehindAppBar: true,
+            showMiniPlayer: !_multiSelect.value,
+            appBar: AppTopBar(
+              title: _currentSourceTitle(),
+              leading: IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: _openDrawer,
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  onPressed: _showSourceSheet,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: _openSearch,
+                ),
+                CompositedTransformTarget(
+                  link: _scrapeLayerLink,
+                  child: IconButton(
+                    icon: _isScraping.value
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_fix_high_rounded),
+                    onPressed: _openBatchScrape,
+                  ),
+                ),
+              ],
+              backgroundColor: Colors.transparent,
+              elevation: 0,
             ),
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: _openSearch,
-            ),
-          CompositedTransformTarget(
-            link: _scrapeLayerLink,
-            child: IconButton(
-              icon: _isScraping
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_fix_high_rounded),
-              onPressed: _openBatchScrape,
-            ),
-          ),
-          ],
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
-        drawer: const SideMenu(),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+            drawer: const SideMenu(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return AppPageScaffold(
-      scaffoldKey: _scaffoldKey,
-      extendBodyBehindAppBar: true,
-      showMiniPlayer: !_multiSelect,
-      appBar: AppTopBar(
-        title: _currentSourceTitle(),
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded),
-          onPressed: _openDrawer,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.swap_horiz_rounded),
-            onPressed: _showSourceSheet,
-          ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: _openSearch,
-          ),
-          CompositedTransformTarget(
-            link: _scrapeLayerLink,
-            child: IconButton(
-              icon: _isScraping
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_fix_high_rounded),
-              onPressed: _openBatchScrape,
-            ),
-          ),
-        ],
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      drawer: const SideMenu(),
-      body: ValueListenableBuilder<List<SongEntity>>(
-        valueListenable: _visibleSongsNotifier,
-        builder: (context, visibleSongs, child) {
-          final totalCount = _visibleSongsAll.length;
-          final selectedCount = _selectedIds.length;
-          final isAllSelected = totalCount > 0 && selectedCount == totalCount;
+        final visibleSongs = _visibleSongs.value;
+        final totalCount = _visibleSongsAll.value.length;
+        final selectedCount = _selectedIds.value.length;
+        final isAllSelected = totalCount > 0 && selectedCount == totalCount;
 
-          return Column(
+        return AppPageScaffold(
+          scaffoldKey: _scaffoldKey,
+          extendBodyBehindAppBar: true,
+          showMiniPlayer: !_multiSelect.value,
+          appBar: AppTopBar(
+            title: _currentSourceTitle(),
+            leading: IconButton(
+              icon: const Icon(Icons.menu_rounded),
+              onPressed: _openDrawer,
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.swap_horiz_rounded),
+                onPressed: _showSourceSheet,
+              ),
+              IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: _openSearch,
+              ),
+              CompositedTransformTarget(
+                link: _scrapeLayerLink,
+                child: IconButton(
+                  icon: _isScraping.value
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_fix_high_rounded),
+                  onPressed: _openBatchScrape,
+                ),
+              ),
+            ],
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          drawer: const SideMenu(),
+          body: Column(
             children: [
               MediaListHeader(
-                multiSelect: _multiSelect,
+                multiSelect: _multiSelect.value,
                 isAllSelected: isAllSelected,
                 selectedCount: selectedCount,
                 totalCount: totalCount,
-                isSequentialPlay: _isSequentialPlay,
-                onToggleSelectAll: () => _toggleSelectAll(_visibleSongsAll),
+                isSequentialPlay: _isSequentialPlay.value,
+                onToggleSelectAll: () =>
+                    _toggleSelectAll(_visibleSongsAll.value),
                 onPlay: () {
-                  if (_visibleSongsAll.isEmpty) return;
-                  final queue = List<SongEntity>.from(_visibleSongsAll);
-                  if (!_isSequentialPlay) {
+                  if (_visibleSongsAll.value.isEmpty) return;
+                  final queue = List<SongEntity>.from(_visibleSongsAll.value);
+                  if (!_isSequentialPlay.value) {
                     queue.shuffle();
                   }
                   _openPlayerWithQueue(queue, 0);
@@ -1052,12 +975,14 @@ class _SongsPageState extends State<SongsPage> {
                         itemCount: visibleSongs.length,
                         itemExtent: _itemExtent,
                         bottomInset: MediaQuery.of(context).padding.bottom +
-                            (_multiSelect ? 160 : 80),
+                            (_multiSelect.value ? 160 : 80),
                         indexLabelBuilder: (index) =>
                             _indexLabelForSong(visibleSongs[index]),
                         itemBuilder: (context, index) {
                           final song = visibleSongs[index];
-                          final isPlaying = _currentId == song.id;
+                          final currentId = _currentId.value;
+                          final selected = _selectedIds.value;
+                          final isPlaying = currentId == song.id;
                           return MediaListTile(
                             leading: _SongArtwork(
                               song: song,
@@ -1068,23 +993,23 @@ class _SongsPageState extends State<SongsPage> {
                             title: song.title,
                             subtitle:
                                 '${song.artist} · ${song.album ?? '未知专辑'} · ${_durationText(song.durationMs)}',
-                            selected: _selectedIds.contains(song.id),
-                            multiSelect: _multiSelect,
+                            selected: selected.contains(song.id),
+                            multiSelect: _multiSelect.value,
                             isHighlighted: isPlaying,
                             onTap: () {
-                              if (_multiSelect) {
-                                setState(() {
-                                  if (_selectedIds.contains(song.id)) {
-                                    _selectedIds.remove(song.id);
-                                  } else {
-                                    _selectedIds.add(song.id);
-                                  }
-                                });
+                              if (_multiSelect.value) {
+                                final next = Set<String>.from(selected);
+                                if (next.contains(song.id)) {
+                                  next.remove(song.id);
+                                } else {
+                                  next.add(song.id);
+                                }
+                                _selectedIds.value = next;
                               } else {
-                                setState(() => _currentId = song.id);
+                                _currentId.value = song.id;
                                 final queue =
-                                    List<SongEntity>.from(_visibleSongsAll);
-                                if (!_isSequentialPlay) {
+                                    List<SongEntity>.from(_visibleSongsAll.value);
+                                if (!_isSequentialPlay.value) {
                                   queue.shuffle();
                                 }
                                 final startIndex =
@@ -1096,14 +1021,14 @@ class _SongsPageState extends State<SongsPage> {
                               }
                             },
                             onLongPress: () {
-                              if (_multiSelect) {
-                                setState(() {
-                                  if (_selectedIds.contains(song.id)) {
-                                    _selectedIds.remove(song.id);
-                                  } else {
-                                    _selectedIds.add(song.id);
-                                  }
-                                });
+                              if (_multiSelect.value) {
+                                final next = Set<String>.from(selected);
+                                if (next.contains(song.id)) {
+                                  next.remove(song.id);
+                                } else {
+                                  next.add(song.id);
+                                }
+                                _selectedIds.value = next;
                                 return;
                               }
 
@@ -1117,49 +1042,55 @@ class _SongsPageState extends State<SongsPage> {
                                     onOpenArtist: (artistName) {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) =>
-                                              ArtistDetailPage(artistName: artistName),
+                                          builder: (_) => ArtistDetailPage(
+                                            artistName: artistName,
+                                          ),
                                         ),
                                       );
                                     },
                                     onOpenAlbum: (albumName) {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) =>
-                                              AlbumDetailPage(albumName: albumName),
+                                          builder: (_) => AlbumDetailPage(
+                                            albumName: albumName,
+                                          ),
                                         ),
                                       );
                                     },
                                     onUpdated: (updated) {
                                       if (!mounted) return;
-                                      setState(() {
-                                        _songs = _songs
-                                            .map((s) =>
-                                                s.id == updated.id ? updated : s)
-                                            .toList();
-                                        _cachedSongs = _songs;
-                                      });
-                                      _updateVisibleSongs();
+                                      final updatedSongs = _songs.value
+                                          .map((s) =>
+                                              s.id == updated.id ? updated : s)
+                                          .toList();
+                                      _songs.value = updatedSongs;
+                                      _cachedSongs = updatedSongs;
+                                      unawaited(_updateVisibleSongs());
                                     },
                                     onDeleted: (id) {
                                       if (!mounted) return;
+                                      final currentSongs = _songs.value;
                                       SongEntity? deleted;
-                                      for (final s in _songs) {
+                                      for (final s in currentSongs) {
                                         if (s.id == id) {
                                           deleted = s;
                                           break;
                                         }
                                       }
-                                      setState(() {
-                                        _songs =
-                                            _songs.where((s) => s.id != id).toList();
-                                        _cachedSongs = _songs;
-                                        if (_currentId == id) _currentId = null;
-                                      });
-                                      _updateVisibleSongs();
+                                      final nextSongs = currentSongs
+                                          .where((s) => s.id != id)
+                                          .toList();
+                                      _songs.value = nextSongs;
+                                      _cachedSongs = nextSongs;
+                                      if (_currentId.value == id) {
+                                        _currentId.value = null;
+                                      }
+                                      unawaited(_updateVisibleSongs());
                                       if (deleted != null) {
                                         Future.microtask(
-                                          () => _cleanupCachesForSongs([deleted!]),
+                                          () => _cleanupCachesForSongs(
+                                            [deleted!],
+                                          ),
                                         );
                                       }
                                     },
@@ -1169,13 +1100,15 @@ class _SongsPageState extends State<SongsPage> {
                             },
                           );
                         },
-                        floatingButton: _currentId == null
+                        floatingButton: _currentId.value == null
                             ? null
                             : FloatingActionButton(
                                 mini: true,
                                 onPressed: () {
+                                  final targetId = _currentId.value;
+                                  if (targetId == null) return;
                                   final index = visibleSongs
-                                      .indexWhere((s) => s.id == _currentId);
+                                      .indexWhere((s) => s.id == targetId);
                                   if (index == -1) return;
                                   final offset = index * _itemExtent;
                                   final max =
@@ -1190,7 +1123,7 @@ class _SongsPageState extends State<SongsPage> {
                               ),
                       ),
               ),
-              if (_multiSelect)
+              if (_multiSelect.value)
                 MultiSelectBottomBar(
                   actions: [
                     MultiSelectAction(
@@ -1222,11 +1155,11 @@ class _SongsPageState extends State<SongsPage> {
                   ],
                 ),
             ],
-          );
-        },
-      ),
-      bottomNavIndex: _multiSelect ? null : 1,
-      onBottomNavTap: _multiSelect ? null : _handleBottomNavTap,
+          ),
+          bottomNavIndex: _multiSelect.value ? null : 1,
+          onBottomNavTap: _multiSelect.value ? null : _handleBottomNavTap,
+        );
+      },
     );
   }
 }
@@ -1248,8 +1181,8 @@ class _SongArtwork extends StatefulWidget {
   State<_SongArtwork> createState() => _SongArtworkState();
 }
 
-class _SongArtworkState extends State<_SongArtwork> {
-  Uint8List? _bytes;
+class _SongArtworkState extends State<_SongArtwork> with SignalsMixin {
+  late final _bytes = createSignal<Uint8List?>(null);
 
   @override
   void initState() {
@@ -1264,7 +1197,7 @@ class _SongArtworkState extends State<_SongArtwork> {
     if (oldWidget.song.id != widget.song.id ||
         oldWidget.song.uri != widget.song.uri ||
         coverChanged) {
-      _bytes = null;
+      _bytes.value = null;
       _resolve();
     }
   }
@@ -1276,47 +1209,53 @@ class _SongArtworkState extends State<_SongArtwork> {
     loader().then((bytes) {
       if (!mounted) return;
       if (bytes != null && bytes.isNotEmpty) {
-        setState(() {
-          _bytes = bytes;
-        });
+        _bytes.value = bytes;
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final coverPath = widget.coverPath;
-    if (coverPath != null && coverPath.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.file(
-          File(coverPath),
-          width: widget.size,
-          height: widget.size,
-          cacheWidth:
-              (widget.size * MediaQuery.of(context).devicePixelRatio).toInt(),
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return _ArtworkPlaceholder(song: widget.song, size: widget.size);
-          },
-        ),
-      );
-    }
-    final bytes = _bytes;
-    if (bytes != null && bytes.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.memory(
-          bytes,
-          width: widget.size,
-          height: widget.size,
-          cacheWidth:
-              (widget.size * MediaQuery.of(context).devicePixelRatio).toInt(),
-          fit: BoxFit.cover,
-        ),
-      );
-    }
-    return _ArtworkPlaceholder(song: widget.song, size: widget.size);
+    return Watch.builder(
+      builder: (context) {
+        final coverPath = widget.coverPath;
+        if (coverPath != null && coverPath.isNotEmpty) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.file(
+              File(coverPath),
+              width: widget.size,
+              height: widget.size,
+              cacheWidth:
+                  (widget.size * MediaQuery.of(context).devicePixelRatio).toInt(),
+              cacheHeight:
+                  (widget.size * MediaQuery.of(context).devicePixelRatio).toInt(),
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return _ArtworkPlaceholder(song: widget.song, size: widget.size);
+              },
+            ),
+          );
+        }
+        final bytes = _bytes.value;
+        if (bytes != null && bytes.isNotEmpty) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.memory(
+              bytes,
+              width: widget.size,
+              height: widget.size,
+              cacheWidth:
+                  (widget.size * MediaQuery.of(context).devicePixelRatio).toInt(),
+              cacheHeight:
+                  (widget.size * MediaQuery.of(context).devicePixelRatio).toInt(),
+              fit: BoxFit.cover,
+            ),
+          );
+        }
+        return _ArtworkPlaceholder(song: widget.song, size: widget.size);
+      },
+    );
   }
 }
 
@@ -1360,4 +1299,116 @@ Future<Uint8List?> _readArtworkBytes(String uri) async {
   } catch (_) {
     return null;
   }
+}
+
+Future<List<SongEntity>> _buildVisibleSongsAsync({
+  required List<SongEntity> songs,
+  required String sourceFilter,
+  required String sortKey,
+  required bool ascending,
+}) async {
+  final payload = <String, dynamic>{
+    'songs': songs.map((e) => e.toMap()).toList(),
+    'sourceFilter': sourceFilter,
+    'sortKey': sortKey,
+    'ascending': ascending,
+  };
+  final result = await compute(_buildVisibleSongsIsolate, payload);
+  return result
+      .map((e) => SongEntity.fromMap((e as Map).cast<String, dynamic>()))
+      .toList();
+}
+
+List<Map<String, dynamic>> _buildVisibleSongsIsolate(
+  Map<String, dynamic> args,
+) {
+  final sourceFilter = (args['sourceFilter'] as String?) ?? 'all';
+  final sortKey = (args['sortKey'] as String?) ?? 'title';
+  final ascending = (args['ascending'] as bool?) ?? true;
+  final rawSongs = (args['songs'] as List).cast<Map>();
+  final songs = rawSongs
+      .map((e) => SongEntity.fromMap(e.cast<String, dynamic>()))
+      .toList();
+
+  List<SongEntity> list;
+  if (sourceFilter == 'local') {
+    list = songs.where((song) => song.sourceId == 'local').toList();
+  } else if (sourceFilter == 'webdav') {
+    list = songs.where((song) => song.sourceId != 'local').toList();
+  } else if (sourceFilter.startsWith('webdav:')) {
+    final id = sourceFilter.substring('webdav:'.length);
+    list = songs.where((song) => song.sourceId == id).toList();
+  } else {
+    list = List<SongEntity>.from(songs);
+  }
+
+  final pinyinCache = <String, String>{};
+  String sortKeyStr(String s) {
+    final trimmed = s.trim();
+    if (trimmed.isEmpty) return '';
+    final cached = pinyinCache[trimmed];
+    if (cached != null) return cached;
+    final p = PinyinHelper.getPinyin(
+      trimmed,
+      separator: '',
+      format: PinyinFormat.WITHOUT_TONE,
+    );
+    final key = (p.isNotEmpty ? p : trimmed).toLowerCase();
+    pinyinCache[trimmed] = key;
+    return key;
+  }
+
+  bool isUnknownTitle(SongEntity s) => s.title.trim().isEmpty || s.title == '未知标题';
+  bool isUnknownArtist(SongEntity s) =>
+      s.artist.trim().isEmpty || s.artist == '未知艺术家';
+  bool isUnknownAlbum(SongEntity s) {
+    final a = (s.album ?? '').trim();
+    return a.isEmpty || a == '未知专辑';
+  }
+
+  int compare(SongEntity a, SongEntity b) {
+    int result;
+    switch (sortKey) {
+      case 'artist':
+        result = sortKeyStr(isUnknownArtist(a) ? '' : a.artist)
+            .compareTo(sortKeyStr(isUnknownArtist(b) ? '' : b.artist));
+        break;
+      case 'album':
+        result = sortKeyStr(isUnknownAlbum(a) ? '' : (a.album ?? ''))
+            .compareTo(sortKeyStr(isUnknownAlbum(b) ? '' : (b.album ?? '')));
+        break;
+      case 'duration':
+        result = (a.durationMs ?? 0).compareTo(b.durationMs ?? 0);
+        break;
+      case 'title':
+      default:
+        result = sortKeyStr(isUnknownTitle(a) ? '' : a.title)
+            .compareTo(sortKeyStr(isUnknownTitle(b) ? '' : b.title));
+    }
+    return ascending ? result : -result;
+  }
+
+  list.sort(compare);
+
+  if (sortKey == 'artist') {
+    final unknown = list.where(isUnknownArtist).toList();
+    if (unknown.isNotEmpty) {
+      list.removeWhere(isUnknownArtist);
+      list.insertAll(0, unknown);
+    }
+  } else if (sortKey == 'album') {
+    final unknown = list.where(isUnknownAlbum).toList();
+    if (unknown.isNotEmpty) {
+      list.removeWhere(isUnknownAlbum);
+      list.insertAll(0, unknown);
+    }
+  } else if (sortKey == 'title') {
+    final unknown = list.where(isUnknownTitle).toList();
+    if (unknown.isNotEmpty) {
+      list.removeWhere(isUnknownTitle);
+      list.insertAll(0, unknown);
+    }
+  }
+
+  return list.map((e) => e.toMap()).toList();
 }

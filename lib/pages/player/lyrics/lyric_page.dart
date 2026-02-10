@@ -16,7 +16,7 @@ class LyricPage extends StatelessWidget {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          PlayerBackground(songListenable: _player.currentSong),
+          PlayerBackground(songSignal: _player.currentSongSignal),
           SafeArea(
             child: Column(
               children: [

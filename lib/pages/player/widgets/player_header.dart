@@ -1,12 +1,12 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../../app/state/song_state.dart';
 
 class PlayerHeader extends StatelessWidget {
-  final ValueListenable<SongEntity?> songListenable;
+  final Signal<SongEntity?> songSignal;
 
-  const PlayerHeader({super.key, required this.songListenable});
+  const PlayerHeader({super.key, required this.songSignal});
 
   @override
   Widget build(BuildContext context) {
@@ -14,9 +14,9 @@ class PlayerHeader extends StatelessWidget {
     final titleColor = scheme.onSurface;
     final subtitleColor = scheme.onSurfaceVariant.withValues(alpha: 0.8);
 
-    return ValueListenableBuilder<SongEntity?>(
-      valueListenable: songListenable,
-      builder: (context, song, child) {
+    return Watch.builder(
+      builder: (context) {
+        final song = songSignal.value;
         final title = song?.title ?? '未知歌曲';
         final artist = song?.artist ?? '未知歌手';
         return Padding(
@@ -59,4 +59,3 @@ class PlayerHeader extends StatelessWidget {
     );
   }
 }
-

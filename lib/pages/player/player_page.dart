@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
@@ -33,11 +33,11 @@ class _PlayerPageState extends State<PlayerPage> {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          PlayerBackground(songListenable: _player.currentSong),
+          PlayerBackground(songSignal: _player.currentSongSignal),
           SafeArea(
             child: Column(
               children: [
-                PlayerHeader(songListenable: _player.currentSong),
+                PlayerHeader(songSignal: _player.currentSongSignal),
                 Expanded(
                   child: PageView(
                     controller: _pageController,
@@ -77,7 +77,7 @@ class _PlayerView extends StatelessWidget {
     return Column(
       children: [
         const Spacer(flex: 1),
-        _PlayerArtwork(songListenable: player.currentSong),
+        _PlayerArtwork(songSignal: player.currentSongSignal),
         const Spacer(flex: 1),
         PlayerBottomPanel(
           player: player,
@@ -89,15 +89,15 @@ class _PlayerView extends StatelessWidget {
 }
 
 class _PlayerArtwork extends StatelessWidget {
-  final ValueListenable<SongEntity?> songListenable;
+  final Signal<SongEntity?> songSignal;
 
-  const _PlayerArtwork({required this.songListenable});
+  const _PlayerArtwork({required this.songSignal});
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<SongEntity?>(
-      valueListenable: songListenable,
-      builder: (context, song, child) {
+    return Watch.builder(
+      builder: (context) {
+        final song = songSignal.value;
         final border = BorderRadius.circular(12);
         final cover = song?.localCoverPath;
         final hasCover = cover != null && cover.isNotEmpty;
@@ -126,11 +126,17 @@ class _PlayerArtwork extends StatelessWidget {
                         File(cover),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stack) {
-                          return _ArtworkPlaceholder(border: border, label: song.title);
+                          return _ArtworkPlaceholder(
+                            border: border,
+                            label: song.title,
+                          );
                         },
                       ),
                     )
-                  : _ArtworkPlaceholder(border: border, label: song.title),
+                  : _ArtworkPlaceholder(
+                      border: border,
+                      label: song.title,
+                    ),
             ),
           ),
         );

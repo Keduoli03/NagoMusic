@@ -26,7 +26,6 @@ class _LibraryPageState extends State<LibraryPage> {
   
   final Set<String> _include = {};
   final Set<String> _exclude = {};
-  late Future<List<AssetPathEntity>> _foldersFuture;
 
   @override
   void initState() {
@@ -46,7 +45,6 @@ class _LibraryPageState extends State<LibraryPage> {
     if (_localMetadataConcurrency < 1) {
       _localMetadataConcurrency = 1;
     }
-    _foldersFuture = vm.loadLocalFolders();
   }
 
   Future<void> _updateSource() async {

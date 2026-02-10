@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_lyric/core/lyric_controller.dart';
 import 'package:flutter_lyric/core/lyric_model.dart' as fl;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:signals/signals.dart';
 
 import '../player_service.dart';
 import '../../state/song_state.dart';
@@ -71,6 +72,13 @@ class LyricsService {
   final ValueNotifier<LyricsSnapshot> snapshot =
       ValueNotifier(LyricsSnapshot.idle());
   final ValueNotifier<int> viewSettingsTick = ValueNotifier(0);
+  late final snapshotSignal = signal(LyricsSnapshot.idle());
+  late final viewSettingsTickSignal = signal(0);
+  late final activeIndexSignal =
+      signal(controller.activeIndexNotifiter.value);
+  late final lyricModelSignal = signal(controller.lyricNotifier.value);
+  late final isSelectingSignal = signal(controller.isSelectingNotifier.value);
+  late final selectedIndexSignal = signal(controller.selectedIndexNotifier.value);
 
   int _loadSeq = 0;
   Timer? _lyriconPosTimer;
@@ -81,6 +89,22 @@ class LyricsService {
   bool _viewForceKaraoke = false;
 
   LyricsService._internal() {
+    snapshot.addListener(() => snapshotSignal.value = snapshot.value);
+    viewSettingsTick.addListener(
+      () => viewSettingsTickSignal.value = viewSettingsTick.value,
+    );
+    controller.activeIndexNotifiter.addListener(
+      () => activeIndexSignal.value = controller.activeIndexNotifiter.value,
+    );
+    controller.lyricNotifier.addListener(
+      () => lyricModelSignal.value = controller.lyricNotifier.value,
+    );
+    controller.isSelectingNotifier.addListener(
+      () => isSelectingSignal.value = controller.isSelectingNotifier.value,
+    );
+    controller.selectedIndexNotifier.addListener(
+      () => selectedIndexSignal.value = controller.selectedIndexNotifier.value,
+    );
     controller.setOnTapLineCallback((pos) {
       controller.stopSelection();
       _player.seek(pos);

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:signals/signals.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/router/app_router.dart';
 import '../../app/services/local_music_service.dart';
@@ -49,7 +51,7 @@ class SourcePage extends StatefulWidget {
   State<SourcePage> createState() => _SourcePageState();
 }
 
-class _SourcePageState extends State<SourcePage> {
+class _SourcePageState extends State<SourcePage> with SignalsMixin {
   final LocalMusicService _localService = LocalMusicService();
   final WebDavMusicService _webDavService = WebDavMusicService();
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
@@ -59,29 +61,40 @@ class _SourcePageState extends State<SourcePage> {
   final Set<String> _scanRunning = {};
   final Map<String, bool> _scanCancelSignals = {};
 
-  int _localSongCount = 0;
-  List<WebDavSource> _webDavConfigs = const [];
-  Map<String, int> _webDavSongCounts = const {};
+  late final _localSongCount = createSignal(0);
+  late final _webDavConfigs = createSignal<List<WebDavSource>>([]);
+  late final _webDavSongCounts = createSignal<Map<String, int>>({});
 
-  List<SourceItem> get _sources {
-    final list = <SourceItem>[
+  late final _sources = computed<List<SourceItem>>(() {
+    final localCount = _localSongCount.value;
+    final webdavConfigs = _webDavConfigs.value;
+    final webdavCounts = _webDavSongCounts.value;
+    return [
       SourceItem(
         id: 'local',
         name: '本地音乐',
         type: SourceType.local,
-        songCount: _localSongCount,
+        songCount: localCount,
       ),
-      ..._webDavConfigs.map(
+      ...webdavConfigs.map(
         (s) => SourceItem(
           id: s.id,
           name: s.name.trim().isNotEmpty ? s.name.trim() : 'WebDAV',
           type: SourceType.webdav,
-          songCount: _webDavSongCounts[s.id] ?? 0,
+          songCount: webdavCounts[s.id] ?? 0,
         ),
       ),
     ];
-    return list;
-  }
+  });
+
+  late final _localSources =
+      computed<List<SourceItem>>(() => _sources.value
+          .where((s) => s.type == SourceType.local)
+          .toList());
+  late final _webDavSourceItems =
+      computed<List<SourceItem>>(() => _sources.value
+          .where((s) => s.type == SourceType.webdav)
+          .toList());
 
   @override
   void initState() {
@@ -105,26 +118,21 @@ class _SourcePageState extends State<SourcePage> {
   Future<void> _loadLocalCount() async {
     final count = await _localService.getLocalSongCount();
     if (!mounted) return;
-    setState(() => _localSongCount = count);
+    _localSongCount.value = count;
   }
 
   Future<void> _loadWebDavSourcesAndCounts() async {
     final sources = await _webDavRepo.loadSources();
-    final counts = <String, int>{};
-    for (final s in sources) {
-      counts[s.id] = await _songDao.countBySource(s.id);
-    }
+    final entries = await Future.wait(
+      sources.map(
+        (s) async => MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
+      ),
+    );
+    final counts = {for (final e in entries) e.key: e.value};
     if (!mounted) return;
-    setState(() {
-      _webDavConfigs = sources;
-      _webDavSongCounts = counts;
-    });
+    _webDavConfigs.value = sources;
+    _webDavSongCounts.value = counts;
   }
-
-  List<SourceItem> get _localSources =>
-      _sources.where((s) => s.type == SourceType.local).toList();
-  List<SourceItem> get _webDavSourceItems =>
-      _sources.where((s) => s.type == SourceType.webdav).toList();
 
   ValueNotifier<_ScanProgress> _notifierFor(SourceItem source) {
     return _scanNotifiers.putIfAbsent(
@@ -224,7 +232,7 @@ class _SourcePageState extends State<SourcePage> {
     if (!mounted) return;
     final count = await _localService.getLocalSongCount();
     if (!mounted) return;
-    setState(() => _localSongCount = count);
+    _localSongCount.value = count;
     notifier.value = _ScanProgress(
       processed: result.processed,
       added: result.added,
@@ -239,7 +247,7 @@ class _SourcePageState extends State<SourcePage> {
       _showScanDialog(sourceItem);
       return;
     }
-    final source = _webDavConfigs.firstWhere(
+    final source = _webDavConfigs.value.firstWhere(
       (e) => e.id == sourceItem.id,
       orElse: () => const WebDavSource(
         id: '',
@@ -324,7 +332,7 @@ class _SourcePageState extends State<SourcePage> {
   }
 
   Future<void> _openWebDavSetting(SourceItem source) async {
-    final raw = _webDavConfigs.firstWhere(
+    final raw = _webDavConfigs.value.firstWhere(
       (e) => e.id == source.id,
       orElse: () => WebDavSource(
         id: source.id,
@@ -408,66 +416,72 @@ class _SourcePageState extends State<SourcePage> {
         elevation: 0,
       ),
       drawer: const SideMenu(),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-        children: [
-          if (_localSources.isNotEmpty)
-            SourceSectionCard(
-              title: '本地',
-              children: _localSources
-                  .map(
-                    (source) => SourceTile(
-                      icon: Icons.folder_open,
-                      title: source.name,
-                      subtitle: '${source.songCount} 首歌曲',
-                      actions: [
-                        SourceTileAction(
-                          icon: Icons.sync,
-                          isLoading: _isScanning(source),
-                          tooltip: '扫描本地音乐',
-                          onTap: () => _startScan(source),
+      body: Watch.builder(
+        builder: (context) {
+          final localSources = _localSources.value;
+          final webDavSources = _webDavSourceItems.value;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            children: [
+              if (localSources.isNotEmpty)
+                SourceSectionCard(
+                  title: '本地',
+                  children: localSources
+                      .map(
+                        (source) => SourceTile(
+                          icon: Icons.folder_open,
+                          title: source.name,
+                          subtitle: '${source.songCount} 首歌曲',
+                          actions: [
+                            SourceTileAction(
+                              icon: Icons.sync,
+                              isLoading: _isScanning(source),
+                              tooltip: '扫描本地音乐',
+                              onTap: () => _startScan(source),
+                            ),
+                            SourceTileAction(
+                              icon: Icons.settings,
+                              tooltip: '设置',
+                              onTap: _openLocalSetting,
+                            ),
+                          ],
+                          onTap: () => _openSource(source),
                         ),
-                        SourceTileAction(
-                          icon: Icons.settings,
-                          tooltip: '设置',
-                          onTap: _openLocalSetting,
+                      )
+                      .toList(),
+                ),
+              if (webDavSources.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                SourceSectionCard(
+                  title: '云端',
+                  children: webDavSources
+                      .map(
+                        (source) => SourceTile(
+                          icon: Icons.cloud,
+                          title: source.name,
+                          subtitle: '${source.songCount} 首歌曲',
+                          actions: [
+                            SourceTileAction(
+                              icon: Icons.sync,
+                              isLoading: _isScanning(source),
+                              tooltip: '扫描云端音乐',
+                              onTap: () => _startScan(source),
+                            ),
+                            SourceTileAction(
+                              icon: Icons.settings,
+                              tooltip: '设置',
+                              onTap: () => _openWebDavSetting(source),
+                            ),
+                          ],
+                          onTap: () => _openSource(source),
                         ),
-                      ],
-                      onTap: () => _openSource(source),
-                    ),
-                  )
-                  .toList(),
-            ),
-          if (_webDavSourceItems.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            SourceSectionCard(
-              title: '云端',
-              children: _webDavSourceItems
-                  .map(
-                    (source) => SourceTile(
-                      icon: Icons.cloud,
-                      title: source.name,
-                      subtitle: '${source.songCount} 首歌曲',
-                      actions: [
-                        SourceTileAction(
-                          icon: Icons.sync,
-                          isLoading: _isScanning(source),
-                          tooltip: '扫描云端音乐',
-                          onTap: () => _startScan(source),
-                        ),
-                        SourceTileAction(
-                          icon: Icons.settings,
-                          tooltip: '设置',
-                          onTap: () => _openWebDavSetting(source),
-                        ),
-                      ],
-                      onTap: () => _openSource(source),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-        ],
+                      )
+                      .toList(),
+                ),
+              ],
+            ],
+          );
+        },
       ),
       bottomNavIndex: 2,
       onBottomNavTap: _handleBottomNavTap,

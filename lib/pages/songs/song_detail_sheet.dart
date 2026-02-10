@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/artwork_cache_helper.dart';
 import '../../app/services/cache/audio_cache_service.dart';
@@ -399,13 +400,14 @@ class SongScrapeSheet extends StatefulWidget {
   State<SongScrapeSheet> createState() => _SongScrapeSheetState();
 }
 
-class _SongScrapeSheetState extends State<SongScrapeSheet> {
+class _SongScrapeSheetState extends State<SongScrapeSheet>
+    with SignalsMixin {
   final SongDao _dao = SongDao();
   final LyricsRepository _lyrics = LyricsRepository();
-  bool _working = false;
-  bool _force = false;
-  TagProbeResult? _lastResult;
-  String? _lastError;
+  late final _working = createSignal(false);
+  late final _force = createSignal(false);
+  late final _lastResult = createSignal<TagProbeResult?>(null);
+  late final _lastError = createSignal<String?>(null);
 
   SongEntity get _song => widget.song;
   bool get _isLocal => _song.isLocal;
@@ -470,18 +472,16 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> {
   }
 
   Future<void> _scrape() async {
-    if (_working) return;
+    if (_working.value) return;
     final uri = (_song.uri ?? '').trim();
     if (uri.isEmpty) {
       AppToast.show(context, '无效 URI');
       return;
     }
-    setState(() {
-      _working = true;
-      _lastError = null;
-    });
+    _working.value = true;
+    _lastError.value = null;
     try {
-      if (!_isLocal && _force) {
+      if (!_isLocal && _force.value) {
         await TagProbeService.instance.clearRemoteCaches(
           uri: uri,
           headers: _headers(),
@@ -493,7 +493,7 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> {
               isLocal: true,
               includeArtwork: true,
             )
-          : (_force
+          : (_force.value
               ? await TagProbeService.instance.probeSong(
                   uri: uri,
                   isLocal: false,
@@ -508,10 +508,8 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> {
                 ));
       if (result == null) {
         if (!mounted) return;
-        setState(() {
-          _lastResult = null;
-          _lastError = '未找到可用标签';
-        });
+        _lastResult.value = null;
+        _lastError.value = '未找到可用标签';
         AppToast.show(context, '没找到', type: ToastType.info);
         return;
       }
@@ -533,7 +531,7 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> {
         await _lyrics.saveLrcToCache(
           _song.id,
           lyrics,
-          overwrite: _isLocal ? true : _force,
+          overwrite: _isLocal ? true : _force.value,
         );
       }
 
@@ -563,127 +561,170 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> {
       );
       await _dao.upsertSongs([updated]);
       if (!mounted) return;
-      setState(() {
-        _lastResult = result;
-      });
+      _lastResult.value = result;
       AppToast.show(context, '已更新', type: ToastType.success);
       Navigator.pop(context, updated);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _lastError = '刮削失败');
+      _lastError.value = '刮削失败';
       AppToast.show(context, '刮削失败');
     } finally {
       if (mounted) {
-        setState(() => _working = false);
+        _working.value = false;
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final secondary = theme.brightness == Brightness.dark
-        ? Colors.white70
-        : const Color.fromARGB(255, 100, 100, 100);
-    final hasCover = (_song.localCoverPath ?? '').trim().isNotEmpty;
+    return Watch.builder(
+      builder: (context) {
+        final theme = Theme.of(context);
+        final secondary = theme.brightness == Brightness.dark
+            ? Colors.white70
+            : const Color.fromARGB(255, 100, 100, 100);
+        final hasCover = (_song.localCoverPath ?? '').trim().isNotEmpty;
 
-    return FutureBuilder<bool>(
-      future: _lyrics.hasCachedLrc(_song.id),
-      builder: (context, snap) {
-        final hasLyrics = snap.data == true;
-        final last = _lastResult;
+        return FutureBuilder<bool>(
+          future: _lyrics.hasCachedLrc(_song.id),
+          builder: (context, snap) {
+            final hasLyrics = snap.data == true;
+            final last = _lastResult.value;
+            final lastError = _lastError.value;
+            final isWorking = _working.value;
 
-        Widget statusRow(String k, String v) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 88,
-                  child: Text(
-                    k,
-                    style: TextStyle(color: secondary, fontSize: 12),
-                  ),
-                ),
-                Expanded(child: Text(v, style: const TextStyle(fontSize: 13))),
-              ],
-            ),
-          );
-        }
-
-        return AppSheetPanel(
-          title: '刮削信息',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              statusRow('标签已解析', _song.tagsParsed ? '是' : '否'),
-              statusRow('封面缓存', hasCover ? '有' : '无'),
-              statusRow('歌词缓存', hasLyrics ? '有' : '无'),
-              statusRow('时长', (_song.durationMs ?? 0) > 0 ? '${_song.durationMs}ms' : '-'),
-              if (_lastError != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Text(
-                    _lastError!,
-                    style: TextStyle(color: theme.colorScheme.error),
-                  ),
-                ),
-              if (last != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('最近一次结果', style: TextStyle(color: secondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      statusRow('标题', (last.title ?? '-').trim().isEmpty ? '-' : last.title!.trim()),
-                      statusRow('艺术家', (last.artist ?? '-').trim().isEmpty ? '-' : last.artist!.trim()),
-                      statusRow('专辑', (last.album ?? '-').trim().isEmpty ? '-' : last.album!.trim()),
-                      statusRow('封面', (last.artwork?.isNotEmpty ?? false) ? '有' : '无'),
-                      statusRow('歌词', (last.lyrics ?? '').trim().isNotEmpty ? '有' : '无'),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            Widget statusRow(String k, String v) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _working ? null : _clearScrapeInfo,
-                        child: const Text('清除'),
+                    SizedBox(
+                      width: 88,
+                      child: Text(
+                        k,
+                        style: TextStyle(color: secondary, fontSize: 12),
                       ),
                     ),
-                    const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton(
-                        onPressed: _working ? null : _scrape,
-                        child: _working
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Text(_isLocal ? '刮削' : (_force ? '刮削(强制)' : '刮削(智能)')),
-                      ),
+                      child: Text(v, style: const TextStyle(fontSize: 13)),
                     ),
                   ],
                 ),
-              ),
-              if (!_isLocal)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('强制刮削'),
-                    subtitle: const Text('忽略缓存，重新读取内置标签'),
-                    value: _force,
-                    onChanged: _working ? null : (v) => setState(() => _force = v),
+              );
+            }
+
+            return AppSheetPanel(
+              title: '刮削信息',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  statusRow('标签已解析', _song.tagsParsed ? '是' : '否'),
+                  statusRow('封面缓存', hasCover ? '有' : '无'),
+                  statusRow('歌词缓存', hasLyrics ? '有' : '无'),
+                  statusRow(
+                    '时长',
+                    (_song.durationMs ?? 0) > 0 ? '${_song.durationMs}ms' : '-',
                   ),
-                ),
-            ],
-          ),
+                  if (lastError != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Text(
+                        lastError,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                    ),
+                  if (last != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '最近一次结果',
+                            style: TextStyle(
+                              color: secondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          statusRow(
+                            '标题',
+                            (last.title ?? '-').trim().isEmpty
+                                ? '-'
+                                : last.title!.trim(),
+                          ),
+                          statusRow(
+                            '艺术家',
+                            (last.artist ?? '-').trim().isEmpty
+                                ? '-'
+                                : last.artist!.trim(),
+                          ),
+                          statusRow(
+                            '专辑',
+                            (last.album ?? '-').trim().isEmpty
+                                ? '-'
+                                : last.album!.trim(),
+                          ),
+                          statusRow(
+                            '封面',
+                            (last.artwork?.isNotEmpty ?? false) ? '有' : '无',
+                          ),
+                          statusRow(
+                            '歌词',
+                            (last.lyrics ?? '').trim().isNotEmpty ? '有' : '无',
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: isWorking ? null : _clearScrapeInfo,
+                            child: const Text('清除'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: isWorking ? null : _scrape,
+                            child: isWorking
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Text(
+                                    _isLocal
+                                        ? '刮削'
+                                        : (_force.value ? '刮削(强制)' : '刮削(智能)'),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!_isLocal)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('强制刮削'),
+                        subtitle: const Text('忽略缓存，重新读取内置标签'),
+                        value: _force.value,
+                        onChanged: isWorking
+                            ? null
+                            : (v) => _force.value = v,
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );

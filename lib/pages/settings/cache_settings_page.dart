@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 import '../../app/services/cache/audio_cache_service.dart';
 import '../../components/index.dart';
 
@@ -9,9 +10,9 @@ class CacheSettingsPage extends StatefulWidget {
   State<CacheSettingsPage> createState() => _CacheSettingsPageState();
 }
 
-class _CacheSettingsPageState extends State<CacheSettingsPage> {
-  int _cacheSize = 0;
-  bool _loading = true;
+class _CacheSettingsPageState extends State<CacheSettingsPage> with SignalsMixin {
+  late final _cacheSize = createSignal(0);
+  late final _loading = createSignal(true);
 
   @override
   void initState() {
@@ -20,13 +21,11 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
   }
 
   Future<void> _loadCacheSize() async {
-    setState(() => _loading = true);
+    _loading.value = true;
     final size = await AudioCacheService.instance.getCacheSize();
     if (!mounted) return;
-    setState(() {
-      _cacheSize = size;
-      _loading = false;
-    });
+    _cacheSize.value = size;
+    _loading.value = false;
   }
 
   Future<void> _clearCache() async {
@@ -37,7 +36,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
     );
     if (confirmed != true) return;
 
-    setState(() => _loading = true);
+    _loading.value = true;
     await AudioCacheService.instance.clearCache();
     if (!mounted) return;
     
@@ -67,21 +66,25 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          AppSettingSection(
-            title: '缓存管理',
-            children: [
-              AppSettingTile(
-                title: '音频缓存',
-                subtitle: _loading ? '计算中...' : '占用空间: ${_formatSize(_cacheSize)}',
-                trailing: const Icon(Icons.delete_outline_rounded),
-                onTap: _loading ? null : _clearCache,
-              ),
-            ],
-          ),
-        ],
+      body: Watch.builder(
+        builder: (context) => ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            AppSettingSection(
+              title: '缓存管理',
+              children: [
+                AppSettingTile(
+                  title: '音频缓存',
+                  subtitle: _loading.value
+                      ? '计算中...'
+                      : '占用空间: ${_formatSize(_cacheSize.value)}',
+                  trailing: const Icon(Icons.delete_outline_rounded),
+                  onTap: _loading.value ? null : _clearCache,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

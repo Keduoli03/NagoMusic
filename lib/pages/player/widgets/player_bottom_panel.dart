@@ -3,10 +3,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../../app/services/lyrics/lyrics_service.dart';
 import '../../../app/services/player_service.dart';
-import '../../../app/state/song_state.dart';
 import '../../../components/common/app_list_tile.dart';
 import '../../../components/common/labeled_slider.dart';
 import '../../../components/feedback/app_toast.dart';
@@ -49,12 +49,13 @@ class _MiniLyricsPreview extends StatefulWidget {
   State<_MiniLyricsPreview> createState() => _MiniLyricsPreviewState();
 }
 
-class _MiniLyricsPreviewState extends State<_MiniLyricsPreview> {
+class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
+    with SignalsMixin {
   static const String _prefsMiniEnabled = 'mini_lyrics_enabled';
   static const String _prefsShowTranslation = 'lyrics_view_show_translation';
 
-  bool _enabled = true;
-  bool _showTranslation = true;
+  late final _enabled = createSignal(true);
+  late final _showTranslation = createSignal(true);
 
   @override
   void initState() {
@@ -76,161 +77,156 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview> {
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() {
-      _enabled = prefs.getBool(_prefsMiniEnabled) ?? true;
-      _showTranslation = prefs.getBool(_prefsShowTranslation) ?? true;
-    });
+    _enabled.value = prefs.getBool(_prefsMiniEnabled) ?? true;
+    _showTranslation.value = prefs.getBool(_prefsShowTranslation) ?? true;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_enabled) {
-      return const SizedBox.shrink();
-    }
-    final scheme = Theme.of(context).colorScheme;
-    final lyrics = LyricsService.instance;
-    return Column(
-      children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: SizedBox(
-              height: 110,
-              child: Center(
-                child: ValueListenableBuilder<int>(
-                  valueListenable: lyrics.controller.activeIndexNotifiter,
-                  builder: (context, active, child) {
-                    return ValueListenableBuilder<LyricsSnapshot>(
-                      valueListenable: lyrics.snapshot,
-                      builder: (context, snap, child) {
-                        final model = lyrics.controller.lyricNotifier.value;
-                        final lines = model?.lines ?? const <LyricLine>[];
-                        const textAlign = TextAlign.center;
-                        if (snap.status == LyricsLoadStatus.loading) {
-                          return SizedBox(
-                            height: 32,
-                            width: 32,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          );
-                        }
-                        if (lines.isEmpty) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '暂无歌词',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                  color: scheme.onSurface.withValues(alpha: 0.9),
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '纯音乐或未匹配到歌词',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: scheme.onSurfaceVariant
-                                      .withValues(alpha: 0.6),
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          );
-                        }
+    return Watch.builder(
+      builder: (context) {
+        if (!_enabled.value) {
+          return const SizedBox.shrink();
+        }
+        final scheme = Theme.of(context).colorScheme;
+        final lyrics = LyricsService.instance;
+        final active = lyrics.activeIndexSignal.value;
+        final snap = lyrics.snapshotSignal.value;
+        final model = lyrics.lyricModelSignal.value;
+        final lines = model?.lines ?? const <LyricLine>[];
+        const textAlign = TextAlign.center;
 
-                        final base =
-                            (active >= 0 && active < lines.length) ? active : 0;
-                        String lineAt(int i) {
-                          if (i < 0) return '';
-                          if (i >= lines.length) return '';
-                          return lines[i].text;
-                        }
-
-                        String translationAt(int i) {
-                          if (i < 0) return '';
-                          if (i >= lines.length) return '';
-                          return (lines[i].translation ?? '').trim();
-                        }
-
-                        final prev = lineAt(base - 1);
-                        final curr = lineAt(base);
-                        final currTrans = _showTranslation ? translationAt(base) : '';
-                        final next = lineAt(base + 1);
-                        final showTransLine = currTrans.isNotEmpty;
-
+        return Column(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: SizedBox(
+                  height: 110,
+                  child: Center(
+                    child: () {
+                      if (snap.status == LyricsLoadStatus.loading) {
+                        return const SizedBox.shrink();
+                      }
+                      if (lines.isEmpty) {
                         return Column(
                           mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              prev.isEmpty ? ' ' : prev,
+                              '暂无歌词',
                               style: TextStyle(
-                                color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                                fontSize: 14,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                                color: scheme.onSurface.withValues(alpha: 0.9),
                               ),
-                              textAlign: textAlign,
+                              textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            SizedBox(height: showTransLine ? 6 : 8),
+                            const SizedBox(height: 8),
                             Text(
-                              curr.isEmpty ? ' ' : curr,
+                              '纯音乐或未匹配到歌词',
                               style: TextStyle(
-                                color: scheme.onSurface,
-                                fontSize: showTransLine ? 16 : 18,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: scheme.onSurfaceVariant
+                                    .withValues(alpha: 0.6),
                               ),
-                              textAlign: textAlign,
+                              textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (showTransLine) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                currTrans,
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                                  fontSize: 12,
-                                ),
-                                textAlign: textAlign,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                            SizedBox(height: showTransLine ? 6 : 8),
+                          ],
+                        );
+                      }
+
+                      final base =
+                          (active >= 0 && active < lines.length) ? active : 0;
+                      String lineAt(int i) {
+                        if (i < 0) return '';
+                        if (i >= lines.length) return '';
+                        return lines[i].text;
+                      }
+
+                      String translationAt(int i) {
+                        if (i < 0) return '';
+                        if (i >= lines.length) return '';
+                        return (lines[i].translation ?? '').trim();
+                      }
+
+                      final prev = lineAt(base - 1);
+                      final curr = lineAt(base);
+                      final currTrans = _showTranslation.value
+                          ? translationAt(base)
+                          : '';
+                      final next = lineAt(base + 1);
+                      final showTransLine = currTrans.isNotEmpty;
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            prev.isEmpty ? ' ' : prev,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant
+                                  .withValues(alpha: 0.55),
+                              fontSize: 14,
+                            ),
+                            textAlign: textAlign,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: showTransLine ? 6 : 8),
+                          Text(
+                            curr.isEmpty ? ' ' : curr,
+                            style: TextStyle(
+                              color: scheme.onSurface,
+                              fontSize: showTransLine ? 16 : 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: textAlign,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (showTransLine) ...[
+                            const SizedBox(height: 4),
                             Text(
-                              next.isEmpty ? ' ' : next,
+                              currTrans,
                               style: TextStyle(
-                                color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
-                                fontSize: 14,
+                                color: scheme.onSurfaceVariant
+                                    .withValues(alpha: 0.55),
+                                fontSize: 12,
                               ),
                               textAlign: textAlign,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                        );
-                      },
-                    );
-                  },
+                          SizedBox(height: showTransLine ? 6 : 8),
+                          Text(
+                            next.isEmpty ? ' ' : next,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant
+                                  .withValues(alpha: 0.55),
+                              fontSize: 14,
+                            ),
+                            textAlign: textAlign,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      );
+                    }(),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
+            const SizedBox(height: 8),
+          ],
+        );
+      },
     );
   }
 }
@@ -244,8 +240,8 @@ class _PlayerSeekBar extends StatefulWidget {
   State<_PlayerSeekBar> createState() => _PlayerSeekBarState();
 }
 
-class _PlayerSeekBarState extends State<_PlayerSeekBar> {
-  double? _dragValue;
+class _PlayerSeekBarState extends State<_PlayerSeekBar> with SignalsMixin {
+  late final _dragValue = createSignal<double?>(null);
 
   String _format(Duration? duration) {
     final total = duration?.inSeconds ?? 0;
@@ -257,79 +253,72 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Duration>(
-      valueListenable: widget.player.position,
-      builder: (context, position, child) {
-        return ValueListenableBuilder<Duration?>(
-          valueListenable: widget.player.duration,
-          builder: (context, duration, child) {
-            final scheme = Theme.of(context).colorScheme;
-            final totalMs = duration?.inMilliseconds ?? 0;
-            final max = totalMs <= 0 ? 1.0 : totalMs.toDouble();
-            final currentMs =
-                position.inMilliseconds.clamp(0, max.toInt()).toInt();
-            final sliderValue = _dragValue ?? currentMs.toDouble();
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 2,
-                      thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape:
-                          const RoundSliderOverlayShape(overlayRadius: 12),
-                      activeTrackColor: scheme.onSurface,
-                      inactiveTrackColor:
-                          scheme.onSurfaceVariant.withValues(alpha: 0.25),
-                      thumbColor: scheme.onSurface,
-                    ),
-                    child: Slider(
-                      value: sliderValue.clamp(0, max).toDouble(),
-                      min: 0,
-                      max: max,
-                      onChanged: totalMs <= 0
-                          ? null
-                          : (value) => setState(() => _dragValue = value),
-                      onChangeEnd: totalMs <= 0
-                          ? null
-                          : (value) {
-                              setState(() => _dragValue = null);
-                              widget.player.seek(
-                                Duration(milliseconds: value.round()),
-                              );
-                            },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _format(Duration(milliseconds: currentMs)),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: scheme.onSurfaceVariant
-                                .withValues(alpha: 0.7),
-                          ),
-                        ),
-                        Text(
-                          _format(duration),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: scheme.onSurfaceVariant
-                                .withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+    return Watch.builder(
+      builder: (context) {
+        final position = widget.player.positionSignal.value;
+        final duration = widget.player.durationSignal.value;
+        final scheme = Theme.of(context).colorScheme;
+        final totalMs = duration?.inMilliseconds ?? 0;
+        final max = totalMs <= 0 ? 1.0 : totalMs.toDouble();
+        final currentMs =
+            position.inMilliseconds.clamp(0, max.toInt()).toInt();
+        final sliderValue = _dragValue.value ?? currentMs.toDouble();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: [
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 2,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  overlayShape:
+                      const RoundSliderOverlayShape(overlayRadius: 12),
+                  activeTrackColor: scheme.onSurface,
+                  inactiveTrackColor:
+                      scheme.onSurfaceVariant.withValues(alpha: 0.25),
+                  thumbColor: scheme.onSurface,
+                ),
+                child: Slider(
+                  value: sliderValue.clamp(0, max).toDouble(),
+                  min: 0,
+                  max: max,
+                  onChanged: totalMs <= 0
+                      ? null
+                      : (value) => _dragValue.value = value,
+                  onChangeEnd: totalMs <= 0
+                      ? null
+                      : (value) {
+                          _dragValue.value = null;
+                          widget.player.seek(
+                            Duration(milliseconds: value.round()),
+                          );
+                        },
+                ),
               ),
-            );
-          },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _format(Duration(milliseconds: currentMs)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    Text(
+                      _format(duration),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -346,9 +335,9 @@ class _PlayerControls extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final titleColor = scheme.onSurface;
     final iconColor = scheme.onSurfaceVariant.withValues(alpha: 0.85);
-    return ValueListenableBuilder<bool>(
-      valueListenable: player.isPlaying,
-      builder: (context, playing, child) {
+    return Watch.builder(
+      builder: (context) {
+        final playing = player.isPlayingSignal.value;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -394,29 +383,25 @@ class _BottomActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final iconColor = scheme.onSurfaceVariant.withValues(alpha: 0.85);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          ValueListenableBuilder<PlaybackMode>(
-            valueListenable: player.playbackMode,
-            builder: (context, mode, child) {
-              final icon = switch (mode) {
-                PlaybackMode.shuffle => Icons.shuffle,
-                PlaybackMode.loop => Icons.repeat,
-                PlaybackMode.single => Icons.repeat_one,
-              };
-              return IconButton(
+    return Watch.builder(
+      builder: (context) {
+        final mode = player.playbackModeSignal.value;
+        final text = player.sleepTimerDisplayTextSignal.value;
+        final icon = switch (mode) {
+          PlaybackMode.shuffle => Icons.shuffle,
+          PlaybackMode.loop => Icons.repeat,
+          PlaybackMode.single => Icons.repeat_one,
+        };
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
                 icon: Icon(icon, color: iconColor),
                 onPressed: player.cyclePlaybackMode,
-              );
-            },
-          ),
-          ValueListenableBuilder<String?>(
-            valueListenable: player.sleepTimerDisplayText,
-            builder: (context, text, child) {
-              return Stack(
+              ),
+              Stack(
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
                 children: [
@@ -437,19 +422,19 @@ class _BottomActions extends StatelessWidget {
                       ),
                     ),
                 ],
-              );
-            },
+              ),
+              IconButton(
+                icon: Icon(Icons.format_list_bulleted, color: iconColor),
+                onPressed: () => _showPlaylistSheet(context),
+              ),
+              IconButton(
+                icon: Icon(Icons.more_horiz, color: iconColor),
+                onPressed: () => _showSongDetailSheet(context),
+              ),
+            ],
           ),
-          IconButton(
-            icon: Icon(Icons.format_list_bulleted, color: iconColor),
-            onPressed: () => _showPlaylistSheet(context),
-          ),
-          IconButton(
-            icon: Icon(Icons.more_horiz, color: iconColor),
-            onPressed: () => _showSongDetailSheet(context),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -547,7 +532,7 @@ class _PlayerSheetView extends StatelessWidget {
         child: Stack(
           children: [
             RepaintBoundary(
-              child: PlayerBackground(songListenable: player.currentSong),
+              child: PlayerBackground(songSignal: player.currentSongSignal),
             ),
             RepaintBoundary(
               child: BackdropFilter(
@@ -588,15 +573,15 @@ class _SleepTimerSheet extends StatefulWidget {
   State<_SleepTimerSheet> createState() => _SleepTimerSheetState();
 }
 
-class _SleepTimerSheetState extends State<_SleepTimerSheet> {
-  double _minutes = 30;
+class _SleepTimerSheetState extends State<_SleepTimerSheet> with SignalsMixin {
+  late final _minutes = createSignal(30.0);
 
   @override
   void initState() {
     super.initState();
     final remaining = widget.player.sleepRemaining;
     if (remaining != null && remaining > const Duration(minutes: 1)) {
-      _minutes = remaining.inMinutes.clamp(5, 120).toDouble();
+      _minutes.value = remaining.inMinutes.clamp(5, 120).toDouble();
     }
   }
 
@@ -618,44 +603,43 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> {
         : Colors.black.withValues(alpha: 0.28);
 
     final sheetHeight = MediaQuery.sizeOf(context).height * 0.4;
-    return SafeArea(
-      child: _PlayerSheetView(
-        player: widget.player,
-        height: sheetHeight,
-        maskColor: maskColor,
-        dragHandleColor: secondaryTextColor.withValues(alpha: 0.2),
-        header: _SleepTimerHeader(
-          textColor: textColor,
-          secondaryTextColor: secondaryTextColor,
-        ),
-        body: Expanded(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LabeledSlider(
-                    title: '定时时长',
-                    value: _minutes,
-                    min: 5,
-                    max: 120,
-                    divisions: 23,
-                    tickCount: 24,
-                    valueText: _formatMinutes(_minutes),
-                    label: '${_minutes.round()} 分钟',
-                    onChanged: (v) {
-                      setState(() {
-                        _minutes = v;
-                      });
-                    },
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                  ),
-                  const SizedBox(height: 8),
-                  ValueListenableBuilder<bool>(
-                    valueListenable: widget.player.sleepUntilSongEnd,
-                    builder: (context, untilSongEnd, child) {
-                      return Row(
+    return Watch.builder(
+      builder: (context) {
+        final minutes = _minutes.value;
+        final untilSongEnd = widget.player.sleepUntilSongEndSignal.value;
+        final text = widget.player.sleepTimerDisplayTextSignal.value;
+        final isActive = text != null && text.isNotEmpty;
+        return SafeArea(
+          child: _PlayerSheetView(
+            player: widget.player,
+            height: sheetHeight,
+            maskColor: maskColor,
+            dragHandleColor: secondaryTextColor.withValues(alpha: 0.2),
+            header: _SleepTimerHeader(
+              textColor: textColor,
+              secondaryTextColor: secondaryTextColor,
+            ),
+            body: Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LabeledSlider(
+                        title: '定时时长',
+                        value: minutes,
+                        min: 5,
+                        max: 120,
+                        divisions: 23,
+                        tickCount: 24,
+                        valueText: _formatMinutes(minutes),
+                        label: '${minutes.round()} 分钟',
+                        onChanged: (v) => _minutes.value = v,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
                         children: [
                           Expanded(
                             child: Text(
@@ -674,50 +658,44 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> {
                               } else {
                                 widget.player.cancelSleepTimer();
                               }
-                              setState(() {});
                             },
                           ),
                         ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        widget.player
-                            .setSleepTimer(Duration(minutes: _minutes.round()));
-                      },
-                      child: const Text('开始定时'),
-                    ),
-                  ),
-                  ValueListenableBuilder<String?>(
-                    valueListenable: widget.player.sleepTimerDisplayText,
-                    builder: (context, text, child) {
-                      final isActive = text != null && text.isNotEmpty;
-                      if (!isActive) return const SizedBox.shrink();
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Center(
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              widget.player.cancelSleepTimer();
-                            },
-                            child: const Text('取消定时'),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            widget.player.setSleepTimer(
+                              Duration(minutes: minutes.round()),
+                            );
+                          },
+                          child: const Text('开始定时'),
+                        ),
+                      ),
+                      if (isActive)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Center(
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                widget.player.cancelSleepTimer();
+                              },
+                              child: const Text('取消定时'),
+                            ),
                           ),
                         ),
-                      );
-                    },
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -784,9 +762,10 @@ class _PlaylistSheetState extends State<_PlaylistSheet> {
   @override
   void initState() {
     super.initState();
-    _lastIndex = widget.player.currentIndex.value;
+    _lastIndex = widget.player.currentIndexSignal.value;
     _controller = ScrollController(
-      initialScrollOffset: _calcOffset(_lastIndex, widget.player.queue.value.length),
+      initialScrollOffset:
+          _calcOffset(_lastIndex, widget.player.queueSignal.value.length),
     );
   }
 
@@ -807,133 +786,128 @@ class _PlaylistSheetState extends State<_PlaylistSheet> {
         ? Colors.white.withValues(alpha: 0.3)
         : Colors.black.withValues(alpha: 0.28);
 
-    return SafeArea(
-      child: ValueListenableBuilder<List<SongEntity>>(
-        valueListenable: widget.player.queue,
-        builder: (context, queue, child) {
-          return ValueListenableBuilder<int>(
-            valueListenable: widget.player.currentIndex,
-            builder: (context, currentIndex, child) {
-              final total = queue.length;
-              final current = currentIndex >= 0 ? currentIndex + 1 : 0;
-              if (currentIndex != _lastIndex && currentIndex >= 0) {
-                _lastIndex = currentIndex;
-                final offset = _calcOffset(_lastIndex, total);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_controller.hasClients) {
-                    _controller.animateTo(
-                      offset,
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                    );
-                  }
-                });
-              }
+    return Watch.builder(
+      builder: (context) {
+        final queue = widget.player.queueSignal.value;
+        final currentIndex = widget.player.currentIndexSignal.value;
+        final total = queue.length;
+        final current = currentIndex >= 0 ? currentIndex + 1 : 0;
+        if (currentIndex != _lastIndex && currentIndex >= 0) {
+          _lastIndex = currentIndex;
+          final offset = _calcOffset(_lastIndex, total);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_controller.hasClients) {
+              _controller.animateTo(
+                offset,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+              );
+            }
+          });
+        }
 
-              final sheetHeight = MediaQuery.sizeOf(context).height * 0.8;
-              return _PlayerSheetView(
-                player: widget.player,
-                height: sheetHeight,
-                maskColor: maskColor,
-                dragHandleColor: secondaryTextColor.withValues(alpha: 0.2),
-                header: _PlaylistHeader(
-                  total: total,
-                  current: current,
-                  textColor: textColor,
-                  secondaryTextColor: secondaryTextColor,
-                  onClear: widget.player.clearQueue,
-                ),
-                body: Expanded(
-                  child: total == 0
-                      ? Center(
-                          child: Text(
-                            '暂无歌曲',
-                            style: TextStyle(color: secondaryTextColor),
-                          ),
-                        )
-                      : RepaintBoundary(
-                          child: ReorderableListView.builder(
-                            scrollController: _controller,
-                            itemExtent: _itemExtent,
-                            buildDefaultDragHandles: false,
-                            proxyDecorator: (child, index, animation) {
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (context, child) {
-                                  final animValue =
-                                      Curves.easeInOut.transform(animation.value);
-                                  final elevation = ui.lerpDouble(0, 6, animValue)!;
-                                  return Material(
-                                    elevation: elevation,
-                                    color: Colors.transparent,
-                                    shadowColor: Colors.black.withValues(alpha: 0.3),
-                                    child: child,
-                                  );
-                                },
+        final sheetHeight = MediaQuery.sizeOf(context).height * 0.8;
+        return SafeArea(
+          child: _PlayerSheetView(
+            player: widget.player,
+            height: sheetHeight,
+            maskColor: maskColor,
+            dragHandleColor: secondaryTextColor.withValues(alpha: 0.2),
+            header: _PlaylistHeader(
+              total: total,
+              current: current,
+              textColor: textColor,
+              secondaryTextColor: secondaryTextColor,
+              onClear: widget.player.clearQueue,
+            ),
+            body: Expanded(
+              child: total == 0
+                  ? Center(
+                      child: Text(
+                        '暂无歌曲',
+                        style: TextStyle(color: secondaryTextColor),
+                      ),
+                    )
+                  : RepaintBoundary(
+                      child: ReorderableListView.builder(
+                        scrollController: _controller,
+                        itemExtent: _itemExtent,
+                        buildDefaultDragHandles: false,
+                        proxyDecorator: (child, index, animation) {
+                          return AnimatedBuilder(
+                            animation: animation,
+                            builder: (context, child) {
+                              final animValue =
+                                  Curves.easeInOut.transform(animation.value);
+                              final elevation = ui.lerpDouble(0, 6, animValue)!;
+                              return Material(
+                                elevation: elevation,
+                                color: Colors.transparent,
+                                shadowColor: Colors.black.withValues(alpha: 0.3),
                                 child: child,
                               );
                             },
-                            onReorder: (oldIndex, newIndex) {
-                              widget.player.reorderQueue(oldIndex, newIndex);
-                            },
-                            itemCount: total,
-                            itemBuilder: (context, index) {
-                              final song = queue[index];
-                              final isCurrent = index == currentIndex;
-                              final titleColor =
-                                  isCurrent ? scheme.primary : textColor;
-                              final artistColor =
-                                  secondaryTextColor.withValues(alpha: 0.85);
-                              return RepaintBoundary(
-                                key: ValueKey(song.id),
-                                child: AppListTile(
-                                  title: song.title,
-                                  subtitle: song.artist,
-                                  titleColor: titleColor,
-                                  subtitleColor: artistColor,
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.close_rounded,
-                                          color: secondaryTextColor,
-                                          size: 20,
-                                        ),
-                                        onPressed: () {
-                                          widget.player.removeFromQueue(index);
-                                        },
-                                      ),
-                                      ReorderableDelayedDragStartListener(
-                                        index: index,
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 8,
-                                            right: 8,
-                                          ),
-                                          child: Icon(
-                                            Icons.menu,
-                                            color: secondaryTextColor,
-                                            size: 20,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                            child: child,
+                          );
+                        },
+                        onReorder: (oldIndex, newIndex) {
+                          widget.player.reorderQueue(oldIndex, newIndex);
+                        },
+                        itemCount: total,
+                        itemBuilder: (context, index) {
+                          final song = queue[index];
+                          final isCurrent = index == currentIndex;
+                          final titleColor = isCurrent ? scheme.primary : textColor;
+                          final artistColor =
+                              secondaryTextColor.withValues(alpha: 0.85);
+                          return RepaintBoundary(
+                            key: ValueKey(song.id),
+                            child: AppListTile(
+                              title: song.title,
+                              subtitle: song.artist,
+                              titleColor: titleColor,
+                              subtitleColor: artistColor,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.close_rounded,
+                                      color: secondaryTextColor,
+                                      size: 20,
+                                    ),
+                                    onPressed: () {
+                                      widget.player.removeFromQueue(index);
+                                    },
                                   ),
-                                  onTap: () {
-                                    widget.player.skipToIndex(index);
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                                  ReorderableDelayedDragStartListener(
+                                    index: index,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 8,
+                                        right: 8,
+                                      ),
+                                      child: Icon(
+                                        Icons.menu,
+                                        color: secondaryTextColor,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                widget.player.skipToIndex(index);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

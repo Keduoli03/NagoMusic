@@ -3,8 +3,10 @@ import 'dart:convert';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:signals/signals.dart';
 
 import 'db/dao/song_dao.dart';
 import 'lyrics/lyrics_repository.dart';
@@ -13,66 +15,43 @@ import 'audio_proxy_server.dart';
 import 'cache/audio_cache_service.dart';
 import 'metadata/tag_probe_service.dart';
 import '../state/song_state.dart';
+export '../state/player_state.dart';
+import '../state/player_state.dart';
 
-enum PlaybackMode {
-  shuffle,
-  loop,
-  single,
-}
-
-class PlaybackSnapshot {
-  final SongEntity? song;
-  final List<SongEntity> queue;
-  final int index;
-  final bool isPlaying;
-  final Duration position;
-  final Duration? duration;
-  final Duration bufferedPosition;
-
-  const PlaybackSnapshot({
-    required this.song,
-    required this.queue,
-    required this.index,
-    required this.isPlaying,
-    required this.position,
-    required this.duration,
-    required this.bufferedPosition,
-  });
-
-  factory PlaybackSnapshot.initial() {
-    return const PlaybackSnapshot(
-      song: null,
-      queue: [],
-      index: -1,
-      isPlaying: false,
-      position: Duration.zero,
-      duration: null,
-      bufferedPosition: Duration.zero,
-    );
-  }
-}
-
-class PlayerService {
+class PlayerService with WidgetsBindingObserver {
   static final PlayerService instance = PlayerService._internal();
+
+  final _state = AppPlayerState.instance;
 
   final AudioPlayer _player = AudioPlayer();
   final AudioCacheService _audioCache = AudioCacheService.instance;
   final AudioProxyServer _proxy = AudioProxyServer.instance;
   final SongDao _songDao = SongDao();
   final LyricsRepository _lyricsRepo = LyricsRepository();
-  final ValueNotifier<Duration> position = ValueNotifier(Duration.zero);
-  final ValueNotifier<Duration?> duration = ValueNotifier(null);
-  final ValueNotifier<Duration> bufferedPosition = ValueNotifier(Duration.zero);
-  final ValueNotifier<bool> isPlaying = ValueNotifier(false);
-  final ValueNotifier<List<SongEntity>> queue = ValueNotifier(const []);
-  final ValueNotifier<int> currentIndex = ValueNotifier(-1);
-  final ValueNotifier<SongEntity?> currentSong = ValueNotifier(null);
-  final ValueNotifier<PlaybackSnapshot> snapshot =
-      ValueNotifier(PlaybackSnapshot.initial());
-  final ValueNotifier<PlaybackMode> playbackMode =
-      ValueNotifier(PlaybackMode.loop);
-  final ValueNotifier<String?> sleepTimerDisplayText = ValueNotifier(null);
-  final ValueNotifier<bool> sleepUntilSongEnd = ValueNotifier(false);
+
+  ValueNotifier<Duration> get position => _state.position;
+  ValueNotifier<Duration?> get duration => _state.duration;
+  ValueNotifier<Duration> get bufferedPosition => _state.bufferedPosition;
+  ValueNotifier<bool> get isPlaying => _state.isPlaying;
+  ValueNotifier<List<SongEntity>> get queue => _state.queue;
+  ValueNotifier<int> get currentIndex => _state.currentIndex;
+  ValueNotifier<SongEntity?> get currentSong => _state.currentSong;
+  ValueNotifier<PlaybackSnapshot> get snapshot => _state.snapshot;
+  ValueNotifier<PlaybackMode> get playbackMode => _state.playbackMode;
+  ValueNotifier<String?> get sleepTimerDisplayText => _state.sleepTimerDisplayText;
+  ValueNotifier<bool> get sleepUntilSongEnd => _state.sleepUntilSongEnd;
+
+  Signal<Duration> get positionSignal => _state.positionSignal;
+  Signal<Duration?> get durationSignal => _state.durationSignal;
+  Signal<Duration> get bufferedPositionSignal => _state.bufferedPositionSignal;
+  Signal<bool> get isPlayingSignal => _state.isPlayingSignal;
+  Signal<List<SongEntity>> get queueSignal => _state.queueSignal;
+  Signal<int> get currentIndexSignal => _state.currentIndexSignal;
+  Signal<SongEntity?> get currentSongSignal => _state.currentSongSignal;
+  Signal<PlaybackSnapshot> get snapshotSignal => _state.snapshotSignal;
+  Signal<PlaybackMode> get playbackModeSignal => _state.playbackModeSignal;
+  Signal<String?> get sleepTimerDisplayTextSignal => _state.sleepTimerDisplayTextSignal;
+  Signal<bool> get sleepUntilSongEndSignal => _state.sleepUntilSongEndSignal;
 
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration?>? _durationSub;
@@ -87,6 +66,11 @@ class PlayerService {
   final Map<String, Future<void>> _probeInflight = {};
   final Map<String, int> _durationPersistedMs = {};
   bool _restoringState = false;
+  bool _isSeeking = false;
+  int _seekSeq = 0;
+  DateTime _lastPersistTime = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime? _lastSnapshotEmit;
+  Timer? _snapshotTimer;
 
   static const String _prefsQueueKey = 'playback_queue_v1';
   static const String _prefsIndexKey = 'playback_index_v1';
@@ -96,7 +80,16 @@ class PlayerService {
   static const String _prefsSongIdKey = 'playback_song_id_v1';
 
   PlayerService._internal() {
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      // Force save when app goes to background or is killed
+      _persistPlaybackState();
+    }
   }
 
   Future<void> _hydrateAndSetCurrentSong(SongEntity song) async {
@@ -127,6 +120,7 @@ class PlayerService {
     await _player.setLoopMode(LoopMode.all);
     playbackMode.value = PlaybackMode.loop;
     _positionSub = _player.positionStream.listen((value) {
+      if (_isSeeking) return;
       position.value = value;
       _emitSnapshot();
     });
@@ -137,15 +131,15 @@ class PlayerService {
       if (song != null && ms > 0) {
         _maybePersistPlaybackDuration(song, ms);
       }
-      _emitSnapshot();
+      _emitSnapshot(force: true);
     });
     _bufferSub = _player.bufferedPositionStream.listen((value) {
       bufferedPosition.value = value;
-      _emitSnapshot();
+      _emitSnapshot(force: true);
     });
     _stateSub = _player.playerStateStream.listen((state) {
       isPlaying.value = state.playing;
-      _emitSnapshot();
+      _emitSnapshot(force: true);
     });
     _indexSub = _player.currentIndexStream.listen((idx) {
       if (idx == null) return;
@@ -157,7 +151,7 @@ class PlayerService {
         _maybeProbeSong(song);
         _hydrateAndSetCurrentSong(song);
       }
-      _emitSnapshot();
+      _emitSnapshot(force: true);
     });
     _loopModeSub = _player.loopModeStream.listen((loopMode) {
       if (playbackMode.value == PlaybackMode.shuffle) return;
@@ -180,7 +174,7 @@ class PlayerService {
     } finally {
       _restoringState = false;
     }
-    _emitSnapshot();
+    _emitSnapshot(force: true);
   }
 
   Future<void> playQueue(List<SongEntity> songs, int startIndex) async {
@@ -199,7 +193,7 @@ class PlayerService {
     currentSong.value = playable[actualIndex];
     _maybeProbeSong(playable[actualIndex]);
     _hydrateAndSetCurrentSong(playable[actualIndex]);
-    _emitSnapshot();
+    _emitSnapshot(force: true);
     Future<List<AudioSource>> buildSources() async {
       await _proxy.resetSources();
       return Future.wait(playable.map(_sourceForSong));
@@ -262,7 +256,7 @@ class PlayerService {
         await _player.stop();
       } catch (_) {}
       isPlaying.value = false;
-      _emitSnapshot();
+      _emitSnapshot(force: true);
       return;
     }
 
@@ -355,7 +349,7 @@ class PlayerService {
     queue.value = const [];
     currentIndex.value = -1;
     currentSong.value = null;
-    _emitSnapshot();
+    _emitSnapshot(force: true);
     await _clearPersistedPlaybackState();
   }
 
@@ -378,7 +372,7 @@ class PlayerService {
     currentIndex.value = actualIndex;
     currentSong.value = playable[actualIndex];
     _maybeProbeSong(playable[actualIndex]);
-    _emitSnapshot();
+    _emitSnapshot(force: true);
 
     await _proxy.resetSources();
     final sources = await Future.wait(playable.map(_sourceForSong));
@@ -445,7 +439,25 @@ class PlayerService {
   }
 
   Future<void> seek(Duration position) async {
-    await _player.seek(position);
+    _seekSeq++;
+    final currentSeq = _seekSeq;
+    _isSeeking = true;
+    this.position.value = position;
+    _emitSnapshot(force: true);
+    try {
+      await _player.seek(position);
+      // Wait a bit for the player to stabilize its position reporting
+      if (currentSeq == _seekSeq) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    } finally {
+      if (currentSeq == _seekSeq) {
+        _isSeeking = false;
+        // Force one last update from the player to ensure sync
+        this.position.value = _player.position;
+        _emitSnapshot(force: true);
+      }
+    }
   }
 
   Future<void> skipToIndex(int index) async {
@@ -649,7 +661,26 @@ class PlayerService {
     }
   }
 
-  void _emitSnapshot() {
+  void _emitSnapshot({bool force = false}) {
+    if (force) {
+      _snapshotTimer?.cancel();
+      _applySnapshot();
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastSnapshotEmit;
+    if (last == null || now.difference(last) >= const Duration(milliseconds: 250)) {
+      _snapshotTimer?.cancel();
+      _applySnapshot();
+      return;
+    }
+    _snapshotTimer?.cancel();
+    final delay = const Duration(milliseconds: 250) - now.difference(last);
+    _snapshotTimer = Timer(delay, _applySnapshot);
+  }
+
+  void _applySnapshot() {
+    _lastSnapshotEmit = DateTime.now();
     snapshot.value = PlaybackSnapshot(
       song: currentSong.value,
       queue: queue.value,
@@ -685,7 +716,6 @@ class PlayerService {
     final savedIndex = prefs.getInt(_prefsIndexKey) ?? 0;
     final savedPositionMs = prefs.getInt(_prefsPositionKey) ?? 0;
     final savedMode = prefs.getString(_prefsModeKey);
-    final savedWasPlaying = prefs.getBool(_prefsWasPlayingKey) ?? false;
     final savedSongId = prefs.getString(_prefsSongIdKey);
     final mode = _playbackModeFromString(savedMode) ?? PlaybackMode.loop;
     var actualIndex = savedIndex;
@@ -700,20 +730,35 @@ class PlayerService {
       actualIndex = restoredQueue.length - 1;
     }
 
+    // Restore UI state immediately
     queue.value = restoredQueue;
     currentIndex.value = actualIndex;
     currentSong.value = restoredQueue[actualIndex];
-    _emitSnapshot();
+    _emitSnapshot(force: true);
 
     try {
       await _proxy.resetSources();
-      final sources = await Future.wait(restoredQueue.map(_sourceForSong));
+      // Load audio sources in parallel, but handle errors gracefully
+      final sources = await Future.wait(restoredQueue.map((s) async {
+        try {
+          return await _sourceForSong(s);
+        } catch (e) {
+          if (kDebugMode) debugPrint('Error restoring source for ${s.title}: $e');
+          // Return a placeholder or silent source if loading fails? 
+          // For now, let's try to load it anyway or use file source if local
+          if (s.isLocal) return AudioSource.file(s.uri ?? '');
+          return AudioSource.uri(Uri.parse(s.uri ?? ''));
+        }
+      }));
+      
       await _player.setAudioSources(
         sources,
         initialIndex: actualIndex,
       );
-    } catch (_) {
-      await stopAndClear();
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error restoring playback state: $e');
+      // Do not clear queue here, as we want to keep the UI state
+      // user can try to play again
       return;
     }
 
@@ -726,15 +771,10 @@ class PlayerService {
       } catch (_) {}
     }
 
-    if (savedWasPlaying) {
-      try {
-        await _player.play();
-      } catch (_) {}
-    } else {
-      try {
-        await _player.pause();
-      } catch (_) {}
-    }
+    // Always pause on restore, do not auto-play
+    try {
+      await _player.pause();
+    } catch (_) {}
   }
 
   PlaybackMode? _playbackModeFromString(String? value) {
@@ -763,13 +803,27 @@ class PlayerService {
 
   void _schedulePersistPlaybackState() {
     if (_restoringState) return;
+    
     _persistTimer?.cancel();
-    _persistTimer = Timer(const Duration(milliseconds: 1500), () {
-      _persistPlaybackState();
-    });
+
+    // If playing, we need to save periodically to avoid data loss on crash/kill
+    if (isPlaying.value) {
+      final now = DateTime.now();
+      // If > 5s since last save, force save immediately
+      if (now.difference(_lastPersistTime) > const Duration(seconds: 5)) {
+        _persistPlaybackState();
+        return;
+      }
+      // Otherwise standard debounce
+      _persistTimer = Timer(const Duration(milliseconds: 1500), _persistPlaybackState);
+    } else {
+      // If paused/stopped, save quickly (500ms) to capture state before potential app kill
+      _persistTimer = Timer(const Duration(milliseconds: 500), _persistPlaybackState);
+    }
   }
 
   Future<void> _persistPlaybackState() async {
+    _lastPersistTime = DateTime.now();
     final list = queue.value;
     if (list.isEmpty || currentIndex.value < 0) {
       await _clearPersistedPlaybackState();
@@ -892,7 +946,7 @@ class PlayerService {
     final current = currentSong.value;
     if (current != null && current.id == song.id) {
       currentSong.value = next;
-      _emitSnapshot();
+      _emitSnapshot(force: true);
     }
   }
 
@@ -985,20 +1039,7 @@ class PlayerService {
       headers: headers,
     );
     if (cached != null) {
-      try {
-        final cachedLen = await cached.length();
-        final total = await TagProbeService.instance.remoteTotalBytes(
-          uri: uriStr,
-          headers: headers,
-        );
-        if (total != null && total > 0 && cachedLen > 0 && cachedLen < total) {
-          await _audioCache.removeCachedFiles(uri: uriStr, headers: headers);
-        } else {
-          return AudioSource.file(cached.path);
-        }
-      } catch (_) {
-        return AudioSource.file(cached.path);
-      }
+      return AudioSource.file(cached.path);
     }
 
     final cacheFile = await _audioCache.getCacheFile(
@@ -1021,6 +1062,7 @@ class PlayerService {
 
 
   Future<void> dispose() async {
+    WidgetsBinding.instance.removeObserver(this);
     cancelSleepTimer();
     await _positionSub?.cancel();
     await _durationSub?.cancel();

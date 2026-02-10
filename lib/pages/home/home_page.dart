@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:signals/signals.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/router/app_router.dart';
 import '../../app/services/db/dao/song_dao.dart';
@@ -17,17 +19,33 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with SignalsMixin {
   static const String _prefsHomeFilter = 'home_filter';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final SongDao _songDao = SongDao();
 
-  _HomeFilter _filter = _HomeFilter.all;
-  bool _loading = true;
-  int _countAll = 0;
-  int _countLocal = 0;
-  int _countRemote = 0;
+  late final _filter = createSignal(_HomeFilter.all);
+  late final _loading = createSignal(true);
+  late final _countAll = createSignal(0);
+  late final _countLocal = createSignal(0);
+  late final _countRemote = createSignal(0);
+
+  late final _filterTitle = computed<String>(() {
+    return switch (_filter.value) {
+      _HomeFilter.local => '本地音乐',
+      _HomeFilter.webdav => 'WebDAV',
+      _ => '全部',
+    };
+  });
+
+  late final _filterCount = computed<int>(() {
+    return switch (_filter.value) {
+      _HomeFilter.local => _countLocal.value,
+      _HomeFilter.webdav => _countRemote.value,
+      _ => _countAll.value,
+    };
+  });
 
   @override
   void initState() {
@@ -50,17 +68,15 @@ class _HomePageState extends State<HomePage> {
       _songDao.countRemote(),
     ]);
     if (!mounted) return;
-    setState(() {
-      _filter = filter;
-      _countAll = counts[0];
-      _countLocal = counts[1];
-      _countRemote = counts[2];
-      _loading = false;
-    });
+    _filter.value = filter;
+    _countAll.value = counts[0];
+    _countLocal.value = counts[1];
+    _countRemote.value = counts[2];
+    _loading.value = false;
   }
 
   Future<void> _setFilter(_HomeFilter next) async {
-    setState(() => _filter = next);
+    _filter.value = next;
     final prefs = await SharedPreferences.getInstance();
     final raw = switch (next) {
       _HomeFilter.local => 'local',
@@ -68,22 +84,6 @@ class _HomePageState extends State<HomePage> {
       _ => 'all',
     };
     await prefs.setString(_prefsHomeFilter, raw);
-  }
-
-  String _filterTitle() {
-    return switch (_filter) {
-      _HomeFilter.local => '本地音乐',
-      _HomeFilter.webdav => 'WebDAV',
-      _ => '全部',
-    };
-  }
-
-  int _filterCount() {
-    return switch (_filter) {
-      _HomeFilter.local => _countLocal,
-      _HomeFilter.webdav => _countRemote,
-      _ => _countAll,
-    };
   }
 
   void _handleBottomNavTap(int index) {
@@ -104,16 +104,18 @@ class _HomePageState extends State<HomePage> {
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         actions: [
-          PopupMenuButton<_HomeFilter>(
-            icon: const Icon(Icons.filter_list),
-            initialValue: _filter,
-            tooltip: '筛选',
-            onSelected: _setFilter,
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: _HomeFilter.all, child: Text('全部')),
-              PopupMenuItem(value: _HomeFilter.local, child: Text('本地音乐')),
-              PopupMenuItem(value: _HomeFilter.webdav, child: Text('WebDAV')),
-            ],
+          Watch.builder(
+            builder: (context) => PopupMenuButton<_HomeFilter>(
+              icon: const Icon(Icons.filter_list),
+              initialValue: _filter.value,
+              tooltip: '筛选',
+              onSelected: _setFilter,
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: _HomeFilter.all, child: Text('全部')),
+                PopupMenuItem(value: _HomeFilter.local, child: Text('本地音乐')),
+                PopupMenuItem(value: _HomeFilter.webdav, child: Text('WebDAV')),
+              ],
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -121,74 +123,76 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
       ),
       drawer: const SideMenu(),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-          children: [
-            Text(
-              '音乐库',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            _HomeStatsRow(
-              loading: _loading,
-              filterLabel: _filterTitle(),
-              songCount: _filterCount(),
-            ),
-            const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final itemWidth = (width - 16) / 2;
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: itemWidth,
-                      child: _HomeEntryCard(
-                        icon: Icons.people_rounded,
-                        label: '艺术家',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const ArtistsPage()),
-                          );
-                        },
-                      ),
+      body: Watch.builder(
+        builder: (context) => RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            children: [
+              Text(
+                '音乐库',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
                     ),
-                    SizedBox(
-                      width: itemWidth,
-                      child: _HomeEntryCard(
-                        icon: Icons.album_rounded,
-                        label: '专辑',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const AlbumsPage()),
-                          );
-                        },
+              ),
+              const SizedBox(height: 12),
+              _HomeStatsRow(
+                loading: _loading.value,
+                filterLabel: _filterTitle.value,
+                songCount: _filterCount.value,
+              ),
+              const SizedBox(height: 14),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final itemWidth = (width - 16) / 2;
+                  return Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: itemWidth,
+                        child: _HomeEntryCard(
+                          icon: Icons.people_rounded,
+                          label: '艺术家',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ArtistsPage()),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: itemWidth,
-                      child: _HomeEntryCard(
-                        icon: Icons.queue_music_rounded,
-                        label: '歌单',
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const PlaylistsPage()),
-                          );
-                        },
+                      SizedBox(
+                        width: itemWidth,
+                        child: _HomeEntryCard(
+                          icon: Icons.album_rounded,
+                          label: '专辑',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const AlbumsPage()),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+                      SizedBox(
+                        width: itemWidth,
+                        child: _HomeEntryCard(
+                          icon: Icons.queue_music_rounded,
+                          label: '歌单',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const PlaylistsPage()),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavIndex: 0,

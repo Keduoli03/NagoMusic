@@ -1,22 +1,22 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../../app/state/song_state.dart';
 
 class PlayerBackground extends StatelessWidget {
-  final ValueListenable<SongEntity?> songListenable;
+  final Signal<SongEntity?> songSignal;
 
-  const PlayerBackground({super.key, required this.songListenable});
+  const PlayerBackground({super.key, required this.songSignal});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return ValueListenableBuilder<SongEntity?>(
-      valueListenable: songListenable,
-      builder: (context, song, child) {
+    return Watch.builder(
+      builder: (context) {
+        final song = songSignal.value;
         final coverPath = song?.localCoverPath;
         final hasCover = coverPath != null && coverPath.isNotEmpty;
         return Stack(
