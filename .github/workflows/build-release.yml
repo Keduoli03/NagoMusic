@@ -36,7 +36,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build apk --release --split-per-abi
         env:
-          SIGNING_STORE_FILE: android/app/release.keystore
+          SIGNING_STORE_FILE: release.keystore
           SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
