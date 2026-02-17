@@ -14,6 +14,7 @@ import 'artwork_cache_helper.dart';
 import 'audio_proxy_server.dart';
 import 'cache/audio_cache_service.dart';
 import 'metadata/tag_probe_service.dart';
+import '../state/settings_state.dart';
 import '../state/song_state.dart';
 export '../state/player_state.dart';
 import '../state/player_state.dart';
@@ -71,6 +72,7 @@ class PlayerService with WidgetsBindingObserver {
   DateTime _lastPersistTime = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime? _lastSnapshotEmit;
   Timer? _snapshotTimer;
+  int _prefetchTriggeredIndex = -1;
 
   static const String _prefsQueueKey = 'playback_queue_v1';
   static const String _prefsIndexKey = 'playback_index_v1';
@@ -115,6 +117,8 @@ class PlayerService with WidgetsBindingObserver {
   Future<void> _init() async {
     _restoringState = true;
     _persistTimer?.cancel();
+    await WebDavPlaybackSettings.ensureLoaded();
+    await AppCacheSettings.ensureLoaded();
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
     await _player.setLoopMode(LoopMode.all);
@@ -122,6 +126,7 @@ class PlayerService with WidgetsBindingObserver {
     _positionSub = _player.positionStream.listen((value) {
       if (_isSeeking) return;
       position.value = value;
+      _maybePrefetchByRemaining(value);
       _emitSnapshot();
     });
     _durationSub = _player.durationStream.listen((value) {
@@ -144,6 +149,7 @@ class PlayerService with WidgetsBindingObserver {
     _indexSub = _player.currentIndexStream.listen((idx) {
       if (idx == null) return;
       currentIndex.value = idx;
+      _prefetchTriggeredIndex = -1;
       final list = queue.value;
       if (idx >= 0 && idx < list.length) {
         final song = list[idx];
@@ -276,6 +282,45 @@ class PlayerService with WidgetsBindingObserver {
       if (kDebugMode) {
         debugPrint('PlayerService.playQueue play failed: $e');
       }
+    }
+  }
+
+  void _maybePrefetchByRemaining(Duration positionValue) {
+    if (!WebDavPlaybackSettings.prefetchEnabled.value) return;
+    final total = duration.value;
+    if (total == null || total.inMilliseconds <= 0) return;
+    final remaining = total - positionValue;
+    if (remaining.inSeconds > 30) return;
+    final idx = currentIndex.value;
+    if (idx < 0 || idx == _prefetchTriggeredIndex) return;
+    _prefetchTriggeredIndex = idx;
+    _prefetchUpcoming();
+  }
+
+  Future<void> _prefetchUpcoming() async {
+    if (!WebDavPlaybackSettings.prefetchEnabled.value) return;
+    final list = queue.value;
+    final startIndex = currentIndex.value;
+    if (startIndex < 0 || list.isEmpty) return;
+    final nextIndex = startIndex + 1;
+    if (nextIndex < 0 || nextIndex >= list.length) return;
+    final song = list[nextIndex];
+    final raw = (song.uri ?? '').trim();
+    if (song.isLocal || !raw.startsWith('http')) return;
+    final headers = _headersFromSong(song);
+    final cached = await _audioCache.getCompleteCachedFile(
+      uri: raw,
+      headers: headers,
+    );
+    if (cached != null) return;
+    if (WebDavPlaybackSettings.segmentedEnabled.value) {
+      _audioCache.startBackgroundDownloadSegmented(
+        uri: raw,
+        headers: headers,
+        maxConcurrentSegments: WebDavPlaybackSettings.segmentConcurrency.value,
+      );
+    } else {
+      _audioCache.startBackgroundDownload(uri: raw, headers: headers);
     }
   }
 

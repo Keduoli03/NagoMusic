@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 import '../../app/services/cache/audio_cache_service.dart';
+import '../../app/state/settings_state.dart';
 import '../../components/index.dart';
 
 class CacheSettingsPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> with SignalsMixin
   @override
   void initState() {
     super.initState();
+    AppCacheSettings.ensureLoaded();
     _loadCacheSizes();
   }
 
@@ -170,6 +172,11 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> with SignalsMixin
     return '${size.toStringAsFixed(2)} ${suffixes[i]}';
   }
 
+  String _limitLabel(int gb) {
+    if (gb <= 0) return '无限制';
+    return '$gb GB';
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomPadding = AppPageScaffold.scrollableBottomPadding(context);
@@ -187,6 +194,25 @@ class _CacheSettingsPageState extends State<CacheSettingsPage> with SignalsMixin
             AppSettingSection(
               title: '缓存管理',
               children: [
+                ValueListenableBuilder<int>(
+                  valueListenable: AppCacheSettings.audioCacheLimitGb,
+                  builder: (context, gb, _) {
+                    final sliderValue = gb <= 0 ? 6.0 : gb.toDouble();
+                    return AppSettingSlider(
+                      title: '缓存上限',
+                      description: '达到上限后会自动清理旧缓存',
+                      value: sliderValue,
+                      min: 1,
+                      max: 6,
+                      divisions: 5,
+                      valueText: _limitLabel(gb),
+                      onChanged: (value) {
+                        final v = value.round();
+                        AppCacheSettings.setAudioCacheLimitGb(v >= 6 ? 0 : v);
+                      },
+                    );
+                  },
+                ),
                 AppSettingTile(
                   title: '音频缓存',
                   subtitle: _loading.value

@@ -11,6 +11,7 @@ import '../../state/song_state.dart';
 import 'lyrics_parser.dart';
 import 'lyrics_repository.dart';
 import 'lyricon_service.dart';
+import 'meizu_lyrics_service.dart';
 
 enum LyricsLoadStatus {
   idle,
@@ -64,6 +65,7 @@ class LyricsService {
   static const String _prefsLyriconForceKaraoke = 'lyrics_lyricon_force_karaoke';
   static const String _prefsLyriconHideTranslation =
       'lyrics_lyricon_hide_translation';
+  static const String _prefsMeizuLyrics = 'lyrics_meizu_enabled';
   static const String _prefsViewForceKaraoke = 'lyrics_view_force_karaoke';
 
   final LyricsRepository _repo = LyricsRepository();
@@ -71,6 +73,7 @@ class LyricsService {
   final LyricController controller = LyricController();
   final ValueNotifier<LyricsSnapshot> snapshot =
       ValueNotifier(LyricsSnapshot.idle());
+  final ValueNotifier<String?> currentLineText = ValueNotifier(null);
   final ValueNotifier<int> viewSettingsTick = ValueNotifier(0);
   late final snapshotSignal = signal(LyricsSnapshot.idle());
   late final viewSettingsTickSignal = signal(0);
@@ -86,6 +89,8 @@ class LyricsService {
   bool _lyriconEnabled = false;
   bool _lyriconForceKaraoke = false;
   bool _lyriconHideTranslation = false;
+  bool _meizuEnabled = false;
+  int _meizuLastIndex = -1;
   bool _viewForceKaraoke = false;
 
   LyricsService._internal() {
@@ -96,6 +101,7 @@ class LyricsService {
     controller.activeIndexNotifiter.addListener(
       () => activeIndexSignal.value = controller.activeIndexNotifiter.value,
     );
+    controller.activeIndexNotifiter.addListener(_onActiveIndexChanged);
     controller.lyricNotifier.addListener(
       () => lyricModelSignal.value = controller.lyricNotifier.value,
     );
@@ -126,6 +132,7 @@ class LyricsService {
     _lyriconForceKaraoke = prefs.getBool(_prefsLyriconForceKaraoke) ?? false;
     _lyriconHideTranslation =
         prefs.getBool(_prefsLyriconHideTranslation) ?? false;
+    _meizuEnabled = prefs.getBool(_prefsMeizuLyrics) ?? false;
     _viewForceKaraoke = prefs.getBool(_prefsViewForceKaraoke) ?? false;
     await LyriconService.setServiceEnabled(_lyriconEnabled);
     if (!_lyriconEnabled) {
@@ -134,6 +141,12 @@ class LyricsService {
     } else {
       final song = _player.currentSong.value;
       await _syncLyriconSong(song, snapshot.value.model);
+    }
+    if (!_meizuEnabled) {
+      _meizuLastIndex = -1;
+      await MeizuLyricsService.stopLyric();
+    } else {
+      _updateMeizuLyricForIndex(controller.activeIndexNotifiter.value);
     }
   }
 
@@ -152,6 +165,11 @@ class LyricsService {
     _syncLyriconPlaybackState();
   }
 
+  void _onActiveIndexChanged() {
+    _updateCurrentLineText(controller.activeIndexNotifiter.value);
+    _updateMeizuLyricForIndex(controller.activeIndexNotifiter.value);
+  }
+
   void reloadCurrentSong() {
     _loadForSong(_player.currentSong.value);
   }
@@ -165,6 +183,7 @@ class LyricsService {
       error: null,
     );
     controller.lyricNotifier.value = null;
+    currentLineText.value = null;
 
     if (song == null) {
       snapshot.value = snapshot.value.copyWith(
@@ -174,6 +193,10 @@ class LyricsService {
         error: null,
       );
       await _syncLyriconSong(null, null);
+      if (_meizuEnabled) {
+        _meizuLastIndex = -1;
+        await MeizuLyricsService.stopLyric();
+      }
       return;
     }
 
@@ -190,6 +213,10 @@ class LyricsService {
           error: null,
         );
         await _syncLyriconSong(song, null);
+        if (_meizuEnabled) {
+          _meizuLastIndex = -1;
+          await MeizuLyricsService.stopLyric();
+        }
         return;
       }
 
@@ -202,6 +229,7 @@ class LyricsService {
         forceKaraoke: _viewForceKaraoke || _lyriconForceKaraoke,
       );
       controller.loadLyricModel(model);
+      _updateCurrentLineText(controller.activeIndexNotifiter.value);
       snapshot.value = snapshot.value.copyWith(
         status: LyricsLoadStatus.loaded,
         song: song,
@@ -209,6 +237,7 @@ class LyricsService {
         error: null,
       );
       await _syncLyriconSong(song, model);
+      _updateMeizuLyricForIndex(controller.activeIndexNotifiter.value);
     } catch (e) {
       if (seq != _loadSeq) return;
       snapshot.value = snapshot.value.copyWith(
@@ -218,7 +247,25 @@ class LyricsService {
         error: e,
       );
       await _syncLyriconSong(song, null);
+      if (_meizuEnabled) {
+        _meizuLastIndex = -1;
+        await MeizuLyricsService.stopLyric();
+      }
     }
+  }
+
+  void _updateCurrentLineText(int index) {
+    final model = controller.lyricNotifier.value;
+    if (model == null || model.lines.isEmpty) {
+      currentLineText.value = null;
+      return;
+    }
+    if (index < 0 || index >= model.lines.length) {
+      currentLineText.value = null;
+      return;
+    }
+    final text = model.lines[index].text.trim();
+    currentLineText.value = text.isEmpty ? null : text;
   }
 
   Future<void> _syncLyriconPlaybackState() async {
@@ -253,5 +300,32 @@ class LyricsService {
     );
     await LyriconService.setDisplayTranslation(!_lyriconHideTranslation);
     await LyriconService.setPlaybackState(_player.isPlaying.value);
+  }
+
+  void _updateMeizuLyricForIndex(int index) {
+    if (!_meizuEnabled) return;
+    final model = controller.lyricNotifier.value;
+    if (model == null) {
+      if (_meizuLastIndex != -1) {
+        _meizuLastIndex = -1;
+        MeizuLyricsService.stopLyric();
+      }
+      return;
+    }
+    if (index < 0 || index >= model.lines.length) {
+      if (_meizuLastIndex != -1) {
+        _meizuLastIndex = -1;
+        MeizuLyricsService.stopLyric();
+      }
+      return;
+    }
+    if (_meizuLastIndex == index) return;
+    _meizuLastIndex = index;
+    final text = model.lines[index].text.trim();
+    if (text.isEmpty) {
+      MeizuLyricsService.stopLyric();
+      return;
+    }
+    MeizuLyricsService.updateLyric(text);
   }
 }

@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/artwork_cache_helper.dart';
 import '../../app/services/cache/audio_cache_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
+import '../../app/services/webdav/webdav_source_repository.dart';
+import '../../app/services/playlists_service.dart';
 import '../../app/services/metadata/tag_probe_service.dart';
 import '../../app/services/metadata/tag_probe_result.dart';
 import '../../app/services/player_service.dart';
@@ -18,7 +21,7 @@ import '../../components/common/sheet_panels.dart';
 import '../../components/feedback/app_toast.dart';
 import '../library/playlists_page.dart';
 
-class SongDetailSheet extends StatelessWidget {
+class SongDetailSheet extends StatefulWidget {
   final SongEntity song;
   final ValueChanged<SongEntity>? onUpdated;
   final ValueChanged<String>? onDeleted;
@@ -66,16 +69,77 @@ class SongDetailSheet extends StatelessWidget {
   }
 
   @override
+  State<SongDetailSheet> createState() => _SongDetailSheetState();
+}
+
+class _SongDetailSheetState extends State<SongDetailSheet> {
+  final PlaylistsService _playlists = PlaylistsService.instance;
+  bool _isFavorite = false;
+  bool _loadingFavorite = true;
+  String _favoriteName = PlaylistsService.favoritePlaylistName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavoriteState();
+  }
+
+  Future<void> _loadFavoriteState() async {
+    final songId = widget.song.id;
+    final list = await _playlists.loadAll();
+    PlaylistEntity? favorite;
+    for (final p in list) {
+      if (p.isFavorite || p.id == PlaylistsService.favoritePlaylistId) {
+        favorite = p;
+        break;
+      }
+    }
+    final next = favorite?.songIds.contains(songId) ?? false;
+    final name = (favorite?.name ?? '').trim();
+    if (!mounted) return;
+    setState(() {
+      _isFavorite = next;
+      _loadingFavorite = false;
+      if (name.isNotEmpty) {
+        _favoriteName = name;
+      }
+    });
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_loadingFavorite) return;
+    final songId = widget.song.id;
+    if (_isFavorite) {
+      await _playlists.removeSongs(
+        PlaylistsService.favoritePlaylistId,
+        [songId],
+      );
+      if (!mounted) return;
+      setState(() => _isFavorite = false);
+      AppToast.show(context, '已从$_favoriteName移出');
+    } else {
+      await _playlists.addSongs(
+        PlaylistsService.favoritePlaylistId,
+        [songId],
+      );
+      if (!mounted) return;
+      setState(() => _isFavorite = true);
+      AppToast.show(context, '已添加到$_favoriteName');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardColor = theme.scaffoldBackgroundColor;
     final secondaryTextColor =
         isDark ? Colors.white70 : const Color.fromARGB(255, 100, 100, 100);
+    final song = widget.song;
     final album = (song.album ?? '').trim();
     final rawArtist = song.artist.trim();
     final artist = rawArtist.isEmpty ? '未知艺术家' : rawArtist;
-    final primaryArtist = primaryArtistName(artist);
+    final primaryArtist = SongDetailSheet.primaryArtistName(artist);
     final canOpenAlbum = album.isNotEmpty && album != '未知专辑';
     final coverPath = (song.localCoverPath ?? '').trim();
     final hasCover = coverPath.isNotEmpty;
@@ -136,10 +200,8 @@ class SongDetailSheet extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        _MarqueeText(
                           '$artist${album.isNotEmpty ? ' · $album' : ''}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
                             color: secondaryTextColor,
@@ -147,6 +209,15 @@ class SongDetailSheet extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _isFavorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: _isFavorite ? theme.colorScheme.error : null,
+                    ),
+                    onPressed: _loadingFavorite ? null : _toggleFavorite,
                   ),
                 ],
               ),
@@ -180,7 +251,7 @@ class SongDetailSheet extends StatelessWidget {
               onTap: () {
                 final nav = Navigator.of(context);
                 nav.pop();
-                onOpenArtist?.call(primaryArtist);
+                widget.onOpenArtist?.call(primaryArtist);
               },
             ),
             if (canOpenAlbum)
@@ -190,7 +261,7 @@ class SongDetailSheet extends StatelessWidget {
                 onTap: () {
                   final nav = Navigator.of(context);
                   nav.pop();
-                  onOpenAlbum?.call(album);
+                widget.onOpenAlbum?.call(album);
                 },
               ),
             AppListTile(
@@ -220,7 +291,7 @@ class SongDetailSheet extends StatelessWidget {
                   builder: (_) => SongScrapeSheet(song: song),
                 );
                 if (updated != null) {
-                  onUpdated?.call(updated);
+                  widget.onUpdated?.call(updated);
                 }
               },
             ),
@@ -284,7 +355,7 @@ class SongDetailSheet extends StatelessWidget {
                       headers: headers,
                     );
                   }
-                  onDeleted?.call(song.id);
+                  widget.onDeleted?.call(song.id);
                   if (!context.mounted) return;
                   AppToast.show(context, '已移除');
                   Navigator.pop(context);
@@ -319,6 +390,93 @@ class SongDetailSheet extends StatelessWidget {
   }
 }
 
+class _MarqueeText extends StatefulWidget {
+  final String text;
+  final TextStyle? style;
+
+  const _MarqueeText(
+    this.text, {
+    this.style,
+  });
+
+  @override
+  State<_MarqueeText> createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<_MarqueeText>
+    with SingleTickerProviderStateMixin {
+  static const double _velocity = 30.0;
+  static const double _blankSpace = 40.0;
+  late final ScrollController _scrollController;
+  late final Ticker _ticker;
+  double _textWidth = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _ticker = createTicker(_tick);
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _tick(Duration elapsed) {
+    if (!_scrollController.hasClients) return;
+    final cycleLength = _textWidth + _blankSpace;
+    if (cycleLength <= 0) return;
+    final pixels = (elapsed.inMilliseconds / 1000.0) * _velocity;
+    final raw = pixels % cycleLength;
+    final max = _scrollController.position.maxScrollExtent;
+    if (max <= 0) return;
+    _scrollController.jumpTo(raw.clamp(0.0, max));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = widget.style ?? DefaultTextStyle.of(context).style;
+    final textPainter = TextPainter(
+      text: TextSpan(text: widget.text, style: textStyle),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+    )..layout();
+    _textWidth = textPainter.width;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final shouldScroll = _textWidth > constraints.maxWidth;
+        if (!shouldScroll) {
+          if (_ticker.isActive) _ticker.stop();
+          return Text(
+            widget.text,
+            style: textStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+        }
+        if (!_ticker.isActive) _ticker.start();
+        return SingleChildScrollView(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          child: Row(
+            children: [
+              Text(widget.text, style: textStyle),
+              const SizedBox(width: _blankSpace),
+              Text(widget.text, style: textStyle),
+              const SizedBox(width: _blankSpace),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class SongInfoSheet extends StatelessWidget {
   final SongEntity song;
 
@@ -331,6 +489,48 @@ class SongInfoSheet extends StatelessWidget {
     final m = total ~/ 60;
     final s = total % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _formatFileSize(int? bytes) {
+    final v = bytes ?? 0;
+    if (v <= 0) return '-';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var size = v.toDouble();
+    var idx = 0;
+    while (size >= 1024 && idx < units.length - 1) {
+      size /= 1024;
+      idx++;
+    }
+    final fixed = size < 10 && idx > 0 ? 2 : 1;
+    return '${size.toStringAsFixed(fixed)} ${units[idx]}';
+  }
+
+  String _formatBitrate(int? bitrate) {
+    final v = bitrate ?? 0;
+    if (v <= 0) return '-';
+    final kbps = v / 1000;
+    final fixed = kbps >= 100 ? 0 : 1;
+    return '${kbps.toStringAsFixed(fixed)} kbps';
+  }
+
+  String _formatSampleRate(int? sampleRate) {
+    final v = sampleRate ?? 0;
+    if (v <= 0) return '-';
+    if (v < 1000) return '$v Hz';
+    final khz = v / 1000;
+    final fixed = khz >= 100 ? 0 : 1;
+    return '${khz.toStringAsFixed(fixed)} kHz';
+  }
+
+  Future<String> _resolveSourceName() async {
+    if (song.isLocal) return '本地音乐';
+    final id = (song.sourceId ?? '').trim();
+    if (id.isEmpty) return '-';
+    final sources = await WebDavSourceRepository.instance.loadSources();
+    final matched =
+        sources.cast<WebDavSource?>().firstWhere((s) => s?.id == id, orElse: () => null);
+    final name = (matched?.name ?? '').trim();
+    return name.isNotEmpty ? name : id;
   }
 
   @override
@@ -364,7 +564,6 @@ class SongInfoSheet extends StatelessWidget {
       );
     }
 
-    String fmtInt(int? v) => v == null || v <= 0 ? '-' : v.toString();
     String fmtStr(String? v) => (v ?? '').trim().isEmpty ? '-' : v!.trim();
 
     return AppSheetPanel(
@@ -376,14 +575,17 @@ class SongInfoSheet extends StatelessWidget {
           row('艺术家', song.artist),
           row('专辑', song.album ?? '-'),
           row('时长', _durationText(song.durationMs)),
-          row('码率', fmtInt(song.bitrate)),
-          row('采样率', fmtInt(song.sampleRate)),
-          row('大小', fmtInt(song.fileSize)),
+          row('码率', _formatBitrate(song.bitrate)),
+          row('采样率', _formatSampleRate(song.sampleRate)),
+          row('大小', _formatFileSize(song.fileSize)),
           row('格式', fmtStr(song.format)),
-          row('音源', fmtStr(song.sourceId)),
-          row('本地', song.isLocal ? '是' : '否'),
-          row('封面缓存', fmtStr(song.localCoverPath)),
-          row('标签已解析', song.tagsParsed ? '是' : '否'),
+          FutureBuilder<String>(
+            future: _resolveSourceName(),
+            builder: (context, snapshot) {
+              final v = snapshot.data;
+              return row('音源', fmtStr(v ?? song.sourceId));
+            },
+          ),
           row('URI', fmtStr(song.uri)),
           const SizedBox(height: 8),
         ],

@@ -552,89 +552,154 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
           return RefreshIndicator(
             onRefresh: _load,
             child: _sortMode.value == 'year'
-                ? ListView.builder(
+                ? Builder(
+                    builder: (context) {
+                      final grouped = <int, List<_AlbumGroup>>{};
+                      for (final g in _groups.value) {
+                        final ms = g.representative.fileModifiedMs;
+                        final year = ms == null || ms <= 0
+                            ? 0
+                            : DateTime.fromMillisecondsSinceEpoch(ms).year;
+                        grouped.putIfAbsent(year, () => []).add(g);
+                      }
+                      final years = grouped.keys.toList()
+                        ..sort(
+                          (a, b) =>
+                              _ascending.value ? a.compareTo(b) : b.compareTo(a),
+                        );
+                      return ListView.builder(
                         controller: _controller,
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
-                        itemCount: headerCount + _groups.value.length,
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                        itemCount: headerCount + years.length,
                         itemBuilder: (context, index) {
                           if (headerCount == 1 && index == 0) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: MediaListTile(
-                                leading: const Icon(Icons.album_outlined, color: Colors.red),
-                                title: '已屏蔽的专辑',
-                                subtitle: '${_blockedAlbums.value.length} 个',
-                                selected: false,
-                                multiSelect: false,
-                                isHighlighted: false,
-                                trailing: const Icon(Icons.chevron_right_rounded),
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              elevation: 0,
+                              color: Theme.of(context).cardColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.album_outlined,
+                                  color: Colors.red,
+                                ),
+                                title: const Text('已屏蔽的专辑'),
+                                trailing: const Icon(Icons.chevron_right),
                                 onTap: _showBlockedAlbums,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
                             );
                           }
-                          final g = _groups.value[index - headerCount];
-                          final year = g.representative.fileModifiedMs == null
-                              ? ''
-                              : DateTime.fromMillisecondsSinceEpoch(
-                                  g.representative.fileModifiedMs!,
-                                ).year.toString();
-                          final artist = primaryArtistLabel(g.representative.artist);
-                          return MediaListTile(
-                            leading: ArtworkWidget(
-                              song: g.representative,
-                              size: 44,
-                              borderRadius: 10,
-                              placeholder: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).cardColor,
-                                  borderRadius: BorderRadius.circular(10),
+                          final year =
+                              years[index - headerCount];
+                          final albums = grouped[year] ?? const [];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(top: 12, bottom: 4),
+                                child: Text(
+                                  year == 0 ? '未知年份' : '$year',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
                                 ),
                               ),
-                            ),
-                            title: g.name,
-                            subtitle: year.isEmpty
-                                ? '$artist · ${g.songCount} 首'
-                                : '$artist · ${g.songCount} 首 · $year',
-                            selected: false,
-                            multiSelect: false,
-                            isHighlighted: false,
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => AlbumDetailPage(albumName: g.name),
-                                ),
-                              );
-                            },
-                            onLongPress: () {
-                              showModalBottomSheet(
-                                context: context,
-                                backgroundColor: Colors.transparent,
-                                builder: (context) {
-                                  return AppSheetPanel(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        ListTile(
-                                          leading: const Icon(Icons.album_outlined, color: Colors.red),
-                                          title: const Text('屏蔽专辑'),
-                                          titleTextStyle: TextStyle(color: Theme.of(context).colorScheme.error),
-                                          onTap: () async {
-                                            Navigator.pop(context);
-                                            await _blockAlbum(g.name);
-                                          },
+                              ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: albums.length,
+                                itemBuilder: (context, i) {
+                                  final album = albums[i];
+                                  final artist = primaryArtistLabel(
+                                    album.representative.artist,
+                                  );
+                                  return GestureDetector(
+                                    onLongPressStart: (details) {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (context) {
+                                          return AppSheetPanel(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                ListTile(
+                                                  leading: const Icon(
+                                                    Icons.album_outlined,
+                                                    color: Colors.red,
+                                                  ),
+                                                  title: const Text('屏蔽专辑'),
+                                                  titleTextStyle: TextStyle(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .error,
+                                                  ),
+                                                  onTap: () async {
+                                                    Navigator.pop(context);
+                                                    await _blockAlbum(
+                                                      album.name,
+                                                    );
+                                                  },
+                                                ),
+                                                const SizedBox(height: 8),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: ArtworkWidget(
+                                        song: album.representative,
+                                        size: 48,
+                                        borderRadius: 8,
+                                      ),
+                                      title: Text(
+                                        album.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge,
+                                      ),
+                                      subtitle: Text(
+                                        '${album.songCount}首 · $artist',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.color,
                                         ),
-                                        const SizedBox(height: 8),
-                                      ],
+                                      ),
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => AlbumDetailPage(
+                                              albumName: album.name,
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   );
                                 },
-                              );
-                            },
+                              ),
+                            ],
                           );
                         },
-                      )
+                      );
+                    },
+                  )
                     : _buildGrid(context),
           );
         },

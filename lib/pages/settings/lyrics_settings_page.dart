@@ -41,6 +41,7 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
         prefs.getBool(_prefsLyriconForceKaraoke) ?? false;
     _lyriconHideTranslation.value =
         prefs.getBool(_prefsLyriconHideTranslation) ?? false;
+    await LyricsService.instance.refreshSettings();
     _loading.value = false;
   }
 
@@ -50,7 +51,7 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
     await LyricsService.instance.refreshSettings();
   }
 
-  void _setMeizuLyrics(bool value) {
+  void _setMeizuLyrics(bool value) async {
     _meizuLyrics.value = value;
     _updateBool(_prefsMeizuLyrics, value);
   }

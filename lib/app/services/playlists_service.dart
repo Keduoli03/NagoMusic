@@ -219,6 +219,20 @@ class PlaylistsService {
     );
   }
 
+  Future<bool> isSongFavorited(String songId) async {
+    final id = songId.trim();
+    if (id.isEmpty) return false;
+    final db = await DbHelper.instance.database;
+    final rows = await db.query(
+      DbConstants.tablePlaylistSongs,
+      columns: ['songId'],
+      where: 'playlistId = ? AND songId = ?',
+      whereArgs: [favoritePlaylistId, id],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
   Future<void> reorderPlaylists(List<String> orderedIds) async {
     if (orderedIds.isEmpty) return;
     final db = await DbHelper.instance.database;

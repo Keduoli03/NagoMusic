@@ -475,6 +475,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
 
   late final _loading = createSignal(true);
   late final _songs = createSignal<List<SongEntity>>([]);
+  late final _showCovers = createSignal(false);
 
   @override
   void initState() {
@@ -489,7 +490,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
     final filtered = all.where((song) {
       final raw = (song.album ?? '').trim();
       if (normalized == '未知专辑') {
-        return raw.isEmpty;
+        return raw.isEmpty || raw == '未知专辑';
       }
       return raw == normalized;
     }).toList();
@@ -508,6 +509,20 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
         title: widget.albumName,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: _showCovers.value ? '显示序号' : '显示封面',
+            icon: Icon(
+              _showCovers.value
+                  ? Icons.image_outlined
+                  : Icons.format_list_numbered_rounded,
+            ),
+            onPressed: () {
+              _showCovers.value = !_showCovers.value;
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Watch.builder(
         builder: (context) {
@@ -662,20 +677,34 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                                   ? Colors.white70
                                   : const Color.fromARGB(255, 100, 100, 100));
                           return AppListTile(
-                            leading: SizedBox(
-                              width: 48,
-                              height: 48,
-                              child: Center(
-                                child: Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: subtitleColor,
-                                    fontWeight: FontWeight.w500,
+                            leading: _showCovers.value
+                                ? ArtworkWidget(
+                                    song: song,
+                                    size: 48,
+                                    borderRadius: 6,
+                                    placeholder: Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: theme.cardColor,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  )
+                                : SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: Center(
+                                      child: Text(
+                                        '${index + 1}',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: subtitleColor,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
                             title: song.title,
                             subtitle: song.artist,
                             titleColor: titleColor,

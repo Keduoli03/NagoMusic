@@ -7,6 +7,8 @@ import '../../pages/player/player_page.dart';
 import '../../pages/player/lyrics/lyric_page.dart';
 import '../../pages/settings/gradient_settings_page.dart';
 import '../../pages/settings/lyrics_settings_page.dart';
+import '../../pages/settings/notification_settings_page.dart';
+import '../../pages/settings/player_controls_settings_page.dart';
 import '../../pages/settings/cache_settings_page.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/library/albums_page.dart';
@@ -23,6 +25,8 @@ class AppRoutes {
   static const settings = '/settings';
   static const gradientSettings = '/settings/gradient';
   static const lyricsSettings = '/settings/lyrics';
+  static const notificationSettings = '/settings/notifications';
+  static const playerControlsSettings = '/settings/player-controls';
   static const cacheSettings = '/settings/cache';
   static const artists = '/artists';
   static const albums = '/albums';
@@ -42,6 +46,9 @@ class AppRouter {
         AppRoutes.settings: (_) => const SettingsPage(),
         AppRoutes.gradientSettings: (_) => const GradientSettingsPage(),
         AppRoutes.lyricsSettings: (_) => const LyricsSettingsPage(),
+        AppRoutes.notificationSettings: (_) => const NotificationSettingsPage(),
+        AppRoutes.playerControlsSettings: (_) =>
+            const PlayerControlsSettingsPage(),
         AppRoutes.cacheSettings: (_) => const CacheSettingsPage(),
         AppRoutes.artists: (_) => const ArtistsPage(),
         AppRoutes.albums: (_) => const AlbumsPage(),

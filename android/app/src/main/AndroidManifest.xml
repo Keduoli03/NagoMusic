@@ -5,10 +5,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
-        android:label="nagomusic"
+        android:label="NagoMusic"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <meta-data android:name="lyricon_module" android:value="true" />
+        <meta-data android:name="lyricon_module_author" android:value="NagoMusic" />
+        <meta-data android:name="lyricon_module_description" android:value="NagoMusic Lyricon Provider" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

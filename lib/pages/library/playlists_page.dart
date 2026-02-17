@@ -19,6 +19,18 @@ class PlaylistsPage extends StatefulWidget {
   State<PlaylistsPage> createState() => _PlaylistsPageState();
 }
 
+class _RemoveProgress {
+  final int processed;
+  final int total;
+  final bool isRemoving;
+
+  const _RemoveProgress({
+    required this.processed,
+    required this.total,
+    required this.isRemoving,
+  });
+}
+
 class _PlaylistsPageState extends State<PlaylistsPage> with SignalsMixin {
   static const String _prefsSortMode = 'playlists_sort_mode_v1';
   static const String _prefsSortAscending = 'playlists_sort_ascending_v1';
@@ -376,6 +388,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
   late final _selectedIds = createSignal<Set<String>>({});
   late final _sortKey = createSignal('default');
   late final _sortAscending = createSignal(true);
+  final ValueNotifier<_RemoveProgress> _removeNotifier =
+      ValueNotifier(const _RemoveProgress(processed: 0, total: 0, isRemoving: false));
+  bool _isRemoving = false;
 
   @override
   void initState() {
@@ -464,6 +479,42 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
     _selectedIds.value = {};
   }
 
+  void _showRemoveDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return ValueListenableBuilder<_RemoveProgress>(
+          valueListenable: _removeNotifier,
+          builder: (context, progress, child) {
+            final finished = !progress.isRemoving;
+            return AppDialog(
+              title: finished ? '移除完成' : '正在移除...',
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    value: progress.total > 0
+                        ? progress.processed / progress.total
+                        : 0,
+                  ),
+                  const SizedBox(height: 16),
+                  Text('已移除: ${progress.processed}'),
+                  const SizedBox(height: 4),
+                  Text('总计: ${progress.total}'),
+                ],
+              ),
+              confirmText: finished ? '知道了' : '隐藏',
+              showCancel: false,
+              onConfirm: () {},
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _togglePlayMode() {
     _isSequentialPlay.value = !_isSequentialPlay.value;
     AppToast.show(
@@ -482,11 +533,45 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
   }
 
   Future<void> _removeSongsByIds(List<String> ids) async {
+    if (_isRemoving) {
+      _showRemoveDialog();
+      return;
+    }
     final playlist = _playlist.value;
     if (playlist == null) return;
-    await _service.removeSongs(playlist.id, ids);
+    final songsToRemove =
+        _songs.value.where((s) => ids.contains(s.id)).toList();
+    _isRemoving = true;
+    _removeNotifier.value = _RemoveProgress(
+      processed: 0,
+      total: songsToRemove.length,
+      isRemoving: true,
+    );
+    _showRemoveDialog();
+    var processed = 0;
+    for (final song in songsToRemove) {
+      if (!mounted) break;
+      await _service.removeSongs(playlist.id, [song.id]);
+      if (!mounted) break;
+      _songs.value = _songs.value.where((s) => s.id != song.id).toList();
+      _originalSongs.value =
+          _originalSongs.value.where((s) => s.id != song.id).toList();
+      _selectedIds.value = Set<String>.from(_selectedIds.value)..remove(song.id);
+      processed += 1;
+      _removeNotifier.value = _RemoveProgress(
+        processed: processed,
+        total: songsToRemove.length,
+        isRemoving: true,
+      );
+    }
     if (!mounted) return;
-    AppToast.show(context, '已移除');
+    _isRemoving = false;
+    _removeNotifier.value = _RemoveProgress(
+      processed: processed,
+      total: songsToRemove.length,
+      isRemoving: false,
+    );
+    AppToast.show(context, '已移除 $processed 首');
     await _load();
   }
 
@@ -558,6 +643,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
     final player = PlayerService.instance;
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
+      showMiniPlayer: !_multiSelect.value,
       appBar: AppTopBar(
         title: _playlist.value?.name ?? '歌单',
         backgroundColor: Colors.transparent,
@@ -707,7 +793,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
                                   ),
                                   MultiSelectAction(
                                     icon: Icons.delete_outline,
-                                    label: '移除',
+                                    label: '移出',
                                     isDestructive: true,
                                     onTap: _selectedIds.value.isEmpty
                                         ? null
@@ -717,9 +803,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
                                               context: context,
                                               builder: (ctx) {
                                                 return AlertDialog(
-                                                  title: const Text('移除选中歌曲'),
+                                                  title: const Text('移出选中歌曲'),
                                                   content: Text(
-                                                    '确定要从歌单中移除这 ${_selectedIds.value.length} 首歌曲吗？',
+                                                    '确定要从歌单中移出这 ${_selectedIds.value.length} 首歌曲吗？',
                                                   ),
                                                   actions: [
                                                     TextButton(
@@ -733,7 +819,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SignalsMix
                                                       style: TextButton.styleFrom(
                                                         foregroundColor: Colors.red,
                                                       ),
-                                                      child: const Text('移除'),
+                                                      child: const Text('移出'),
                                                     ),
                                                   ],
                                                 );

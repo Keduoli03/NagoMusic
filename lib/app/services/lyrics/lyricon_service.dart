@@ -4,7 +4,8 @@ import 'package:flutter_lyric/core/lyric_model.dart';
 import '../../state/song_state.dart';
 
 class LyriconService {
-  static const MethodChannel _channel = MethodChannel('com.lanke.music/lyricon');
+  static const MethodChannel _channel =
+      MethodChannel('com.lanke.nagomusic/lyricon');
 
   static Future<void> setPlaybackState(bool isPlaying) async {
     try {
@@ -67,4 +68,3 @@ class LyriconService {
     } catch (_) {}
   }
 }
-

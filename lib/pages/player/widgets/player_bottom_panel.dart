@@ -7,6 +7,7 @@ import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../../app/services/lyrics/lyrics_service.dart';
 import '../../../app/services/player_service.dart';
+import '../../../app/state/settings_state.dart';
 import '../../../components/common/app_list_tile.dart';
 import '../../../components/common/labeled_slider.dart';
 import '../../../components/feedback/app_toast.dart';
@@ -26,6 +27,7 @@ class PlayerBottomPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    PlayerBottomActionSettings.ensureLoaded();
     return Column(
       children: [
         _MiniLyricsPreview(onTap: onTapLyrics),
@@ -405,47 +407,93 @@ class _BottomActions extends StatelessWidget {
           PlaybackMode.loop => Icons.repeat,
           PlaybackMode.single => Icons.repeat_one,
         };
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: Icon(icon, color: iconColor),
-                onPressed: player.cyclePlaybackMode,
-              ),
-              Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.alarm, color: iconColor),
-                    onPressed: () => _showSleepTimerSheet(context),
-                  ),
-                  if (text != null)
-                    Positioned(
-                      bottom: -8,
-                      child: Text(
-                        text,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: iconColor.withValues(alpha: 0.8),
-                        ),
+        return AnimatedBuilder(
+          animation: Listenable.merge([
+            PlayerBottomActionSettings.showPlaybackMode,
+            PlayerBottomActionSettings.showSleepTimer,
+            PlayerBottomActionSettings.showPlaylist,
+            PlayerBottomActionSettings.showMore,
+            PlayerBottomActionSettings.actionOrder,
+          ]),
+          builder: (context, _) {
+            final actions = <Widget>[];
+            final order = PlayerBottomActionSettings.actionOrder.value;
+            for (final key in order) {
+              switch (key) {
+                case 'playback_mode':
+                  if (PlayerBottomActionSettings.showPlaybackMode.value) {
+                    actions.add(
+                      IconButton(
+                        icon: Icon(icon, color: iconColor),
+                        onPressed: player.cyclePlaybackMode,
                       ),
-                    ),
-                ],
+                    );
+                  }
+                  break;
+                case 'sleep_timer':
+                  if (PlayerBottomActionSettings.showSleepTimer.value) {
+                    actions.add(
+                      Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.alarm, color: iconColor),
+                            onPressed: () => _showSleepTimerSheet(context),
+                          ),
+                          if (text != null)
+                            Positioned(
+                              bottom: -8,
+                              child: Text(
+                                text,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: iconColor.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }
+                  break;
+                case 'playlist':
+                  if (PlayerBottomActionSettings.showPlaylist.value) {
+                    actions.add(
+                      IconButton(
+                        icon: Icon(
+                          Icons.format_list_bulleted,
+                          color: iconColor,
+                        ),
+                        onPressed: () => _showPlaylistSheet(context),
+                      ),
+                    );
+                  }
+                  break;
+                default:
+                  if (PlayerBottomActionSettings.showMore.value) {
+                    actions.add(
+                      IconButton(
+                        icon: Icon(Icons.more_horiz, color: iconColor),
+                        onPressed: () => _showSongDetailSheet(context),
+                      ),
+                    );
+                  }
+                  break;
+              }
+            }
+            if (actions.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: actions,
               ),
-              IconButton(
-                icon: Icon(Icons.format_list_bulleted, color: iconColor),
-                onPressed: () => _showPlaylistSheet(context),
-              ),
-              IconButton(
-                icon: Icon(Icons.more_horiz, color: iconColor),
-                onPressed: () => _showSongDetailSheet(context),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

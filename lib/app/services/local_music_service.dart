@@ -332,7 +332,6 @@ class LocalMusicService {
             _firstNonEmpty(tagInfo?.artist, '未知艺术家') ?? '未知艺术家';
         final albumName = _firstNonEmpty(
               tagInfo?.album,
-              candidate.albumHint,
               '未知专辑',
             ) ??
             '未知专辑';

@@ -51,6 +51,18 @@ class _ArtworkTask {
   _ArtworkTask(this.song, this.completer);
 }
 
+class _RemoveProgress {
+  final int processed;
+  final int total;
+  final bool isRemoving;
+
+  const _RemoveProgress({
+    required this.processed,
+    required this.total,
+    required this.isRemoving,
+  });
+}
+
 class _SongsPageState extends State<SongsPage> with SignalsMixin {
   static const String _prefsSourceFilter = 'songs_source_filter';
   static const String _prefsSortKey = 'songs_sort_key';
@@ -100,6 +112,9 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   final LayerLink _scrapeLayerLink = LayerLink();
   final LyricsRepository _lyricsRepo = LyricsRepository();
   final AudioCacheService _audioCache = AudioCacheService.instance;
+  final ValueNotifier<_RemoveProgress> _removeNotifier =
+      ValueNotifier(const _RemoveProgress(processed: 0, total: 0, isRemoving: false));
+  bool _isRemoving = false;
 
   @override
   void initState() {
@@ -348,6 +363,42 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   void _removeScrapeOverlay() {
     _scrapeOverlay?.remove();
     _scrapeOverlay = null;
+  }
+
+  void _showRemoveDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return ValueListenableBuilder<_RemoveProgress>(
+          valueListenable: _removeNotifier,
+          builder: (context, progress, child) {
+            final finished = !progress.isRemoving;
+            return AppDialog(
+              title: finished ? '移除完成' : '正在移除...',
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    value: progress.total > 0
+                        ? progress.processed / progress.total
+                        : 0,
+                  ),
+                  const SizedBox(height: 16),
+                  Text('已移除: ${progress.processed}'),
+                  const SizedBox(height: 4),
+                  Text('总计: ${progress.total}'),
+                ],
+              ),
+              confirmText: finished ? '知道了' : '隐藏',
+              showCancel: false,
+              onConfirm: () {},
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showScrapeOverlay() {
@@ -868,24 +919,63 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   }
 
   Future<void> _removeSelectedSongs() async {
+    if (_isRemoving) {
+      _showRemoveDialog();
+      return;
+    }
     final ids = _selectedIds.value.toList(growable: false);
     if (ids.isEmpty) return;
     final removedSongs =
         _songs.value.where((s) => ids.contains(s.id)).toList(growable: false);
-    final removed = await _songDao.deleteByIds(ids);
-    if (!mounted) return;
-    await PlayerService.instance.removeSongsById(ids);
-    if (!mounted) return;
-    await _cleanupCachesForSongs(removedSongs);
-    if (!mounted) return;
-    AppToast.show(context, '已移除 $removed 首');
-    final nextSongs = _songs.value.where((s) => !ids.contains(s.id)).toList();
-    _songs.value = nextSongs;
-    _cachedSongs = nextSongs;
-    final currentId = _currentId.value;
-    if (currentId != null && ids.contains(currentId)) {
-      _currentId.value = null;
+    _isRemoving = true;
+    _removeNotifier.value = _RemoveProgress(
+      processed: 0,
+      total: removedSongs.length,
+      isRemoving: true,
+    );
+    _showRemoveDialog();
+    var processed = 0;
+    var removedCount = 0;
+    for (final song in removedSongs) {
+      if (!mounted) break;
+      removedCount += await _songDao.deleteByIds([song.id]);
+      if (!mounted) break;
+      await PlayerService.instance.removeSongsById([song.id]);
+      if (!mounted) break;
+      await _cleanupCachesForSongs([song]);
+      if (!mounted) break;
+      final nextSongs = _songs.value.where((s) => s.id != song.id).toList();
+      _songs.value = nextSongs;
+      _cachedSongs = nextSongs;
+      _visibleSongs.value =
+          _visibleSongs.value.where((s) => s.id != song.id).toList();
+      _visibleSongsAll.value =
+          _visibleSongsAll.value.where((s) => s.id != song.id).toList();
+      final currentId = _currentId.value;
+      if (currentId != null && currentId == song.id) {
+        _currentId.value = null;
+      }
+      final nextSelected = Set<String>.from(_selectedIds.value)
+        ..remove(song.id);
+      _selectedIds.value = nextSelected;
+      processed += 1;
+      _removeNotifier.value = _RemoveProgress(
+        processed: processed,
+        total: removedSongs.length,
+        isRemoving: true,
+      );
     }
+    if (!mounted) return;
+    _cachedVisibleAll = null;
+    _cachedVisibleSongsRef = null;
+    _cachedVisibleKey = null;
+    _isRemoving = false;
+    _removeNotifier.value = _RemoveProgress(
+      processed: processed,
+      total: removedSongs.length,
+      isRemoving: false,
+    );
+    AppToast.show(context, '已移除 $removedCount 首');
     _selectedIds.value = <String>{};
     _multiSelect.value = false;
     unawaited(_updateVisibleSongs());

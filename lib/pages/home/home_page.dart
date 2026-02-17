@@ -9,6 +9,7 @@ import '../../components/index.dart';
 import '../library/albums_page.dart';
 import '../library/artists_page.dart';
 import '../library/playlists_page.dart';
+import '../songs/songs_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -229,6 +230,18 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                     spacing: 16,
                     runSpacing: 12,
                     children: [
+                      SizedBox(
+                        width: itemWidth,
+                        child: _HomeEntryCard(
+                          icon: Icons.music_note_rounded,
+                          label: '歌曲',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const SongsPage()),
+                            );
+                          },
+                        ),
+                      ),
                       SizedBox(
                         width: itemWidth,
                         child: _HomeEntryCard(
