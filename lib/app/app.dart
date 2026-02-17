@@ -1,5 +1,6 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'router/app_router.dart';
 import 'state/settings_state.dart';
 import 'theme/app_styles.dart';
@@ -77,6 +78,26 @@ class NagoMusicApp extends StatelessWidget {
                   scrollBehavior: const AppScrollBehavior(),
                   initialRoute: AppRouter.initialRoute,
                   routes: AppRouter.routes,
+                  builder: (context, child) {
+                    final theme = Theme.of(context);
+                    final isDark = theme.brightness == Brightness.dark;
+                    final navColor = theme.colorScheme.surface;
+                    final overlay = SystemUiOverlayStyle(
+                      statusBarColor: Colors.transparent,
+                      statusBarIconBrightness:
+                          isDark ? Brightness.light : Brightness.dark,
+                      statusBarBrightness:
+                          isDark ? Brightness.dark : Brightness.light,
+                      systemNavigationBarColor: navColor,
+                      systemNavigationBarIconBrightness:
+                          isDark ? Brightness.light : Brightness.dark,
+                      systemNavigationBarDividerColor: navColor,
+                    );
+                    return AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: overlay,
+                      child: child ?? const SizedBox.shrink(),
+                    );
+                  },
                 );
               },
             );
