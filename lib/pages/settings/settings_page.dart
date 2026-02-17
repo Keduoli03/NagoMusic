@@ -241,6 +241,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               AppSettingTile(
+                title: '听歌统计',
+                subtitle: '日历与播放数据概览',
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.listeningStats,
+                ),
+              ),
+              AppSettingTile(
                 title: '缓存设置',
                 subtitle: '管理音频缓存与存储空间',
                 trailing: const Icon(Icons.chevron_right_rounded),

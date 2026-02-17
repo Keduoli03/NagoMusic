@@ -1,0 +1,39 @@
+name: build-release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - pubspec.yaml
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          TAG=${VERSION/+/-}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG=$TAG" >> $GITHUB_ENV
+      - run: mv build/app/outputs/flutter-apk/app-release.apk nagomusic-v${VERSION}.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.TAG }}
+          name: v${{ env.TAG }}
+          files: nagomusic-v${{ env.VERSION }}.apk
+          generate_release_notes: true

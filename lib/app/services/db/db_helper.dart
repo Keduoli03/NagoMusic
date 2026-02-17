@@ -83,6 +83,24 @@ CREATE TABLE ${DbConstants.tablePlaylistSongs} (
         await db.execute(
           'CREATE INDEX IF NOT EXISTS idx_playlist_songs_song ON ${DbConstants.tablePlaylistSongs}(songId)',
         );
+        await db.execute('''
+CREATE TABLE ${DbConstants.tableListeningDays} (
+  dayKey TEXT PRIMARY KEY,
+  listenMs INTEGER NOT NULL,
+  playCount INTEGER NOT NULL
+)
+''');
+        await db.execute('''
+CREATE TABLE ${DbConstants.tableSongStats} (
+  songId TEXT PRIMARY KEY,
+  listenMs INTEGER NOT NULL,
+  playCount INTEGER NOT NULL,
+  lastPlayedMs INTEGER NOT NULL
+)
+''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_song_stats_playcount ON ${DbConstants.tableSongStats}(playCount)',
+        );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -152,6 +170,26 @@ CREATE TABLE IF NOT EXISTS ${DbConstants.tablePlaylistSongs} (
           );
           await db.execute(
             'CREATE INDEX IF NOT EXISTS idx_playlist_songs_song ON ${DbConstants.tablePlaylistSongs}(songId)',
+          );
+        }
+        if (oldVersion < 7) {
+          await db.execute('''
+CREATE TABLE IF NOT EXISTS ${DbConstants.tableListeningDays} (
+  dayKey TEXT PRIMARY KEY,
+  listenMs INTEGER NOT NULL,
+  playCount INTEGER NOT NULL
+)
+''');
+          await db.execute('''
+CREATE TABLE IF NOT EXISTS ${DbConstants.tableSongStats} (
+  songId TEXT PRIMARY KEY,
+  listenMs INTEGER NOT NULL,
+  playCount INTEGER NOT NULL,
+  lastPlayedMs INTEGER NOT NULL
+)
+''');
+          await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_song_stats_playcount ON ${DbConstants.tableSongStats}(playCount)',
           );
         }
       },

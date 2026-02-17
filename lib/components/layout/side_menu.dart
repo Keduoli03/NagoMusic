@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../app/router/app_router.dart';
-import '../feedback/app_toast.dart';
 import 'base/app_page_scaffold.dart';
 
 class SideMenu extends StatelessWidget {
@@ -96,7 +95,7 @@ class SideMenu extends StatelessWidget {
                       context,
                       Icons.bar_chart_rounded,
                       '统计',
-                      () => _showPending(context),
+                      () => _pushAndClose(context, AppRoutes.listeningStats),
                     ),
                     _buildMenuItem(
                       context,
@@ -147,11 +146,6 @@ class SideMenu extends StatelessWidget {
   void _pushAndClose(BuildContext context, String route) {
     _closeDrawer(context);
     Navigator.pushNamed(context, route);
-  }
-
-  void _showPending(BuildContext context) {
-    _closeDrawer(context);
-    AppToast.show(context, '功能待接入');
   }
 
   void _closeDrawer(BuildContext context) {

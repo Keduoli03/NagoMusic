@@ -547,6 +547,17 @@ class LyricsParser {
                 translation: mainText,
                 words: existing.words,
               );
+            } else if ((existing.translation == null ||
+                    existing.translation!.isEmpty) &&
+                transText == null &&
+                _isTranslationCandidate(mainText, existing.text)) {
+              modelLines[existingIndex] = fl.LyricLine(
+                start: existing.start,
+                end: existing.end,
+                text: mainText,
+                translation: existing.text,
+                words: existing.words,
+              );
             }
             continue;
           }

@@ -14,6 +14,7 @@ import 'artwork_cache_helper.dart';
 import 'audio_proxy_server.dart';
 import 'cache/audio_cache_service.dart';
 import 'metadata/tag_probe_service.dart';
+import 'stats_service.dart';
 import '../state/settings_state.dart';
 import '../state/song_state.dart';
 export '../state/player_state.dart';
@@ -29,6 +30,7 @@ class PlayerService with WidgetsBindingObserver {
   final AudioProxyServer _proxy = AudioProxyServer.instance;
   final SongDao _songDao = SongDao();
   final LyricsRepository _lyricsRepo = LyricsRepository();
+  final StatsService _statsService = StatsService.instance;
 
   ValueNotifier<Duration> get position => _state.position;
   ValueNotifier<Duration?> get duration => _state.duration;
@@ -91,6 +93,7 @@ class PlayerService with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
       // Force save when app goes to background or is killed
       _persistPlaybackState();
+      _statsService.flush();
     }
   }
 
@@ -736,7 +739,7 @@ class PlayerService with WidgetsBindingObserver {
 
   void _applySnapshot() {
     _lastSnapshotEmit = DateTime.now();
-    snapshot.value = PlaybackSnapshot(
+    final nextSnapshot = PlaybackSnapshot(
       song: currentSong.value,
       queue: queue.value,
       index: currentIndex.value,
@@ -745,6 +748,8 @@ class PlayerService with WidgetsBindingObserver {
       duration: duration.value,
       bufferedPosition: bufferedPosition.value,
     );
+    snapshot.value = nextSnapshot;
+    _statsService.onSnapshot(nextSnapshot);
     _schedulePersistPlaybackState();
   }
 
