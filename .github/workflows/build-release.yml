@@ -25,17 +25,30 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - run: |
+          if [ ! -f plugins/flutter_lyric/pubspec.yaml ]; then
+            REPO="${FLUTTER_LYRIC_REPO:-https://github.com/ozyl/flutter_lyric.git}"
+            git clone --depth 1 "$REPO" plugins/flutter_lyric
+          fi
+        env:
+          FLUTTER_LYRIC_REPO: ${{ secrets.FLUTTER_LYRIC_REPO || vars.FLUTTER_LYRIC_REPO }}
       - run: flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --split-per-abi
       - run: |
           VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           TAG=${VERSION/+/-}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "TAG=$TAG" >> $GITHUB_ENV
-      - run: mv build/app/outputs/flutter-apk/app-release.apk nagomusic-v${VERSION}.apk
+      - run: |
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk nagomusic-v${VERSION}-arm64-v8a.apk
+          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk nagomusic-v${VERSION}-armeabi-v7a.apk
+          mv build/app/outputs/flutter-apk/app-x86_64-release.apk nagomusic-v${VERSION}-x86_64.apk
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.TAG }}
           name: v${{ env.TAG }}
-          files: nagomusic-v${{ env.VERSION }}.apk
+          files: |
+            nagomusic-v${{ env.VERSION }}-arm64-v8a.apk
+            nagomusic-v${{ env.VERSION }}-armeabi-v7a.apk
+            nagomusic-v${{ env.VERSION }}-x86_64.apk
           generate_release_notes: true
