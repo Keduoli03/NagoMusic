@@ -25,13 +25,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - run: |
-          if [ ! -f plugins/flutter_lyric/pubspec.yaml ]; then
-            REPO="${FLUTTER_LYRIC_REPO:-https://github.com/ozyl/flutter_lyric.git}"
-            git clone --depth 1 "$REPO" plugins/flutter_lyric
-          fi
-        env:
-          FLUTTER_LYRIC_REPO: ${{ secrets.FLUTTER_LYRIC_REPO || vars.FLUTTER_LYRIC_REPO }}
       - run: flutter pub get
       - run: flutter build apk --release --split-per-abi
       - run: |
