@@ -469,12 +469,10 @@ class PlayerService with WidgetsBindingObserver {
   }
 
   Future<void> play() async {
-    if (_player.playing) return;
     await _player.play();
   }
 
   Future<void> pause() async {
-    if (!_player.playing) return;
     await _player.pause();
   }
 

@@ -190,6 +190,8 @@ class MainActivity : AudioServiceActivity() {
         val builder = NotificationCompat.Builder(this, notificationChannelId)
             .setPriority(Notification.PRIORITY_MAX)
             .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("歌词")
+            .setContentText(text)
 
         builder.setTicker(text)
         val notification = builder.build()
@@ -212,21 +214,9 @@ class MainActivity : AudioServiceActivity() {
     private fun stopLyric() {
         if (!checkSupport()) return
         ensureNotificationChannel()
-        val builder = NotificationCompat.Builder(this, notificationChannelId)
-            .setPriority(Notification.PRIORITY_MAX)
-            .setSmallIcon(R.mipmap.ic_launcher)
-
-        builder.setTicker(null)
-        val notification = builder.build()
-        val showFlag = flagShowTicker ?: 0
-        val updateFlag = flagUpdateTicker ?: 0
-        if (showFlag > 0) {
-            notification.flags = notification.flags and showFlag.inv()
-            notification.flags = notification.flags and updateFlag.inv()
-        }
         val manager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(notificationId, notification)
+        manager.cancel(notificationId)
     }
 
     private fun ensureNotificationChannel() {

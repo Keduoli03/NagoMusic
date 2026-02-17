@@ -44,6 +44,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
   late final _selectionCentered = createSignal(false);
   VoidCallback? _unregisterResumeSelectedLine;
   VoidCallback? _unregisterStopSelection;
+  bool _tapSeekEnabled = true;
 
   @override
   void initState() {
@@ -368,6 +369,17 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
         final selecting = lyrics.isSelectingSignal.value;
         final centered = _selectionCentered.value;
         final index = lyrics.selectedIndexSignal.value;
+        if (dragSeek != _tapSeekEnabled) {
+          _tapSeekEnabled = dragSeek;
+          if (dragSeek) {
+            lyrics.controller.setOnTapLineCallback((pos) {
+              lyrics.controller.stopSelection();
+              player.seek(pos);
+            });
+          } else {
+            lyrics.controller.cancelOnTapLineCallback();
+          }
+        }
         final hasTranslation = model?.lines.any(
               (l) => (l.translation ?? '').trim().isNotEmpty,
             ) ??

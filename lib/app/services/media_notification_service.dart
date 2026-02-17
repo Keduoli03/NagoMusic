@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../services/lyrics/lyrics_service.dart';
 import '../services/playlists_service.dart';
@@ -9,10 +12,36 @@ import 'player_service.dart';
 
 class MediaNotificationService {
   static AudioHandler? _audioHandler;
+  static VoidCallback? _initListener;
+  static bool _initStarted = false;
 
-  static Future<void> init() async {
-    if (_audioHandler != null) return;
+  static Future<void> init({bool force = false}) async {
+    if (_audioHandler != null || _initStarted) return;
     await MediaNotificationSettings.ensureLoaded();
+    final player = PlayerService.instance;
+    final snap = player.snapshot.value;
+    if (!force && snap.song == null && !snap.isPlaying) {
+      if (_initListener == null) {
+        _initListener = () {
+          final current = player.snapshot.value;
+          if (current.song == null && !current.isPlaying) return;
+          if (_initListener != null) {
+            player.snapshot.removeListener(_initListener!);
+            _initListener = null;
+          }
+          init(force: true);
+        };
+        player.snapshot.addListener(_initListener!);
+      }
+      return;
+    }
+    _initStarted = true;
+    if (Platform.isAndroid) {
+      final status = await Permission.notification.status;
+      if (!status.isGranted) {
+        await Permission.notification.request();
+      }
+    }
     _audioHandler = await AudioService.init(
       builder: () => _NagoAudioHandler(PlayerService.instance),
       config: const AudioServiceConfig(
@@ -23,6 +52,7 @@ class MediaNotificationService {
         androidShowNotificationBadge: false,
       ),
     );
+    _initStarted = false;
   }
 }
 
@@ -31,6 +61,7 @@ class _NagoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
   static const String _actionCloseApp = 'close_app';
   static const String _actionFavorite = 'favorite';
   String? _currentLyricLine;
+  String? _lastSongId;
   bool _isFavorite = false;
 
   _NagoAudioHandler(this.player) {
@@ -141,6 +172,11 @@ class _NagoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
 
   void _syncFromPlayer() {
     final snap = player.snapshot.value;
+    final songId = snap.song?.id;
+    if (songId != _lastSongId) {
+      _lastSongId = songId;
+      _currentLyricLine = null;
+    }
     final items = snap.queue.map(_itemFromSong).toList();
     queue.add(items);
     _syncMediaItem();
@@ -159,6 +195,11 @@ class _NagoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
   }
 
   void _onNotificationSettingsChanged() {
+    if (!MediaNotificationSettings.showLyrics.value) {
+      _currentLyricLine = null;
+    } else {
+      _currentLyricLine = LyricsService.instance.currentLineText.value;
+    }
     _syncMediaItem();
     playbackState.add(_stateFromSnap(player.snapshot.value));
   }

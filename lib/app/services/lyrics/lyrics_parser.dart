@@ -27,7 +27,10 @@ class LyricsParser {
     return _isHanOnly(nextText) && !_isHanOnly(mainText);
   }
 
-  static MapEntry<String, String?> _splitTranslation(String fullText) {
+  static MapEntry<String, String?> _splitTranslation(
+    String fullText, {
+    bool allowLooseSplit = true,
+  }) {
     String mainText = fullText;
     String? transText;
     final splitReg = RegExp(r'\s+(?:/|\|)\s+');
@@ -37,6 +40,9 @@ class LyricsParser {
       transText = fullText.substring(match.end).trim();
     }
     if (transText == null) {
+      if (!allowLooseSplit) {
+        return MapEntry(mainText, transText);
+      }
       final thinIdx = fullText.lastIndexOf('\u2009');
       final fullIdx = fullText.lastIndexOf('\u3000');
       int splitIdx = -1;
@@ -106,19 +112,22 @@ class LyricsParser {
 
       final validMatches = <RegExpMatch>[];
       if (matches.isNotEmpty) {
-        bool hasInterleavedText = false;
+        var textBetweenCount = 0;
         for (int i = 0; i < matches.length - 1; i++) {
           final start = matches[i].end;
           final end = matches[i + 1].start;
           if (end > start) {
             final textBetween = raw.substring(start, end);
             if (textBetween.trim().isNotEmpty) {
-              hasInterleavedText = true;
-              break;
+              textBetweenCount += 1;
             }
           }
         }
-        if (hasInterleavedText) {
+        final isEndTimestampLine = matches.length == 2 &&
+            textBetweenCount == 1 &&
+            raw.substring(matches.last.end).trim().isEmpty;
+        final hasInterleavedText = textBetweenCount > 1;
+        if (hasInterleavedText || isEndTimestampLine) {
           validMatches.add(matches.first);
         } else {
           validMatches.addAll(matches);
@@ -468,23 +477,29 @@ class LyricsParser {
         continue;
       }
 
-      final split = _splitTranslation(fullText);
-      final mainText = split.key;
-      final transText = split.value;
-      if (mainText.isEmpty) continue;
-
-      bool hasInterleavedText = false;
+      var textBetweenCount = 0;
       for (int i = 0; i < matches.length - 1; i++) {
         final segStart = matches[i].end;
         final segEnd = matches[i + 1].start;
         if (segEnd > segStart) {
           final textBetween = raw.substring(segStart, segEnd);
           if (textBetween.trim().isNotEmpty) {
-            hasInterleavedText = true;
-            break;
+            textBetweenCount += 1;
           }
         }
       }
+      final isEndTimestampLine = matches.length == 2 &&
+          textBetweenCount == 1 &&
+          raw.substring(matches.last.end).trim().isEmpty;
+      final hasInterleavedText = textBetweenCount > 1;
+
+      final split = _splitTranslation(
+        fullText,
+        allowLooseSplit: !hasInterleavedText,
+      );
+      final mainText = split.key;
+      final transText = split.value;
+      if (mainText.isEmpty) continue;
 
       if (hasInterleavedText) {
         final timestamps = matches.map(_parseTimeMatch).toList();
@@ -532,7 +547,8 @@ class LyricsParser {
           ),
         );
       } else {
-        for (final m in matches) {
+        final effectiveMatches = isEndTimestampLine ? [matches.first] : matches;
+        for (final m in effectiveMatches) {
           final d = _parseTimeMatch(m);
           final existingIndex = modelLines.lastIndexWhere((l) => l.start == d);
           if (existingIndex != -1) {
@@ -616,7 +632,11 @@ class LyricsParser {
     for (int i = 0; i < modelLines.length; i++) {
       final line = modelLines[i];
       final start = line.start;
-      final nextStart = (i + 1 < modelLines.length) ? modelLines[i + 1].start : null;
+      final rawNextStart =
+          (i + 1 < modelLines.length) ? modelLines[i + 1].start : null;
+      final nextStart = (rawNextStart != null && rawNextStart == start)
+          ? null
+          : rawNextStart;
       final currentEnd = line.end;
       var effectiveEnd = (currentEnd != null &&
               currentEnd > start &&

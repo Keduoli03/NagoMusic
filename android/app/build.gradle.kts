@@ -5,6 +5,9 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.io.FileInputStream
+import java.util.Properties
+
 android {
     namespace = "com.lanke.nagomusic"
     compileSdk = flutter.compileSdkVersion
@@ -31,11 +34,41 @@ android {
         versionName = flutter.versionName
     }
 
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    }
+    fun prop(name: String): String? {
+        return System.getenv(name) ?: keystoreProperties.getProperty(name)
+    }
+    val storeFilePath = prop("SIGNING_STORE_FILE")
+    val storePasswordValue = prop("SIGNING_STORE_PASSWORD")
+    val keyAliasValue = prop("SIGNING_KEY_ALIAS")
+    val keyPasswordValue = prop("SIGNING_KEY_PASSWORD")
+    val hasReleaseSigning = !storeFilePath.isNullOrBlank() &&
+        !storePasswordValue.isNullOrBlank() &&
+        !keyAliasValue.isNullOrBlank() &&
+        !keyPasswordValue.isNullOrBlank()
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(storeFilePath!!)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

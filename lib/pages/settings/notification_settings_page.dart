@@ -51,8 +51,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 valueListenable: MediaNotificationSettings.lyricOnTop,
                 builder: (context, enabled, _) {
                   return AppSettingSwitchTile(
-                    title: '歌词置顶显示',
-                    subtitle: '上方歌词，下方歌曲和歌手',
+                    title: '歌词首行显示',
+                    subtitle: '上方歌词，下方歌名与歌手名',
                     value: enabled,
                     onChanged: (value) {
                       MediaNotificationSettings.setLyricOnTop(value);

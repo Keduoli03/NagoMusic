@@ -130,15 +130,25 @@ mixin LyricLineHightlightMixin<T extends StatefulWidget>
     }
 
     final style = line.activeTextPainter.text?.style;
-    if (_currentWordWidths == null && style != null && words.isNotEmpty) {
-      _currentWordWidths = words.map((w) => _measureText(w.text, style)).toList();
+    if (_currentWordWidths == null && words.isNotEmpty) {
+      final wordMetrics = line.words;
+      if (wordMetrics != null && wordMetrics.length == words.length) {
+        _currentWordWidths =
+            wordMetrics.map((w) => w.highlightWidth).toList();
+      } else if (style != null) {
+        _currentWordWidths = words.map((w) => _measureText(w.text, style)).toList();
+      }
     }
     final wordWidths = _currentWordWidths ?? List.filled(words.length, 0.0);
 
     final activeTextWidth = line.activeTextPainter.width;
     final totalWidth = wordWidths.fold<double>(0.0, (sum, w) => sum + w);
+    final totalLineWidth =
+        line.activeMetrics.fold<double>(0.0, (sum, m) => sum + m.width);
+    final maxHighlightWidth =
+        totalLineWidth > 0 ? totalLineWidth : activeTextWidth;
     final widthScale =
-        totalWidth > 0 && activeTextWidth > totalWidth ? activeTextWidth / totalWidth : 1.0;
+        totalWidth > 0 && maxHighlightWidth > 0 ? maxHighlightWidth / totalWidth : 1.0;
 
     final model = controller.lyricNotifier.value;
     Duration? lineEnd = line.line.end;
@@ -147,7 +157,7 @@ mixin LyricLineHightlightMixin<T extends StatefulWidget>
     }
     if (lineEnd != null && currentProgress >= lineEnd) {
       _animationController.stop();
-      activeHighlightWidthNotifier.value = activeTextWidth;
+      activeHighlightWidthNotifier.value = maxHighlightWidth;
       return;
     }
 
@@ -202,7 +212,7 @@ mixin LyricLineHightlightMixin<T extends StatefulWidget>
       }
     }
 
-    var scaledWidth = (newWidth * widthScale).clamp(0.0, activeTextWidth);
+    var scaledWidth = (newWidth * widthScale).clamp(0.0, maxHighlightWidth);
     final currentWidth = activeHighlightWidthNotifier.value;
     if (!_justSwitchedLine &&
         currentProgress >= _lastProgress &&
