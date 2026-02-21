@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/services/player_service.dart';
+import '../../../app/router/app_router.dart';
+import '../../../app/state/settings_state.dart';
 import '../../../app/state/song_state.dart';
 import '../../common/artwork_widget.dart';
 import '../../../pages/player/player_page.dart';
@@ -41,7 +43,14 @@ class MiniPlayerBar extends StatelessWidget {
         final hasSong = song != null;
         final scheme = Theme.of(context).colorScheme;
         final openPlayer = onOpenPlayer ??
-            () => Navigator.of(context).push(_playerRoute());
+            () {
+              final isTabletLayout = AppLayoutSettings.tabletMode.value;
+              final navigator = Navigator.of(
+                context,
+                rootNavigator: isTabletLayout,
+              );
+              navigator.push(_playerRoute());
+            };
         final openQueue =
             onOpenQueue ?? () => showPlayerPlaylistSheet(context, player);
 
@@ -115,6 +124,7 @@ class MiniPlayerBar extends StatelessWidget {
 
   Route _playerRoute() {
     return PageRouteBuilder(
+      settings: const RouteSettings(name: AppRoutes.player),
       pageBuilder: (context, animation, secondaryAnimation) => const PlayerPage(),
       transitionDuration: const Duration(milliseconds: 280),
       reverseTransitionDuration: const Duration(milliseconds: 220),

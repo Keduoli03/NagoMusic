@@ -1,11 +1,17 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../components/layout/tablet_layout_host.dart';
 import 'router/app_router.dart';
 import 'state/settings_state.dart';
 import 'theme/app_styles.dart';
 
 class NagoMusicApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> rootNavigatorKey =
+      GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> baseNavigatorKey =
+      GlobalKey<NavigatorState>();
+
   const NagoMusicApp({super.key});
 
   ThemeData _applyDynamic(ThemeData base, ColorScheme? scheme) {
@@ -70,14 +76,32 @@ class NagoMusicApp extends StatelessWidget {
                   darkBase,
                   dynamicEnabled ? darkDynamic : null,
                 );
+                final routes = AppRouter.routes;
+                Route<dynamic> onGenerateRoute(RouteSettings settings) {
+                  final name = settings.name ?? AppRoutes.home;
+                  final target = routes[name] ?? routes[AppRoutes.home]!;
+                  return MaterialPageRoute(
+                    builder: target,
+                    settings: settings,
+                  );
+                }
+
                 return MaterialApp(
                   title: 'NagoMusic',
+                  navigatorKey: rootNavigatorKey,
                   theme: lightTheme,
                   darkTheme: darkTheme,
                   themeMode: mode,
                   scrollBehavior: const AppScrollBehavior(),
-                  initialRoute: AppRouter.initialRoute,
-                  routes: AppRouter.routes,
+                  home: TabletLayoutHost(
+                    navigatorKey: baseNavigatorKey,
+                    child: Navigator(
+                      key: baseNavigatorKey,
+                      initialRoute: AppRouter.initialRoute,
+                      onGenerateRoute: onGenerateRoute,
+                    ),
+                  ),
+                  onGenerateRoute: onGenerateRoute,
                   builder: (context, child) {
                     final theme = Theme.of(context);
                     final isDark = theme.brightness == Brightness.dark;

@@ -65,11 +65,13 @@ class AppPageScaffoldState extends State<AppPageScaffold>
 
   void openDrawer() {
     if (!_hasDrawer) return;
+    if (AppLayoutSettings.tabletMode.value) return;
     _drawerController.forward();
   }
 
   void closeDrawer() {
     if (!_hasDrawer) return;
+    if (AppLayoutSettings.tabletMode.value) return;
     _drawerController.reverse();
   }
 
@@ -120,7 +122,7 @@ class AppPageScaffoldState extends State<AppPageScaffold>
         ? miniPlayerBottom - keyboardInset
         : miniPlayerBottom;
 
-    final page = Scaffold(
+    Widget page = Scaffold(
       resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
       extendBody: bottomBar != null,
       extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
@@ -131,11 +133,17 @@ class AppPageScaffoldState extends State<AppPageScaffold>
           children: [
             content,
             if (miniPlayer != null)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: effectiveMiniPlayerBottom,
-                child: miniPlayer,
+              ValueListenableBuilder<bool>(
+                valueListenable: AppLayoutSettings.tabletMode,
+                builder: (context, tabletMode, _) {
+                  if (tabletMode) return const SizedBox.shrink();
+                  return Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: effectiveMiniPlayerBottom,
+                    child: miniPlayer,
+                  );
+                },
               ),
           ],
         ),
@@ -148,25 +156,30 @@ class AppPageScaffoldState extends State<AppPageScaffold>
             ),
     );
 
-    if (!_hasDrawer) return page;
-
     final drawerWidth =
         (MediaQuery.sizeOf(context).width * 0.62).clamp(220.0, 300.0);
 
     return ValueListenableBuilder<bool>(
       valueListenable: AppLayoutSettings.tabletMode,
       builder: (context, tabletMode, _) {
-        final isTabletLayout =
-            tabletMode && MediaQuery.sizeOf(context).width >= 720;
-        if (isTabletLayout) {
-          return Row(
-            children: [
-              SizedBox(
-                width: drawerWidth,
-                child: widget.drawer,
-              ),
-              Expanded(child: page),
-            ],
+        if (tabletMode || !_hasDrawer) {
+          return page;
+        }
+        if (miniPlayer != null) {
+          page = Scaffold(
+            resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
+            extendBody: bottomBar != null,
+            extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
+            appBar: widget.appBar,
+            body: AppBackground(
+              child: content,
+            ),
+            bottomNavigationBar: bottomBar == null
+                ? null
+                : Material(
+                    type: MaterialType.transparency,
+                    child: bottomBar,
+                  ),
           );
         }
         return Stack(
@@ -224,6 +237,13 @@ class AppPageScaffoldState extends State<AppPageScaffold>
               },
               child: page,
             ),
+            if (miniPlayer != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: effectiveMiniPlayerBottom,
+                child: miniPlayer,
+              ),
             AnimatedBuilder(
               animation: _drawerController,
               builder: (context, child) {

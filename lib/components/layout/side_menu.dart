@@ -5,7 +5,14 @@ import 'base/app_background.dart';
 import 'base/app_page_scaffold.dart';
 
 class SideMenu extends StatelessWidget {
-  const SideMenu({super.key});
+  final ValueChanged<String>? onNavigate;
+  final ValueChanged<String>? onPush;
+
+  const SideMenu({
+    super.key,
+    this.onNavigate,
+    this.onPush,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -141,16 +148,27 @@ class SideMenu extends StatelessWidget {
   }
 
   void _navigateAndClose(BuildContext context, String route) {
+    if (onNavigate != null) {
+      onNavigate?.call(route);
+      return;
+    }
+    if (!context.mounted) return;
     _closeDrawer(context);
     Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
   }
 
   void _pushAndClose(BuildContext context, String route) {
+    if (onPush != null) {
+      onPush?.call(route);
+      return;
+    }
+    if (!context.mounted) return;
     _closeDrawer(context);
     Navigator.pushNamed(context, route);
   }
 
   void _closeDrawer(BuildContext context) {
+    if (!context.mounted) return;
     final state = context.findAncestorStateOfType<AppPageScaffoldState>();
     state?.closeDrawer();
   }
