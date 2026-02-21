@@ -1,16 +1,37 @@
-# nagomusic
+# NagoMusic
 
-A new Flutter project.
+一款面向 WebDAV 与本地音乐的播放器，提供完整的音乐库管理、搜索、歌词、播放控制与主题外观设置。适合在多设备间同步音乐库，同时保留本地扫描与管理能力。
 
-## Getting Started
+## 功能
 
-This project is a starting point for a Flutter application.
+- WebDAV 与本地音源管理，支持扫描与库内统计
+- 音乐库浏览：歌曲 / 专辑 / 艺术家 / 歌单
+- 搜索与歌词联动检索
+- 播放器界面与歌词页切换
+- 迷你播放器与底部控制栏
+- 统计与缓存管理
+- 状态栏歌词服务（魅族 / Lyricon 可选）
+- 主题与外观设置（动态渐变、主题模式、平板模式）
 
-A few resources to get you started if this is your first Flutter project:
+## 支持歌词
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- LRC（含翻译行解析）
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 界面预览
+
+| 首页 | 侧边栏 |
+| --- | --- |
+| ![home](开发文档/home.jpg) | ![sidemenu](开发文档/sidemenu.jpg) |
+| 播放器 | 歌词 |
+| ![player](开发文档/player.jpg) | ![lyric](开发文档/lyric.jpg) |
+
+## 适用平台
+
+- Flutter（Android）
+
+## 开发与运行
+
+```bash
+flutter pub get
+flutter run
+```
