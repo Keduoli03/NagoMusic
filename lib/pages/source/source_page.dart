@@ -421,7 +421,9 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      drawer: const SideMenu(),
+      drawer: SideMenu(
+        onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       body: Watch.builder(
         builder: (context) {
           final localSources = _localSources.value;

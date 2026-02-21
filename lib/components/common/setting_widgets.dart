@@ -15,7 +15,7 @@ class AppSettingSection extends StatelessWidget {
     required this.children,
     this.margin,
     this.padding,
-    this.showDividers = true,
+    this.showDividers = false,
   });
 
   @override

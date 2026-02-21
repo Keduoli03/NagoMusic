@@ -254,7 +254,10 @@ class DraggableScrollbar extends StatelessWidget {
     if (onScrollRequest != null) {
       onScrollRequest!(targetIndex);
     } else {
-      final offset = (targetIndex * itemExtent).clamp(0.0, controller.position.maxScrollExtent);
+      if (!controller.hasClients) return;
+      final maxScroll = controller.position.maxScrollExtent;
+      if (maxScroll <= 0) return;
+      final offset = (targetIndex * itemExtent).clamp(0.0, maxScroll);
       controller.jumpTo(offset);
     }
 

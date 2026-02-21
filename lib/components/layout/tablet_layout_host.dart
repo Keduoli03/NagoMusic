@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/state/settings_state.dart';
+import 'base/app_background.dart';
 import '../player/mini_player/mini_player_bar.dart';
 import 'side_menu.dart';
 
@@ -74,8 +75,7 @@ class _TabletLayoutHostState extends State<TabletLayoutHost>
               widget.navigatorKey.currentState?.pop();
             }
           },
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
+          child: AppBackground(
             child: Stack(
               children: [
                 Positioned.fill(

@@ -8,7 +8,9 @@ import '../../pages/player/lyrics/lyric_page.dart';
 import '../../pages/settings/gradient_settings_page.dart';
 import '../../pages/settings/lyrics_settings_page.dart';
 import '../../pages/settings/notification_settings_page.dart';
+import '../../pages/settings/app_appearance_settings_page.dart';
 import '../../pages/settings/player_controls_settings_page.dart';
+import '../../pages/settings/player_appearance_settings_page.dart';
 import '../../pages/settings/cache_settings_page.dart';
 import '../../pages/settings/listening_stats_page.dart';
 import '../../pages/settings/settings_page.dart';
@@ -24,10 +26,12 @@ class AppRoutes {
   static const player = '/player';
   static const lyrics = '/player/lyrics';
   static const settings = '/settings';
+  static const appAppearanceSettings = '/settings/app-appearance';
   static const gradientSettings = '/settings/gradient';
   static const lyricsSettings = '/settings/lyrics';
   static const notificationSettings = '/settings/notifications';
   static const playerControlsSettings = '/settings/player-controls';
+  static const playerAppearanceSettings = '/settings/player-appearance';
   static const cacheSettings = '/settings/cache';
   static const listeningStats = '/settings/listening-stats';
   static const artists = '/artists';
@@ -46,11 +50,15 @@ class AppRouter {
         AppRoutes.player: (_) => const PlayerPage(),
         AppRoutes.lyrics: (_) => LyricPage(),
         AppRoutes.settings: (_) => const SettingsPage(),
+        AppRoutes.appAppearanceSettings: (_) =>
+            const AppAppearanceSettingsPage(),
         AppRoutes.gradientSettings: (_) => const GradientSettingsPage(),
         AppRoutes.lyricsSettings: (_) => const LyricsSettingsPage(),
         AppRoutes.notificationSettings: (_) => const NotificationSettingsPage(),
         AppRoutes.playerControlsSettings: (_) =>
             const PlayerControlsSettingsPage(),
+        AppRoutes.playerAppearanceSettings: (_) =>
+            const PlayerAppearanceSettingsPage(),
         AppRoutes.cacheSettings: (_) => const CacheSettingsPage(),
         AppRoutes.listeningStats: (_) => const ListeningStatsPage(),
         AppRoutes.artists: (_) => const ArtistsPage(),

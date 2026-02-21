@@ -296,7 +296,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> with SignalsMixin {
           const SizedBox(width: 8),
         ],
       ),
-      drawer: const SideMenu(),
+      drawer: SideMenu(
+        onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       body: Watch.builder(
         builder: (context) => RefreshIndicator(
           onRefresh: _load,

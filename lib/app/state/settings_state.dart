@@ -6,11 +6,14 @@ import '../services/cache/audio_cache_service.dart';
 class AppThemeSettings {
   static const String _prefsThemeMode = 'setting_theme_mode';
   static const String _prefsDynamicColor = 'setting_dynamic_color_enabled';
+  static const String _prefsThemeSeedColor = 'setting_theme_seed_color';
 
   static final ValueNotifier<ThemeMode> themeMode =
       ValueNotifier(ThemeMode.system);
   static final ValueNotifier<bool> dynamicColorEnabled =
       ValueNotifier(false);
+  static final ValueNotifier<Color?> themeSeedColor =
+      ValueNotifier(null);
 
   static bool _loaded = false;
 
@@ -43,6 +46,8 @@ class AppThemeSettings {
     themeMode.value = _modeFromString(prefs.getString(_prefsThemeMode));
     dynamicColorEnabled.value =
         prefs.getBool(_prefsDynamicColor) ?? false;
+    final seed = prefs.getInt(_prefsThemeSeedColor);
+    themeSeedColor.value = seed == null ? null : Color(seed);
   }
 
   static Future<void> setThemeMode(ThemeMode mode) async {
@@ -55,6 +60,57 @@ class AppThemeSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsDynamicColor, enabled);
     dynamicColorEnabled.value = enabled;
+  }
+
+  static Future<void> setThemeSeedColor(Color? color) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (color == null) {
+      await prefs.remove(_prefsThemeSeedColor);
+      themeSeedColor.value = null;
+      return;
+    }
+    await prefs.setInt(_prefsThemeSeedColor, color.toARGB32());
+    themeSeedColor.value = color;
+  }
+}
+
+class AppBackgroundSettings {
+  static const String _prefsBackgroundImagePath = 'setting_background_image_path';
+  static const String _prefsBackgroundMaskOpacity =
+      'setting_background_mask_opacity';
+
+  static final ValueNotifier<String?> backgroundImagePath =
+      ValueNotifier(null);
+  static final ValueNotifier<double> backgroundMaskOpacity =
+      ValueNotifier(0.35);
+
+  static bool _loaded = false;
+
+  static Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    final prefs = await SharedPreferences.getInstance();
+    backgroundImagePath.value = prefs.getString(_prefsBackgroundImagePath);
+    backgroundMaskOpacity.value =
+        (prefs.getDouble(_prefsBackgroundMaskOpacity) ?? 0.5).clamp(0.0, 1.0);
+  }
+
+  static Future<void> setBackgroundImagePath(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (path == null || path.isEmpty) {
+      await prefs.remove(_prefsBackgroundImagePath);
+      backgroundImagePath.value = null;
+      return;
+    }
+    await prefs.setString(_prefsBackgroundImagePath, path);
+    backgroundImagePath.value = path;
+  }
+
+  static Future<void> setBackgroundMaskOpacity(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final next = value.clamp(0.0, 1.0);
+    await prefs.setDouble(_prefsBackgroundMaskOpacity, next);
+    backgroundMaskOpacity.value = next;
   }
 }
 

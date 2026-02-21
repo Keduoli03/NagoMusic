@@ -40,7 +40,8 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
   static const String _prefsBlockedAlbums = 'blocked_albums_v1';
 
   final SongDao _songDao = SongDao();
-  final ScrollController _controller = ScrollController();
+  final ScrollController _gridController = ScrollController();
+  final ScrollController _yearController = ScrollController();
   final GlobalKey<AppPageScaffoldState> _scaffoldKey =
       GlobalKey<AppPageScaffoldState>();
 
@@ -75,7 +76,8 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
   @override
   void dispose() {
     _indexPreviewTimer?.cancel();
-    _controller.dispose();
+    _gridController.dispose();
+    _yearController.dispose();
     super.dispose();
   }
 
@@ -310,7 +312,7 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
   }
 
   void _scrollToIndex(int index, BuildContext context) {
-    if (!_controller.hasClients) return;
+    if (!_gridController.hasClients) return;
     final headerHeight =
         (_showBlockedEntry.value && _blockedAlbums.value.isNotEmpty) ? 64.0 + 8.0 : 8.0;
     final screenWidth = MediaQuery.of(context).size.width;
@@ -324,8 +326,8 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
         itemHeight + _gridMainAxisSpacingForColumns(_gridColumns.value);
     final rowIndex = (index / _gridColumns.value).floor();
     final offset = rowIndex * rowHeight + headerHeight;
-    final max = _controller.position.maxScrollExtent;
-    _controller.jumpTo(offset.clamp(0.0, max));
+    final max = _gridController.position.maxScrollExtent;
+    _gridController.jumpTo(offset.clamp(0.0, max));
   }
 
   Widget _buildGrid(BuildContext context) {
@@ -336,7 +338,7 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
     return Stack(
       children: [
         CustomScrollView(
-          controller: _controller,
+          controller: _gridController,
           slivers: [
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
             if (headerCount == 1)
@@ -507,7 +509,7 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
             top: 4,
             bottom: 4,
             child: DraggableScrollbar(
-              controller: _controller,
+              controller: _gridController,
               itemCount: _groups.value.length,
               itemExtent: 0,
               getLabel: (index) {
@@ -545,7 +547,9 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
           SortActionButton(onTap: _showSortSheet),
         ],
       ),
-      drawer: const SideMenu(),
+      drawer: SideMenu(
+        onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       body: Watch.builder(
         builder: (context) {
           final headerCount = (_showBlockedEntry.value && _blockedAlbums.value.isNotEmpty) ? 1 : 0;
@@ -568,7 +572,7 @@ class _AlbumsPageState extends State<AlbumsPage> with SignalsMixin {
                               _ascending.value ? a.compareTo(b) : b.compareTo(a),
                         );
                       return ListView.builder(
-                        controller: _controller,
+                        controller: _yearController,
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                         itemCount: headerCount + years.length,
                         itemBuilder: (context, index) {

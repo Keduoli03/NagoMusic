@@ -201,7 +201,9 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      drawer: const SideMenu(),
+      drawer: SideMenu(
+        onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       body: Watch.builder(
         builder: (context) => RefreshIndicator(
           onRefresh: _load,

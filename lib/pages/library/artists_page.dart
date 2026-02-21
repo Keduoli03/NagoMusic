@@ -260,7 +260,9 @@ class _ArtistsPageState extends State<ArtistsPage> with SignalsMixin {
           SortActionButton(onTap: _showSortSheet),
         ],
       ),
-      drawer: const SideMenu(),
+      drawer: SideMenu(
+        onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       body: Watch.builder(
         builder: (context) {
           final headerCount =

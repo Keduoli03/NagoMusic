@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../app/router/app_router.dart';
 import '../../app/state/settings_state.dart';
 import '../../components/index.dart';
@@ -21,99 +20,7 @@ class _SettingsPageState extends State<SettingsPage> {
     WebDavPlaybackSettings.ensureLoaded();
     MediaNotificationSettings.ensureLoaded();
     AppLayoutSettings.ensureLoaded();
-  }
-
-  String _themeLabel(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.light:
-        return '浅色';
-      case ThemeMode.dark:
-        return '深色';
-      case ThemeMode.system:
-        return '跟随系统';
-    }
-  }
-
-  Widget _modeTile(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required bool selected,
-    VoidCallback? onTap,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = selected
-        ? scheme.primary
-        : (isDark ? Colors.white12 : Colors.black12);
-    final iconColor =
-        selected ? scheme.primary : (isDark ? Colors.white70 : Colors.black54);
-    final textColor =
-        selected ? scheme.primary : (isDark ? Colors.white70 : Colors.black87);
-    final background =
-        selected ? scheme.primary.withAlpha(31) : Colors.transparent;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: iconColor, size: 22),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(fontSize: 12, color: textColor),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _modeRow(
-    BuildContext context, {
-    required ThemeMode selected,
-    required ValueChanged<ThemeMode> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Row(
-        children: [
-          _modeTile(
-            context,
-            icon: Icons.phone_android,
-            label: _themeLabel(ThemeMode.system),
-            selected: selected == ThemeMode.system,
-            onTap: () => onChanged(ThemeMode.system),
-          ),
-          const SizedBox(width: 8),
-          _modeTile(
-            context,
-            icon: Icons.light_mode_outlined,
-            label: _themeLabel(ThemeMode.light),
-            selected: selected == ThemeMode.light,
-            onTap: () => onChanged(ThemeMode.light),
-          ),
-          const SizedBox(width: 8),
-          _modeTile(
-            context,
-            icon: Icons.dark_mode_outlined,
-            label: _themeLabel(ThemeMode.dark),
-            selected: selected == ThemeMode.dark,
-            onTap: () => onChanged(ThemeMode.dark),
-          ),
-        ],
-      ),
-    );
+    AppBackgroundSettings.ensureLoaded();
   }
 
   @override
@@ -130,96 +37,25 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
         children: [
           AppSettingSection(
-            title: '播放体验',
-            children: [
-              ValueListenableBuilder<bool>(
-                valueListenable:
-                    PlayerBackgroundSettings.dynamicGradientEnabled,
-                builder: (context, enabled, _) {
-                  return AppSettingSwitchTile(
-                    title: '动态流光',
-                    subtitle: '背景随封面颜色流动变化',
-                    value: enabled,
-                    onChanged: (value) {
-                      PlayerBackgroundSettings.setDynamicGradientEnabled(value);
-                    },
-                  );
-                },
-              ),
-              ValueListenableBuilder<bool>(
-                valueListenable:
-                    PlayerBackgroundSettings.dynamicGradientEnabled,
-                builder: (context, enabled, _) {
-                  if (!enabled) {
-                    return const SizedBox.shrink();
-                  }
-                  return AppSettingTile(
-                    title: '流光设置',
-                    subtitle: '封面流光与渐变参数',
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.gradientSettings,
-                    ),
-                  );
-                },
-              ),
-              ValueListenableBuilder<ThemeMode>(
-                valueListenable:
-                    PlayerBackgroundSettings.playbackThemeMode,
-                builder: (context, mode, _) {
-                  return _modeRow(
-                    context,
-                    selected: mode,
-                    onChanged: (value) {
-                      PlayerBackgroundSettings.setPlaybackThemeMode(value);
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          AppSettingSection(
             title: '外观',
             children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: AppLayoutSettings.tabletMode,
-                builder: (context, enabled, _) {
-                  return AppSettingSwitchTile(
-                    title: '平板模式',
-                    subtitle: '优化平板布局',
-                    value: enabled,
-                    onChanged: (value) {
-                      AppLayoutSettings.setTabletMode(value);
-                    },
-                  );
-                },
+              AppSettingTile(
+                title: '应用外观',
+                subtitle: '主题与背景设置',
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.appAppearanceSettings,
+                ),
               ),
-              ValueListenableBuilder<ThemeMode>(
-                valueListenable: AppThemeSettings.themeMode,
-                builder: (context, mode, _) {
-                  return _modeRow(
-                    context,
-                    selected: mode,
-                    onChanged: (value) {
-                      AppThemeSettings.setThemeMode(value);
-                    },
-                  );
-                },
-              ),
-              ValueListenableBuilder<bool>(
-                valueListenable: AppThemeSettings.dynamicColorEnabled,
-                builder: (context, enabled, _) {
-                  return AppSettingSwitchTile(
-                    title: '使用系统动态颜色',
-                    subtitle: '仅 Android 12+ 生效',
-                    value: enabled,
-                    onChanged: (value) {
-                      AppThemeSettings.setDynamicColorEnabled(value);
-                    },
-                  );
-                },
+              AppSettingTile(
+                title: '播放器外观',
+                subtitle: '流光与播放主题',
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.playerAppearanceSettings,
+                ),
               ),
             ],
           ),

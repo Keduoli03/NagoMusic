@@ -12,6 +12,7 @@ Future<void> main() async {
   await MediaNotificationService.init();
   await AppThemeSettings.ensureLoaded();
   await AppLayoutSettings.ensureLoaded();
+  await AppBackgroundSettings.ensureLoaded();
   runApp(const NagoMusicApp());
   SongDao().fetchAllCached();
 }

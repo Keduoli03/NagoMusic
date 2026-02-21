@@ -1112,7 +1112,9 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
             backgroundColor: Colors.transparent,
             elevation: 0,
           ),
-          drawer: const SideMenu(),
+          drawer: SideMenu(
+            onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+          ),
           body: Column(
             children: [
               MediaListHeader(

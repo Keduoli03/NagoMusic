@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'app_background.dart';
 import '../../../app/state/settings_state.dart';
 import '../../player/mini_player/mini_player_bar.dart';
 import '../modern_navigation_bar.dart';
@@ -122,46 +121,47 @@ class AppPageScaffoldState extends State<AppPageScaffold>
         ? miniPlayerBottom - keyboardInset
         : miniPlayerBottom;
 
-    Widget page = Scaffold(
-      resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
-      extendBody: bottomBar != null,
-      extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
-      appBar: widget.appBar,
-      body: AppBackground(
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            content,
-            if (miniPlayer != null)
-              ValueListenableBuilder<bool>(
-                valueListenable: AppLayoutSettings.tabletMode,
-                builder: (context, tabletMode, _) {
-                  if (tabletMode) return const SizedBox.shrink();
-                  return Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: effectiveMiniPlayerBottom,
-                    child: miniPlayer,
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: bottomBar == null
-          ? null
-          : Material(
-              type: MaterialType.transparency,
-              child: bottomBar,
-            ),
-    );
-
     final drawerWidth =
         (MediaQuery.sizeOf(context).width * 0.62).clamp(220.0, 300.0);
 
     return ValueListenableBuilder<bool>(
       valueListenable: AppLayoutSettings.tabletMode,
       builder: (context, tabletMode, _) {
+        Widget buildBody({
+          required bool includeMiniPlayer,
+        }) {
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              content,
+              if (miniPlayer != null && includeMiniPlayer)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: effectiveMiniPlayerBottom,
+                  child: miniPlayer,
+                ),
+            ],
+          );
+        }
+
+        Widget page = Scaffold(
+          resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
+          extendBody: bottomBar != null,
+          extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
+          backgroundColor: Colors.transparent,
+          appBar: widget.appBar,
+          body: buildBody(
+            includeMiniPlayer: !tabletMode,
+          ),
+          bottomNavigationBar: bottomBar == null
+              ? null
+              : Material(
+                  type: MaterialType.transparency,
+                  child: bottomBar,
+                ),
+        );
+
         if (tabletMode || !_hasDrawer) {
           return page;
         }
@@ -170,9 +170,10 @@ class AppPageScaffoldState extends State<AppPageScaffold>
             resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
             extendBody: bottomBar != null,
             extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
+            backgroundColor: Colors.transparent,
             appBar: widget.appBar,
-            body: AppBackground(
-              child: content,
+            body: buildBody(
+              includeMiniPlayer: false,
             ),
             bottomNavigationBar: bottomBar == null
                 ? null
@@ -182,7 +183,7 @@ class AppPageScaffoldState extends State<AppPageScaffold>
                   ),
           );
         }
-        return Stack(
+        final stack = Stack(
           children: [
             AnimatedBuilder(
               animation: _drawerController,
@@ -278,6 +279,7 @@ class AppPageScaffoldState extends State<AppPageScaffold>
             ),
           ],
         );
+        return stack;
       },
     );
   }
