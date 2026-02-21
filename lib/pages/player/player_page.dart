@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/player_service.dart';
+import '../../app/state/settings_state.dart';
 import '../../app/state/song_state.dart';
 import '../../components/common/artwork_widget.dart';
 import 'lyrics/lyric_view.dart';
@@ -96,45 +97,66 @@ class _PlayerArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Watch.builder(
-      builder: (context) {
-        final song = songSignal.value;
-        final border = BorderRadius.circular(12);
-        if (song == null) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: _ArtworkShadowContainer(
-                border: border,
-                child: _ArtworkPlaceholder(border: border, label: ''),
-              ),
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: _ArtworkShadowContainer(
-              border: border,
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppLayoutSettings.tabletMode,
+      builder: (context, tabletMode, _) {
+        final isTabletLayout =
+            tabletMode && MediaQuery.sizeOf(context).width >= 720;
+        return Watch.builder(
+          builder: (context) {
+            final song = songSignal.value;
+            final border = BorderRadius.circular(12);
+            final maxSize = isTabletLayout ? 320.0 : double.infinity;
+            if (song == null) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final size = constraints.maxWidth;
+                    final boxSize = size < maxSize ? size : maxSize;
+                    return Center(
+                      child: SizedBox(
+                        width: boxSize,
+                        height: boxSize,
+                        child: _ArtworkShadowContainer(
+                          border: border,
+                          child: _ArtworkPlaceholder(border: border, label: ''),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final size = constraints.maxWidth;
-                  return ArtworkWidget(
-                    song: song,
-                    size: size,
-                    borderRadius: 12,
-                    preferOriginal: true,
-                    placeholder: _ArtworkPlaceholder(
-                      border: border,
-                      label: song.title,
+                  final boxSize = size < maxSize ? size : maxSize;
+                  return Center(
+                    child: SizedBox(
+                      width: boxSize,
+                      height: boxSize,
+                      child: _ArtworkShadowContainer(
+                        border: border,
+                        child: ArtworkWidget(
+                          song: song,
+                          size: boxSize,
+                          borderRadius: 12,
+                          preferOriginal: true,
+                          placeholder: _ArtworkPlaceholder(
+                            border: border,
+                            label: song.title,
+                          ),
+                        ),
+                      ),
                     ),
                   );
                 },
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );

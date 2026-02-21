@@ -20,6 +20,7 @@ class _SettingsPageState extends State<SettingsPage> {
     PlayerBottomActionSettings.ensureLoaded();
     WebDavPlaybackSettings.ensureLoaded();
     MediaNotificationSettings.ensureLoaded();
+    AppLayoutSettings.ensureLoaded();
   }
 
   String _themeLabel(ThemeMode mode) {
@@ -182,6 +183,19 @@ class _SettingsPageState extends State<SettingsPage> {
           AppSettingSection(
             title: '外观',
             children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: AppLayoutSettings.tabletMode,
+                builder: (context, enabled, _) {
+                  return AppSettingSwitchTile(
+                    title: '平板模式',
+                    subtitle: '优化平板布局',
+                    value: enabled,
+                    onChanged: (value) {
+                      AppLayoutSettings.setTabletMode(value);
+                    },
+                  );
+                },
+              ),
               ValueListenableBuilder<ThemeMode>(
                 valueListenable: AppThemeSettings.themeMode,
                 builder: (context, mode, _) {

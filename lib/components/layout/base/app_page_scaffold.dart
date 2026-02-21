@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_background.dart';
+import '../../../app/state/settings_state.dart';
 import '../../player/mini_player/mini_player_bar.dart';
 import '../modern_navigation_bar.dart';
 
@@ -23,6 +24,9 @@ class AppPageScaffold extends StatefulWidget {
   final Widget body;
   final bool extendBodyBehindAppBar;
   final bool useSafeArea;
+  final bool resizeToAvoidBottomInset;
+  final bool keepBottomOverlayFixed;
+  final bool ignoreKeyboardInsets;
   final int? bottomNavIndex;
   final ValueChanged<int>? onBottomNavTap;
   final Widget? drawer;
@@ -34,6 +38,9 @@ class AppPageScaffold extends StatefulWidget {
     required this.body,
     this.extendBodyBehindAppBar = false,
     this.useSafeArea = true,
+    this.resizeToAvoidBottomInset = false,
+    this.keepBottomOverlayFixed = false,
+    this.ignoreKeyboardInsets = false,
     this.bottomNavIndex,
     this.onBottomNavTap,
     this.drawer,
@@ -78,6 +85,13 @@ class AppPageScaffoldState extends State<AppPageScaffold>
     if (widget.useSafeArea) {
       content = SafeArea(child: content);
     }
+    if (widget.ignoreKeyboardInsets) {
+      final mq = MediaQuery.of(context);
+      content = MediaQuery(
+        data: mq.copyWith(viewInsets: EdgeInsets.zero),
+        child: content,
+      );
+    }
 
     final hasBottomNav =
         widget.bottomNavIndex != null && widget.onBottomNavTap != null;
@@ -99,21 +113,28 @@ class AppPageScaffoldState extends State<AppPageScaffold>
     final miniPlayerBottom = hasBottomNav
         ? (AppPageScaffold.modernNavHeight + bottomInset)
         : bottomInset;
+    final keyboardInset = widget.resizeToAvoidBottomInset
+        ? MediaQuery.viewInsetsOf(context).bottom
+        : 0.0;
+    final effectiveMiniPlayerBottom = widget.keepBottomOverlayFixed
+        ? miniPlayerBottom - keyboardInset
+        : miniPlayerBottom;
 
     final page = Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
       extendBody: bottomBar != null,
       extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
       appBar: widget.appBar,
       body: AppBackground(
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             content,
             if (miniPlayer != null)
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: miniPlayerBottom,
+                bottom: effectiveMiniPlayerBottom,
                 child: miniPlayer,
               ),
           ],
@@ -132,86 +153,112 @@ class AppPageScaffoldState extends State<AppPageScaffold>
     final drawerWidth =
         (MediaQuery.sizeOf(context).width * 0.62).clamp(220.0, 300.0);
 
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: drawerWidth,
-              child: widget.drawer,
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppLayoutSettings.tabletMode,
+      builder: (context, tabletMode, _) {
+        final isTabletLayout =
+            tabletMode && MediaQuery.sizeOf(context).width >= 720;
+        if (isTabletLayout) {
+          return Row(
+            children: [
+              SizedBox(
+                width: drawerWidth,
+                child: widget.drawer,
+              ),
+              Expanded(child: page),
+            ],
+          );
+        }
+        return Stack(
+          children: [
+            AnimatedBuilder(
+              animation: _drawerController,
+              builder: (context, child) {
+                final value = _drawerController.value;
+                return Transform.translate(
+                  offset: Offset(-drawerWidth + drawerWidth * value, 0),
+                  child: child,
+                );
+              },
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: drawerWidth,
+                  child: widget.drawer,
+                ),
+              ),
             ),
-          ),
-        ),
-        AnimatedBuilder(
-          animation: _drawerController,
-          builder: (context, child) {
-            final value = _drawerController.value;
-            return GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (_) {
-                _draggingDrawer = true;
+            AnimatedBuilder(
+              animation: _drawerController,
+              builder: (context, child) {
+                final value = _drawerController.value;
+                return GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (_) {
+                    _draggingDrawer = true;
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    if (!_draggingDrawer) return;
+                    final delta = details.primaryDelta ?? 0;
+                    if (delta == 0) return;
+                    if (_drawerController.value == 0 && delta < 0) return;
+                    if (_drawerController.value == 1 && delta > 0) return;
+                    final next =
+                        (_drawerController.value + delta / drawerWidth).clamp(0.0, 1.0);
+                    _drawerController.value = next;
+                  },
+                  onHorizontalDragEnd: (_) {
+                    if (!_draggingDrawer) return;
+                    _draggingDrawer = false;
+                    if (_drawerController.value < 0.5) {
+                      closeDrawer();
+                    } else {
+                      openDrawer();
+                    }
+                  },
+                  child: Transform.translate(
+                    offset: Offset(drawerWidth * value, 0),
+                    child: child,
+                  ),
+                );
               },
-              onHorizontalDragUpdate: (details) {
-                if (!_draggingDrawer) return;
-                final delta = details.primaryDelta ?? 0;
-                if (delta == 0) return;
-                if (_drawerController.value == 0 && delta < 0) return;
-                if (_drawerController.value == 1 && delta > 0) return;
-                final next =
-                    (_drawerController.value + delta / drawerWidth).clamp(0.0, 1.0);
-                _drawerController.value = next;
-              },
-              onHorizontalDragEnd: (_) {
-                if (!_draggingDrawer) return;
-                _draggingDrawer = false;
-                if (_drawerController.value < 0.5) {
-                  closeDrawer();
-                } else {
-                  openDrawer();
+              child: page,
+            ),
+            AnimatedBuilder(
+              animation: _drawerController,
+              builder: (context, child) {
+                if (_drawerController.value == 0) {
+                  return const SizedBox.shrink();
                 }
+                return Positioned(
+                  left: drawerWidth,
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    onTap: closeDrawer,
+                    onHorizontalDragUpdate: (details) {
+                      final delta = details.primaryDelta ?? 0;
+                      if (delta == 0) return;
+                      final next =
+                          (_drawerController.value + delta / drawerWidth).clamp(0.0, 1.0);
+                      _drawerController.value = next;
+                    },
+                    onHorizontalDragEnd: (details) {
+                      if (_drawerController.value < 0.5) {
+                        closeDrawer();
+                      } else {
+                        openDrawer();
+                      }
+                    },
+                    child: Container(color: Colors.transparent),
+                  ),
+                );
               },
-              child: Transform.translate(
-                offset: Offset(drawerWidth * value, 0),
-                child: child,
-              ),
-            );
-          },
-          child: page,
-        ),
-        AnimatedBuilder(
-          animation: _drawerController,
-          builder: (context, child) {
-            if (_drawerController.value == 0) {
-              return const SizedBox.shrink();
-            }
-            return Positioned(
-              left: drawerWidth,
-              top: 0,
-              right: 0,
-              bottom: 0,
-              child: GestureDetector(
-                onTap: closeDrawer,
-                onHorizontalDragUpdate: (details) {
-                  final delta = details.primaryDelta ?? 0;
-                  if (delta == 0) return;
-                  final next =
-                      (_drawerController.value + delta / drawerWidth).clamp(0.0, 1.0);
-                  _drawerController.value = next;
-                },
-                onHorizontalDragEnd: (details) {
-                  if (_drawerController.value < 0.5) {
-                    closeDrawer();
-                  } else {
-                    openDrawer();
-                  }
-                },
-                child: Container(color: Colors.transparent),
-              ),
-            );
-          },
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

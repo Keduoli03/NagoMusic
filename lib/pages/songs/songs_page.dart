@@ -215,6 +215,7 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
       if (prefetchEnd >= 0) {
         _scheduleRangePrefetch(0, prefetchEnd > 29 ? 29 : prefetchEnd, cached);
       }
+      _syncCurrentIdWithPlayer(cached);
       return;
     }
     final token = ++_visibleBuildToken;
@@ -240,6 +241,7 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
     if (prefetchEnd >= 0) {
       _scheduleRangePrefetch(0, prefetchEnd > 29 ? 29 : prefetchEnd, visible);
     }
+    _syncCurrentIdWithPlayer(visible);
   }
 
   void _rebuildVisibleSongs() {
@@ -263,8 +265,22 @@ class _SongsPageState extends State<SongsPage> with SignalsMixin {
   void _handlePlayerSongChanged() {
     if (!mounted) return;
     final song = PlayerService.instance.currentSong.value;
+    _syncCurrentIdWithPlayer();
     if (song == null) return;
     _applySongUpdate(song);
+  }
+
+  void _syncCurrentIdWithPlayer([List<SongEntity>? visibleAll]) {
+    final song = PlayerService.instance.currentSong.value;
+    if (song == null) {
+      if (_currentId.value != null) {
+        _currentId.value = null;
+      }
+      return;
+    }
+    final list = visibleAll ?? _visibleSongsAll.value;
+    final exists = list.any((s) => s.id == song.id);
+    _currentId.value = exists ? song.id : null;
   }
 
   void _applySongUpdate(SongEntity updated) {

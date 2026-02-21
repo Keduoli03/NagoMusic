@@ -58,6 +58,27 @@ class AppThemeSettings {
   }
 }
 
+class AppLayoutSettings {
+  static const String _prefsTabletMode = 'setting_tablet_mode';
+
+  static final ValueNotifier<bool> tabletMode = ValueNotifier(false);
+
+  static bool _loaded = false;
+
+  static Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    final prefs = await SharedPreferences.getInstance();
+    tabletMode.value = prefs.getBool(_prefsTabletMode) ?? false;
+  }
+
+  static Future<void> setTabletMode(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsTabletMode, enabled);
+    tabletMode.value = enabled;
+  }
+}
+
 class WebDavPlaybackSettings {
   static const String _prefsPrefetchEnabled = 'webdav_prefetch_enabled';
   static const String _prefsSegmentedEnabled = 'webdav_segmented_enabled';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/theme/app_fonts.dart';
 
@@ -37,6 +38,12 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final titleStyle = AppFonts.topBarTitleStyle(Theme.of(context).textTheme);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+    );
     return AppBar(
       title: titleWidget ?? (title != null ? Text(title!, style: titleStyle) : null),
       leading: leading,
@@ -50,6 +57,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       toolbarHeight: height,
       bottom: bottom,
+      systemOverlayStyle: overlayStyle,
     );
   }
 }

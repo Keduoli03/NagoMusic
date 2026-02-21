@@ -11,6 +11,7 @@ Future<void> main() async {
   await FlutterDisplayMode.setHighRefreshRate();
   await MediaNotificationService.init();
   await AppThemeSettings.ensureLoaded();
+  await AppLayoutSettings.ensureLoaded();
   runApp(const NagoMusicApp());
   SongDao().fetchAllCached();
 }

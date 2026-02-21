@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -47,6 +48,16 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "TAG=$TAG" >> $GITHUB_ENV
       - run: |
+          LAST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          if [ -n "$LAST_TAG" ]; then
+            git log "${LAST_TAG}..HEAD" --pretty=format:"- %s%n%b" > release_notes.txt
+          else
+            git log -5 --pretty=format:"- %s%n%b" > release_notes.txt
+          fi
+          if [ ! -s release_notes.txt ]; then
+            echo "- ${GITHUB_SHA}" > release_notes.txt
+          fi
+      - run: |
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk nagomusic-v${VERSION}-arm64-v8a.apk
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk nagomusic-v${VERSION}-armeabi-v7a.apk
           mv build/app/outputs/flutter-apk/app-x86_64-release.apk nagomusic-v${VERSION}-x86_64.apk
@@ -54,8 +65,8 @@ jobs:
         with:
           tag_name: v${{ env.TAG }}
           name: v${{ env.TAG }}
+          body_path: release_notes.txt
           files: |
             nagomusic-v${{ env.VERSION }}-arm64-v8a.apk
             nagomusic-v${{ env.VERSION }}-armeabi-v7a.apk
             nagomusic-v${{ env.VERSION }}-x86_64.apk
-          generate_release_notes: true

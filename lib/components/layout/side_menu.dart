@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/router/app_router.dart';
+import 'base/app_background.dart';
 import 'base/app_page_scaffold.dart';
 
 class SideMenu extends StatelessWidget {
@@ -9,105 +10,106 @@ class SideMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final colorScheme = theme.colorScheme;
 
     return Material(
-      color: isDark ? const Color(0xFF1C1F24) : const Color(0xFFF5F5F5),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 36, 24, 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.music_note_rounded,
-                      color: colorScheme.onPrimaryContainer,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    'NagoMusic',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
-                child: Column(
+      color: Colors.transparent,
+      child: AppBackground(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 36, 24, 16),
+                child: Row(
                   children: [
-                    _buildMenuItem(
-                      context,
-                      Icons.music_note_rounded,
-                      '歌曲',
-                      () => _navigateAndClose(context, AppRoutes.songs),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.music_note_rounded,
+                        color: colorScheme.onPrimaryContainer,
+                        size: 28,
+                      ),
                     ),
-                    _buildMenuItem(
-                      context,
-                      Icons.album_rounded,
-                      '专辑',
-                      () => _navigateAndClose(context, AppRoutes.albums),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.people_rounded,
-                      '艺术家',
-                      () => _navigateAndClose(context, AppRoutes.artists),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.queue_music_rounded,
-                      '歌单',
-                      () => _navigateAndClose(context, AppRoutes.playlists),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.library_music_rounded,
-                      '音乐库',
-                      () => _navigateAndClose(context, AppRoutes.home),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      child: Divider(height: 1),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.radar_rounded,
-                      '音源',
-                      () => _navigateAndClose(context, AppRoutes.source),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.bar_chart_rounded,
-                      '统计',
-                      () => _pushAndClose(context, AppRoutes.listeningStats),
-                    ),
-                    _buildMenuItem(
-                      context,
-                      Icons.settings_rounded,
-                      '设置',
-                      () => _pushAndClose(context, AppRoutes.settings),
+                    const SizedBox(width: 16),
+                    Text(
+                      'NagoMusic',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
+                  child: Column(
+                    children: [
+                      _buildMenuItem(
+                        context,
+                        Icons.music_note_rounded,
+                        '歌曲',
+                        () => _navigateAndClose(context, AppRoutes.songs),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.album_rounded,
+                        '专辑',
+                        () => _navigateAndClose(context, AppRoutes.albums),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.people_rounded,
+                        '艺术家',
+                        () => _navigateAndClose(context, AppRoutes.artists),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.queue_music_rounded,
+                        '歌单',
+                        () => _navigateAndClose(context, AppRoutes.playlists),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.library_music_rounded,
+                        '音乐库',
+                        () => _navigateAndClose(context, AppRoutes.home),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        child: Divider(height: 1),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.radar_rounded,
+                        '音源',
+                        () => _navigateAndClose(context, AppRoutes.source),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.bar_chart_rounded,
+                        '统计',
+                        () => _pushAndClose(context, AppRoutes.listeningStats),
+                      ),
+                      _buildMenuItem(
+                        context,
+                        Icons.settings_rounded,
+                        '设置',
+                        () => _pushAndClose(context, AppRoutes.settings),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
