@@ -19,11 +19,24 @@
 
 ## 界面预览
 
-| 首页 | 侧边栏 |
-| --- | --- |
-| ![home](开发文档/home.jpg) | ![sidemenu](开发文档/sidemenu.jpg) |
-| 播放器 | 歌词 |
-| ![player](开发文档/player.jpg) | ![lyric](开发文档/lyric.jpg) |
+<table>
+  <tr>
+    <th>首页</th>
+    <th>侧边栏</th>
+  </tr>
+  <tr>
+    <td><img src="开发文档/home.jpg" width="220" /></td>
+    <td><img src="开发文档/sidemenu.jpg" width="220" /></td>
+  </tr>
+  <tr>
+    <th>播放器</th>
+    <th>歌词</th>
+  </tr>
+  <tr>
+    <td><img src="开发文档/player.jpg" width="220" /></td>
+    <td><img src="开发文档/lyric.jpg" width="220" /></td>
+  </tr>
+</table>
 
 ## 适用平台
 
