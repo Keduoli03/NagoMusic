@@ -7,6 +7,9 @@ on:
       - master
     paths:
       - pubspec.yaml
+      - pubspec.lock
+      - android/**
+      - .github/workflows/build-release.yml
   workflow_dispatch:
 
 permissions:
