@@ -76,13 +76,15 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
 
   Future<void> _loadSongs() async {
     final allSourceSongs = await _songDao.fetchAll(sourceId: widget.sourceId);
-    final folderSongs = allSourceSongs.where((s) {
-      if (s.uri == null) return false;
-      // Normalize paths for comparison
-      final songDir = p.dirname(s.uri!).replaceAll('\\', '/');
-      final targetDir = widget.folderPath.replaceAll('\\', '/');
-      return songDir == targetDir;
-    }).toList();
+    final folderSongs = widget.folderPath.trim().isEmpty
+        ? allSourceSongs
+        : allSourceSongs.where((s) {
+            if (s.uri == null) return false;
+            // Normalize paths for comparison
+            final songDir = p.dirname(s.uri!).replaceAll('\\', '/');
+            final targetDir = widget.folderPath.replaceAll('\\', '/');
+            return songDir == targetDir;
+          }).toList();
 
     if (mounted) {
       _songs.value = folderSongs;

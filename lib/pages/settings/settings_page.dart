@@ -16,6 +16,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     PlayerBackgroundSettings.ensureLoaded();
+    AppPlaybackVolumeSettings.ensureLoaded();
     PlayerBottomActionSettings.ensureLoaded();
     WebDavPlaybackSettings.ensureLoaded();
     MediaNotificationSettings.ensureLoaded();

@@ -16,8 +16,10 @@ import '../../app/services/metadata/tag_probe_service.dart';
 import '../../app/services/metadata/tag_probe_result.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/song_download_service.dart';
+import '../../app/state/settings_state.dart';
 import '../../app/state/song_state.dart';
 import '../../components/common/app_list_tile.dart';
+import '../../components/common/labeled_slider.dart';
 import '../../components/common/sheet_panels.dart';
 import '../../components/feedback/app_toast.dart';
 import '../library/playlists_page.dart';
@@ -85,6 +87,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
   @override
   void initState() {
     super.initState();
+    AppPlaybackVolumeSettings.ensureLoaded();
     _loadFavoriteState();
   }
 
@@ -243,6 +246,8 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
                 ],
               ),
             ),
+            const Divider(height: 1, thickness: 0.6),
+            const _AppVolumeControl(),
             const Divider(height: 1, thickness: 0.6),
             AppListTile(
               leading: const Icon(Icons.queue_play_next),
@@ -422,6 +427,46 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+}
+
+class _AppVolumeControl extends StatelessWidget {
+  const _AppVolumeControl();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.volume_down_rounded, color: colors.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ValueListenableBuilder<double>(
+              valueListenable: AppPlaybackVolumeSettings.volume,
+              builder: (context, volume, _) {
+                final percent = (volume * 100).round();
+                return LabeledSlider(
+                  title: '应用音量',
+                  value: volume,
+                  min: 0,
+                  max: 1,
+                  divisions: 20,
+                  valueText: '$percent%',
+                  titleWidth: 72,
+                  titleFontSize: 14,
+                  onChanged: AppPlaybackVolumeSettings.setVolume,
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.volume_up_rounded, color: colors.onSurfaceVariant),
+        ],
       ),
     );
   }

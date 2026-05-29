@@ -1,6 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class AppPlaybackVolumeSettings {
+  static const String _prefsVolume = 'player_app_volume';
+
+  static final ValueNotifier<double> volume = ValueNotifier(1);
+
+  static bool _loaded = false;
+
+  static Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    final prefs = await SharedPreferences.getInstance();
+    volume.value = (prefs.getDouble(_prefsVolume) ?? 1).clamp(0, 1);
+  }
+
+  static Future<void> setVolume(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final normalized = value.clamp(0, 1).toDouble();
+    await prefs.setDouble(_prefsVolume, normalized);
+    volume.value = normalized;
+  }
+}
+
 class WebDavPlaybackSettings {
   static const String _prefsPrefetchEnabled = 'webdav_prefetch_enabled';
   static const String _prefsSegmentedEnabled = 'webdav_segmented_enabled';

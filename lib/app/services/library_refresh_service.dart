@@ -4,6 +4,8 @@ import 'package:photo_manager/photo_manager.dart';
 import '../state/settings_state.dart';
 import 'db/dao/song_dao.dart';
 import 'local_music_service.dart';
+import 'navidrome/navidrome_music_service.dart';
+import 'navidrome/navidrome_source_repository.dart';
 import 'webdav/webdav_music_service.dart';
 import 'webdav/webdav_source_repository.dart';
 
@@ -27,6 +29,9 @@ class LibraryRefreshService {
   final LocalMusicService _localService = LocalMusicService();
   final WebDavMusicService _webDavService = WebDavMusicService();
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
+  final NavidromeMusicService _navidromeService = NavidromeMusicService();
+  final NavidromeSourceRepository _navidromeRepo =
+      NavidromeSourceRepository.instance;
   final SongDao _songDao = SongDao();
 
   bool _running = false;
@@ -102,6 +107,16 @@ class LibraryRefreshService {
         );
         added += result.added;
       }
+      final navidromeSources = await _navidromeRepo.loadSources();
+      for (final source in navidromeSources) {
+        if (source.endpoint.trim().isEmpty) continue;
+        final result = await _navidromeService.scan(
+          source: source,
+          isCancelled: () => false,
+          onProgress: (_) {},
+        );
+        added += result.added;
+      }
       return added;
     } catch (e) {
       if (kDebugMode) {
@@ -116,13 +131,18 @@ class LibraryRefreshService {
   }
 
   Future<Map<String, int>> getCloudSongCounts() async {
-    final sources = await _webDavRepo.loadSources();
-    final entries = await Future.wait(
-      sources.map(
+    final webDavSources = await _webDavRepo.loadSources();
+    final navidromeSources = await _navidromeRepo.loadSources();
+    final entries = await Future.wait([
+      ...webDavSources.map(
         (s) async =>
             MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
       ),
-    );
+      ...navidromeSources.map(
+        (s) async =>
+            MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
+      ),
+    ]);
     return {for (final e in entries) e.key: e.value};
   }
 }

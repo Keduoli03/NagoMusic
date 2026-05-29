@@ -16,6 +16,7 @@ class _PlayerControlsSettingsPageState
   @override
   void initState() {
     super.initState();
+    AppPlaybackVolumeSettings.ensureLoaded();
     PlayerBottomActionSettings.ensureLoaded();
     AppLaunchPlaybackSettings.ensureLoaded();
     MiniPlayerInfoSettings.ensureLoaded();
@@ -74,6 +75,22 @@ class _PlayerControlsSettingsPageState
           AppSettingSection(
             title: '播放行为',
             children: [
+              ValueListenableBuilder<double>(
+                valueListenable: AppPlaybackVolumeSettings.volume,
+                builder: (context, volume, _) {
+                  final percent = (volume * 100).round();
+                  return AppSettingSlider(
+                    title: '应用音量',
+                    description: '只调整 NagoMusic 的播放音量，不改变系统音量',
+                    value: volume,
+                    min: 0,
+                    max: 1,
+                    divisions: 20,
+                    valueText: '$percent%',
+                    onChanged: AppPlaybackVolumeSettings.setVolume,
+                  );
+                },
+              ),
               ValueListenableBuilder<bool>(
                 valueListenable: AppLaunchPlaybackSettings.autoPlayOnAppLaunch,
                 builder: (context, enabled, _) {

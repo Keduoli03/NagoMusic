@@ -166,6 +166,7 @@ class PlayerService with WidgetsBindingObserver {
     _restoringState = true;
     _persistTimer?.cancel();
     _debugLog('init start');
+    await AppPlaybackVolumeSettings.ensureLoaded();
     await WebDavPlaybackSettings.ensureLoaded();
     await AppCacheSettings.ensureLoaded();
     await AppLaunchPlaybackSettings.ensureLoaded();
@@ -260,6 +261,8 @@ class PlayerService with WidgetsBindingObserver {
       }
       _schedulePersistPlaybackState();
     });
+    AppPlaybackVolumeSettings.volume.addListener(_handleAppVolumeChanged);
+    await _applyAppVolume(AppPlaybackVolumeSettings.volume.value);
     try {
       await _restorePlaybackState();
     } finally {
@@ -267,6 +270,18 @@ class PlayerService with WidgetsBindingObserver {
     }
     _emitSnapshot(force: true);
     _debugLog('init completed');
+  }
+
+  void _handleAppVolumeChanged() {
+    unawaited(_applyAppVolume(AppPlaybackVolumeSettings.volume.value));
+  }
+
+  Future<void> _applyAppVolume(double value) async {
+    try {
+      await _player.setVolume(value.clamp(0, 1).toDouble());
+    } catch (e) {
+      if (kDebugMode) debugPrint('PlayerService set volume failed: $e');
+    }
   }
 
   Future<void> playQueue(List<SongEntity> songs, int startIndex) async {
@@ -1735,6 +1750,7 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> dispose() async {
     WidgetsBinding.instance.removeObserver(this);
+    AppPlaybackVolumeSettings.volume.removeListener(_handleAppVolumeChanged);
     cancelSleepTimer();
     await _positionSub?.cancel();
     await _durationSub?.cancel();
