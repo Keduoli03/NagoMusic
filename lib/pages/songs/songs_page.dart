@@ -10,6 +10,7 @@ import '../../app/router/app_router.dart';
 import '../../app/services/artwork_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/local_music_service.dart';
+import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../app/router/app_page_route.dart';
@@ -70,6 +71,8 @@ class _SongsPageState extends State<SongsPage>
   final SongDao _songDao = SongDao();
   final LocalMusicService _localService = LocalMusicService();
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
+  final NavidromeSourceRepository _navidromeRepo =
+      NavidromeSourceRepository.instance;
   final ArtworkService _artworkService = ArtworkService.instance;
   final PageCacheStore _cacheStore = PageCacheStore.instance;
   final SongsVisibleController _visibleController = SongsVisibleController();
@@ -156,10 +159,15 @@ class _SongsPageState extends State<SongsPage>
   }
 
   Future<void> _loadWebDavNames() async {
-    final sources = await _webDavRepo.loadSources();
+    final webDavSources = await _webDavRepo.loadSources();
+    final navidromeSources = await _navidromeRepo.loadSources();
     final map = <String, String>{};
-    for (final s in sources) {
+    for (final s in webDavSources) {
       final name = s.name.trim().isEmpty ? 'WebDAV' : s.name.trim();
+      map[s.id] = name;
+    }
+    for (final s in navidromeSources) {
+      final name = s.name.trim().isEmpty ? 'Navidrome' : s.name.trim();
       map[s.id] = name;
     }
     if (!mounted) return;

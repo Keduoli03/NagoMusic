@@ -9,6 +9,7 @@ import '../../app/state/settings_state.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/router/app_page_route.dart';
 import '../../app/services/library_refresh_service.dart';
+import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/playlists_service.dart';
 import '../../app/services/stats_service.dart';
@@ -44,6 +45,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   final LibraryRefreshService _libraryRefreshService =
       LibraryRefreshService.instance;
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
+  final NavidromeSourceRepository _navidromeRepo =
+      NavidromeSourceRepository.instance;
   final PageCacheStore _cacheStore = PageCacheStore.instance;
   bool _libraryRefreshTried = false;
 
@@ -54,6 +57,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   late final _countRemote = createSignal(0);
   late final _webDavSources = createSignal<List<WebDavSource>>([]);
   late final _webDavCounts = createSignal<Map<String, int>>({});
+  late final _navidromeSources = createSignal<List<NavidromeSource>>([]);
+  late final _navidromeCounts = createSignal<Map<String, int>>({});
   late final _recentSongs = createSignal<List<SongEntity>>([]);
   late final _recentAlbums = createSignal<List<_RecentAlbumItem>>([]);
   late final _recentPlaylists = createSignal<List<PlaylistEntity>>([]);
@@ -62,6 +67,10 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
     final map = <String, String>{};
     for (final s in _webDavSources.value) {
       final name = s.name.trim().isEmpty ? 'WebDAV' : s.name.trim();
+      map[s.id] = name;
+    }
+    for (final s in _navidromeSources.value) {
+      final name = s.name.trim().isEmpty ? 'Navidrome' : s.name.trim();
       map[s.id] = name;
     }
     return map;
@@ -85,7 +94,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
     if (filter == 'webdav') return _countRemote.value;
     if (filter.startsWith('webdav:')) {
       final id = filter.substring('webdav:'.length);
-      return _webDavCounts.value[id] ?? 0;
+      return _webDavCounts.value[id] ?? _navidromeCounts.value[id] ?? 0;
     }
     return _countAll.value;
   });
@@ -168,6 +177,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
       _countRemote.value = cached.countRemote;
       _webDavSources.value = cached.webDavSources;
       _webDavCounts.value = cached.webDavCounts;
+      _navidromeSources.value = cached.navidromeSources;
+      _navidromeCounts.value = cached.navidromeCounts;
       _loading.value = false;
     }
 
@@ -190,16 +201,19 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
       _songDao.countRemote(),
     ]);
     final sourcesFuture = _webDavRepo.loadSources();
+    final navidromeSourcesFuture = _navidromeRepo.loadSources();
     final recentSongsFuture = _loadRecentSongs();
     final recentPlaylistsFuture = _loadRecentPlaylists();
 
     final counts = await countsFuture;
     final sources = await sourcesFuture;
+    final navidromeSources = await navidromeSourcesFuture;
     final recentSongs = await recentSongsFuture;
     final recentPlaylists = await recentPlaylistsFuture;
     final recentAlbums = _buildRecentAlbums(recentSongs);
 
     Map<String, int> webdavCounts;
+    Map<String, int> navidromeCounts;
     if (includeWebDavCounts) {
       final entries = await Future.wait(
         sources.map(
@@ -208,18 +222,33 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
         ),
       );
       webdavCounts = {for (final e in entries) e.key: e.value};
+      final navidromeEntries = await Future.wait(
+        navidromeSources.map(
+          (s) async =>
+              MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
+        ),
+      );
+      navidromeCounts = {for (final e in navidromeEntries) e.key: e.value};
     } else {
       webdavCounts =
           _cacheStore
               .get<_HomeCountsCache>(_cacheScope, cacheKey)
               ?.webDavCounts ??
           const {};
+      navidromeCounts =
+          _cacheStore
+              .get<_HomeCountsCache>(_cacheScope, cacheKey)
+              ?.navidromeCounts ??
+          const {};
     }
 
     var filter = rawFilter;
     if (filter.startsWith('webdav:')) {
       final id = filter.substring('webdav:'.length);
-      if (!sources.any((s) => s.id == id)) {
+      final exists =
+          sources.any((s) => s.id == id) ||
+          navidromeSources.any((s) => s.id == id);
+      if (!exists) {
         filter = 'webdav';
       }
     } else if (filter != 'local' && filter != 'webdav' && filter != 'all') {
@@ -236,6 +265,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
         countRemote: counts[2],
         webDavSources: sources,
         webDavCounts: webdavCounts,
+        navidromeSources: navidromeSources,
+        navidromeCounts: navidromeCounts,
       ),
     );
 
@@ -245,6 +276,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
     _countRemote.value = counts[2];
     _webDavSources.value = sources;
     _webDavCounts.value = webdavCounts;
+    _navidromeSources.value = navidromeSources;
+    _navidromeCounts.value = navidromeCounts;
     _recentSongs.value = recentSongs;
     _recentPlaylists.value = recentPlaylists;
     _recentAlbums.value = recentAlbums;
@@ -285,14 +318,22 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
 
   Future<void> _refreshWebDavCounts() async {
     final sources = await _webDavRepo.loadSources();
+    final navidromeSources = await _navidromeRepo.loadSources();
     final entries = await Future.wait(
       sources.map(
         (s) async =>
             MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
       ),
     );
+    final navidromeEntries = await Future.wait(
+      navidromeSources.map(
+        (s) async =>
+            MapEntry<String, int>(s.id, await _songDao.countBySource(s.id)),
+      ),
+    );
     if (!mounted) return;
     final webdavCounts = {for (final e in entries) e.key: e.value};
+    final navidromeCounts = {for (final e in navidromeEntries) e.key: e.value};
     final cacheKey =
         'songv:${CacheVersionStore.instance.getVersion(SongDao.cacheVersionScope)}';
     final previous = _cacheStore.get<_HomeCountsCache>(_cacheScope, cacheKey);
@@ -300,11 +341,18 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
       _cacheStore.set(
         _cacheScope,
         cacheKey,
-        previous.copyWith(webDavSources: sources, webDavCounts: webdavCounts),
+        previous.copyWith(
+          webDavSources: sources,
+          webDavCounts: webdavCounts,
+          navidromeSources: navidromeSources,
+          navidromeCounts: navidromeCounts,
+        ),
       );
     }
     _webDavSources.value = sources;
     _webDavCounts.value = webdavCounts;
+    _navidromeSources.value = navidromeSources;
+    _navidromeCounts.value = navidromeCounts;
   }
 
   Future<void> _setFilter(String next) async {
@@ -317,6 +365,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
     await _refreshWebDavCounts();
     if (!mounted) return;
     final sources = _webDavSources.value;
+    final navidromeSources = _navidromeSources.value;
 
     showModalBottomSheet(
       context: context,
@@ -327,7 +376,10 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
           const _HomeSourceItem(label: '本地', value: 'local'),
           const _HomeSourceItem(label: '云端（全部）', value: 'webdav'),
         ];
-        final webdavIds = sources.map((s) => s.id).toList()..sort();
+        final cloudIds = [
+          ...sources.map((s) => s.id),
+          ...navidromeSources.map((s) => s.id),
+        ]..sort();
         return AppSheetPanel(
           title: '切换音源',
           child: Column(
@@ -345,14 +397,14 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                   },
                 );
               }),
-              if (webdavIds.isEmpty)
+              if (cloudIds.isEmpty)
                 const ListTile(
                   contentPadding: EdgeInsets.symmetric(horizontal: 24),
                   title: Text('暂无云端音源'),
                   enabled: false,
                 )
               else
-                ...webdavIds.map((id) {
+                ...cloudIds.map((id) {
                   final value = 'webdav:$id';
                   final isSelected = _filter.value == value;
                   final name = _webDavNameMap.value[id];
@@ -522,6 +574,8 @@ class _HomeCountsCache {
   final int countRemote;
   final List<WebDavSource> webDavSources;
   final Map<String, int> webDavCounts;
+  final List<NavidromeSource> navidromeSources;
+  final Map<String, int> navidromeCounts;
 
   const _HomeCountsCache({
     required this.countAll,
@@ -529,6 +583,8 @@ class _HomeCountsCache {
     required this.countRemote,
     required this.webDavSources,
     required this.webDavCounts,
+    this.navidromeSources = const [],
+    this.navidromeCounts = const {},
   });
 
   _HomeCountsCache copyWith({
@@ -537,6 +593,8 @@ class _HomeCountsCache {
     int? countRemote,
     List<WebDavSource>? webDavSources,
     Map<String, int>? webDavCounts,
+    List<NavidromeSource>? navidromeSources,
+    Map<String, int>? navidromeCounts,
   }) {
     return _HomeCountsCache(
       countAll: countAll ?? this.countAll,
@@ -544,6 +602,8 @@ class _HomeCountsCache {
       countRemote: countRemote ?? this.countRemote,
       webDavSources: webDavSources ?? this.webDavSources,
       webDavCounts: webDavCounts ?? this.webDavCounts,
+      navidromeSources: navidromeSources ?? this.navidromeSources,
+      navidromeCounts: navidromeCounts ?? this.navidromeCounts,
     );
   }
 }

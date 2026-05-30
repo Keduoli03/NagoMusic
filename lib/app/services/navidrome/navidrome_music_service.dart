@@ -148,11 +148,22 @@ class NavidromeMusicService {
     final songId = _readString(raw, 'id');
     if (songId.isEmpty) return null;
 
-    final title = _readString(raw, 'title');
-    final artist = _readString(raw, 'artist');
+    final title = _firstNonEmpty([
+      _readString(raw, 'title'),
+      _readString(raw, 'name'),
+      _fileNameFromPath(_readString(raw, 'path')),
+      _fileNameFromPath(_readString(raw, 'fileName')),
+    ]);
+    final artist = _firstNonEmpty([
+      _readString(raw, 'artist'),
+      _readString(raw, 'artistName'),
+    ]);
     final album = _readString(raw, 'album').isNotEmpty
         ? _readString(raw, 'album')
-        : _readString(albumInfo, 'name');
+        : _firstNonEmpty([
+            _readString(albumInfo, 'name'),
+            _readString(albumInfo, 'title'),
+          ]);
     final durationSeconds = _readInt(raw, 'duration');
     final uri = _repo.apiUri(source, 'stream', query: {'id': songId});
 
@@ -172,6 +183,32 @@ class NavidromeMusicService {
       sourceId: source.id,
       tagsParsed: true,
     );
+  }
+
+  String _firstNonEmpty(List<String> values) {
+    for (final value in values) {
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return '';
+  }
+
+  String _fileNameFromPath(String raw) {
+    var text = raw.trim();
+    if (text.isEmpty) return '';
+    try {
+      text = Uri.decodeFull(text);
+    } catch (_) {}
+    text = text.replaceAll('\\', '/');
+    final slash = text.lastIndexOf('/');
+    if (slash >= 0 && slash < text.length - 1) {
+      text = text.substring(slash + 1);
+    }
+    final dot = text.lastIndexOf('.');
+    if (dot > 0) {
+      text = text.substring(0, dot);
+    }
+    return text.trim();
   }
 
   Map<String, dynamic> _asMap(Object? value) {
