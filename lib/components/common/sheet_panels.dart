@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_radii.dart';
 
 /// 底部面板外壳：圆角 + 拖拽把手 + 可选标题。
 class AppSheetPanel extends StatelessWidget {
@@ -25,7 +26,9 @@ class AppSheetPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: c.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.sheet),
+        ),
       ),
       child: SafeArea(
         top: false,

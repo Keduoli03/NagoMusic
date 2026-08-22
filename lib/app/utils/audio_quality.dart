@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/song_state.dart';
+import '../theme/app_colors.dart';
 
 /// The quality tier a song falls into, derived from its technical metadata.
 enum AudioQualityTier { hires, lossless, hq }
@@ -13,16 +14,23 @@ class AudioQualityTag {
 
   const AudioQualityTag(this.tier, this.label);
 
-  /// Accent color used for the badge text/border, resolved against the theme.
+  /// 徽章的文字与线框色 —— 三档各一个颜色，靠颜色而不是靠读字来区分。
+  ///
+  /// 都是压过饱和度的低调色：徽章会在列表里逐行出现，用高饱和色整屏会发花。
+  /// 每档都分亮暗两套，单一色值在另一个主题下不是发闷就是刺眼。
   Color color(BuildContext context) {
+    final isLight = AppColors.of(context).surface.computeLuminance() > 0.5;
     switch (tier) {
       case AudioQualityTier.hires:
-        // Gold — the premium tier, distinct from the theme accent.
-        return const Color(0xFFC9971B);
+        // 金
+        return isLight ? const Color(0xFFB58A2B) : const Color(0xFFD9B45A);
       case AudioQualityTier.lossless:
-        return Theme.of(context).colorScheme.primary;
+        // 青蓝。刻意不用 colorScheme.primary —— 音质档位是客观规格，
+        // 不该跟着用户选的主题色变，否则换个主题色就跟 Hi-Res 撞了。
+        return isLight ? const Color(0xFF3D7D93) : const Color(0xFF7FB8CC);
       case AudioQualityTier.hq:
-        return Theme.of(context).colorScheme.onSurfaceVariant;
+        // 中性灰：最低档，不需要被看见
+        return AppColors.of(context).muted;
     }
   }
 }
@@ -56,12 +64,12 @@ AudioQualityTag? audioQualityTagFor(SongEntity song) {
   final bitrate = song.bitrate ?? 0;
 
   if (_dsdFormats.contains(format)) {
-    return const AudioQualityTag(AudioQualityTier.hires, 'Hi-Res');
+    return const AudioQualityTag(AudioQualityTier.hires, 'HI-RES');
   }
   if (_losslessFormats.contains(format)) {
     // Above CD quality (44.1/48 kHz) → Hi-Res; CD-quality lossless → 无损.
     if (sampleRate > 48000) {
-      return const AudioQualityTag(AudioQualityTier.hires, 'Hi-Res');
+      return const AudioQualityTag(AudioQualityTier.hires, 'HI-RES');
     }
     return const AudioQualityTag(AudioQualityTier.lossless, '无损');
   }

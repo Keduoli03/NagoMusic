@@ -10,6 +10,7 @@ import '../../app/services/haptic_service.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/theme/app_colors.dart';
 import '../../components/index.dart';
+import '../../components/layout/liquid_glass.dart';
 
 class AppAppearanceSettingsPage extends StatefulWidget {
   const AppAppearanceSettingsPage({super.key});
@@ -297,6 +298,25 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                     value: enabled,
                     onChanged: (value) {
                       SongListDisplaySettings.setShowQualityTag(value);
+                    },
+                  );
+                },
+              ),
+              ValueListenableBuilder<AppBottomBarStyle>(
+                valueListenable: AppLayoutSettings.bottomBarStyle,
+                builder: (context, style, _) {
+                  final glass = style == AppBottomBarStyle.liquidGlass;
+                  return AppSettingSwitchTile(
+                    title: '液态玻璃底栏',
+                    subtitle: glass ? '底栏透出并折射身后的内容' : '底栏使用不透明实底',
+                    value: glass,
+                    onChanged: (value) {
+                      AppLayoutSettings.setBottomBarStyle(
+                        value
+                            ? AppBottomBarStyle.liquidGlass
+                            : AppBottomBarStyle.standard,
+                      );
+                      if (value) LiquidGlassSupport.ensureLoaded();
                     },
                   );
                 },

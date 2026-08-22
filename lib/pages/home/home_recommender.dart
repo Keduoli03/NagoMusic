@@ -106,7 +106,16 @@ class HomeRecommender {
   /// Small "根据你喜欢的" strip: same signal as heart mode but drops the
   /// existing favorites so users see fresh candidates they haven't hearted
   /// yet. Falls back cleanly when there's nothing similar to lean on.
-  List<SongEntity> recommended(List<SongEntity> pool, {int limit = 6}) {
+  ///
+  /// 调用方如果**已经**为同一个 pool 算过 [heart] / [daily]，把结果通过
+  /// [heartRanked] / [dailyRanked] 传进来即可复用 —— 否则这里会把整个曲库
+  /// 重新打分排序一遍，而首页正好三样都要，等于同一份活干两三次。
+  List<SongEntity> recommended(
+    List<SongEntity> pool, {
+    int limit = 6,
+    List<SongEntity>? heartRanked,
+    List<SongEntity>? dailyRanked,
+  }) {
     final hasFavoriteInPool = pool.any((s) => favoriteIds.contains(s.id));
     if (!hasFavoriteInPool) {
       return _stableFallback(
@@ -115,17 +124,14 @@ class HomeRecommender {
         salt: _recommendedFallbackSalt,
       );
     }
-    final list = heart(
-      pool,
-      limit: limit * 4,
-    ).where((s) => !favoriteIds.contains(s.id)).toList();
+    final ranked = heartRanked ?? heart(pool, limit: limit * 4);
+    final list = ranked.where((s) => !favoriteIds.contains(s.id)).toList();
     if (list.length >= limit) return list.take(limit).toList();
     // Backfill with daily so the row is never empty.
     final seen = list.map((s) => s.id).toSet();
-    final backfill = daily(
-      pool,
-      limit: limit * 2,
-    ).where((s) => !seen.contains(s.id)).toList();
+    final backfill = (dailyRanked ?? daily(pool, limit: limit * 2))
+        .where((s) => !seen.contains(s.id))
+        .toList();
     return [...list, ...backfill].take(limit).toList();
   }
 

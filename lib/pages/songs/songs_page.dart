@@ -1147,7 +1147,7 @@ class _SongsPageState extends State<SongsPage>
                                 onLoad: () => _loadArtwork(song),
                               ),
                               title: song.title,
-                              titleBadge: QualityTagBadge(song: song),
+                              subtitleLeading: QualityTagBadge(song: song),
                               subtitle:
                                   '${song.artist} · ${song.album ?? '未知专辑'} · ${formatDurationMs(song.durationMs)}',
                               selected: selected.contains(song.id),

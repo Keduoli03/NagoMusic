@@ -380,7 +380,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                           ),
                         ),
                         title: song.title,
-                        titleBadge: QualityTagBadge(song: song),
+                        subtitleLeading: QualityTagBadge(song: song),
                         subtitle: song.album?.trim().isNotEmpty == true
                             ? song.album!.trim()
                             : '未知专辑',
@@ -781,7 +781,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                                 ),
                               ),
                         title: song.title,
-                        titleBadge: QualityTagBadge(song: song),
+                        subtitleLeading: QualityTagBadge(song: song),
                         subtitle: song.artist,
                         titleColor: titleColor,
                         subtitleColor: subtitleColor,

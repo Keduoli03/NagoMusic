@@ -144,20 +144,24 @@ class AppPageScaffoldState extends State<AppPageScaffold>
                   bottom: effectiveMiniPlayerBottom,
                   child: miniPlayer,
                 ),
+              // Keep the navigation capsule in the page's paint stack instead
+              // of mounting it in Scaffold.bottomNavigationBar. The Scaffold
+              // slot is a full-width surface on some Android/theme combinations,
+              // which leaves a white panel visible behind a floating capsule.
+              // As an overlay, only the capsule paints; the AppBackground below
+              // it continues all the way into the system navigation area.
+              if (bottomBar != null)
+                Positioned(left: 0, right: 0, bottom: 0, child: bottomBar),
             ],
           );
         }
 
         Widget page = Scaffold(
           resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
-          extendBody: bottomBar != null,
           extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
           backgroundColor: Colors.transparent,
           appBar: widget.appBar,
           body: buildBody(includeMiniPlayer: !tabletMode),
-          bottomNavigationBar: bottomBar == null
-              ? null
-              : Material(type: MaterialType.transparency, child: bottomBar),
         );
 
         if (tabletMode || !_hasDrawer) {
@@ -166,14 +170,10 @@ class AppPageScaffoldState extends State<AppPageScaffold>
         if (miniPlayer != null) {
           page = Scaffold(
             resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
-            extendBody: bottomBar != null,
             extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
             backgroundColor: Colors.transparent,
             appBar: widget.appBar,
             body: buildBody(includeMiniPlayer: false),
-            bottomNavigationBar: bottomBar == null
-                ? null
-                : Material(type: MaterialType.transparency, child: bottomBar),
           );
         }
         final stack = AppBackground(

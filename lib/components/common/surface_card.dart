@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_radii.dart';
 
 /// 圆角卡片壳。移植自 flutter_template_local。
 ///
 /// 两个方言：
-/// - [SurfaceCard]（默认 flat）：`radius 16 + border(line)`
+/// - [SurfaceCard]（默认 flat）：`AppRadii.panel + border(line)`
 /// - [SurfaceCard.elevated]：带柔和阴影，用于需要浮起效果的卡片
 ///
 /// 页面底色是纯白，所以 flat 版的描边**不是可选装饰而是唯一的层次来源** ——
@@ -18,7 +19,7 @@ class SurfaceCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(14, 14, 14, 14),
-    this.radius = 16,
+    this.radius = AppRadii.panel,
     this.color,
     this.borderColor,
     this.borderWidth = 0.5,
@@ -34,7 +35,7 @@ class SurfaceCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(14, 14, 14, 14),
-    this.radius = 17,
+    this.radius = AppRadii.panel,
     this.color,
     this.margin,
     this.onTap,

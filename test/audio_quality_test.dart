@@ -19,7 +19,7 @@ void main() {
     test('high sample rate lossless is Hi-Res', () {
       final tag = audioQualityTagFor(song(format: 'FLAC', sampleRate: 96000));
       expect(tag?.tier, AudioQualityTier.hires);
-      expect(tag?.label, 'Hi-Res');
+      expect(tag?.label, 'HI-RES');
     });
 
     test('CD-quality lossless is 无损', () {

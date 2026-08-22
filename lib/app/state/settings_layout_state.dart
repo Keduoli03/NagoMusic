@@ -2,6 +2,10 @@ import 'pref_entry.dart';
 
 enum AppNavigationStyle { drawer, bottomBar }
 
+/// 底栏外观。[liquidGlass] 需要 Impeller，不支持的设备会自动回落到 [standard]，
+/// 见 `LiquidGlassSupport`。
+enum AppBottomBarStyle { standard, liquidGlass }
+
 class AppLayoutSettings {
   static final tabletMode = PrefEntry.boolean('setting_tablet_mode');
   static final navigationStyle = PrefEntry.enumeration<AppNavigationStyle>(
@@ -9,8 +13,17 @@ class AppLayoutSettings {
     values: AppNavigationStyle.values,
     defaultValue: AppNavigationStyle.drawer,
   );
+  static final bottomBarStyle = PrefEntry.enumeration<AppBottomBarStyle>(
+    'setting_bottom_bar_style',
+    values: AppBottomBarStyle.values,
+    defaultValue: AppBottomBarStyle.standard,
+  );
 
-  static final _group = PrefGroup([tabletMode, navigationStyle]);
+  static final _group = PrefGroup([
+    tabletMode,
+    navigationStyle,
+    bottomBarStyle,
+  ]);
 
   static Future<void> ensureLoaded() => _group.ensureLoaded();
 
@@ -18,4 +31,7 @@ class AppLayoutSettings {
 
   static Future<void> setNavigationStyle(AppNavigationStyle style) =>
       navigationStyle.set(style);
+
+  static Future<void> setBottomBarStyle(AppBottomBarStyle style) =>
+      bottomBarStyle.set(style);
 }

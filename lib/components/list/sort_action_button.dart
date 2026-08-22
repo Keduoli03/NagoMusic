@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'media_list_action_button.dart';
+
 class SortActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -7,12 +9,10 @@ class SortActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.all(6),
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-      icon: const Icon(Icons.sort),
-      onPressed: onTap,
+    return MediaListActionButton(
+      icon: Icons.sort_rounded,
+      tooltip: '排序',
+      onTap: onTap,
     );
   }
 }

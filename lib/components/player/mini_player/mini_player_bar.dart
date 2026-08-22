@@ -62,11 +62,14 @@ class MiniPlayerBar extends StatelessWidget {
             onOpenQueue ?? () => showPlayerPlaylistSheet(context, player);
 
         final isDark = theme.brightness == Brightness.dark;
+        // 必须是**不透明**的。以前浅色是 white@90%、深色是 surface@86%，结果是
+        // 卡片下面那一行歌曲会整个透出来，看着像渲染没画完而不是「毛玻璃」。
+        // mini player 是浮在内容之上的，浮层就该挡住底下的东西。
         final bgColor = isDark
-            ? scheme.surfaceContainerHigh.withValues(alpha: 0.86)
+            ? scheme.surfaceContainerHigh
             : Color.alphaBlend(
                 scheme.primary.withValues(alpha: 0.025),
-                Colors.white.withValues(alpha: 0.90),
+                Colors.white,
               );
 
         final border = Border.all(

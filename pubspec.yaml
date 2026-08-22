@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.4.1+7
+version: 1.5.0+8
 
 environment:
   sdk: ^3.10.8
@@ -90,6 +90,12 @@ flutter:
   assets:
     - 开发文档/NagoAPP图标.png
     - assets/preview/style_preview_cover.jpg
+
+  # 液态玻璃底栏的片元着色器。构建时由 impellerc 编译，运行时需要 Impeller
+  # （非 Impeller 设备上 ImageFilter.shader 会抛 UnsupportedError，
+  # 见 LiquidGlassSupport 的降级处理）。
+  shaders:
+    - assets/shaders/liquid_glass.frag
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

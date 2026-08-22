@@ -17,8 +17,16 @@
     </style>
     <!-- uCrop screen. Without an explicit non-fullscreen theme, the toolbar
          sits under the status bar / camera cutout on modern phones so the
-         confirm / cancel icons become nearly untappable. -->
-    <style name="AppTheme.UCrop" parent="Theme.AppCompat.Light.DarkActionBar">
+         confirm / cancel icons become nearly untappable.
+
+         父主题必须是 NoActionBar：uCrop 在 setupAppBar() 里调 setSupportActionBar()
+         塞自己的 Toolbar，而带 ActionBar 的主题已经由 window decor 提供了一个，
+         两者冲突会直接抛 IllegalStateException 崩掉整个进程
+         （"This Activity already has an action bar supplied by the window decor"）。
+         下面两个 item 是冗余的保险，防止 OEM 的主题覆盖又把 ActionBar 塞回来。 -->
+    <style name="AppTheme.UCrop" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
         <item name="android:windowFullscreen">false</item>
         <item name="android:fitsSystemWindows">true</item>
         <item name="android:statusBarColor">#212121</item>

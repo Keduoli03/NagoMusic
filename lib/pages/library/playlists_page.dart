@@ -883,7 +883,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                 : _coverOrIndex(context, song, index, subtitleColor),
           ),
           title: song.title,
-          titleBadge: QualityTagBadge(song: song),
+          subtitleLeading: QualityTagBadge(song: song),
           subtitle: song.artist,
           titleColor: titleColor,
           trailing: multiSelect.value && canReorder

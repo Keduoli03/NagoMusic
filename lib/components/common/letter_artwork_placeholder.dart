@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_radii.dart';
+
 /// 无封面时的占位图：圆角方块 + 首字母。
 ///
 /// 各处封面尺寸、圆角、底色不同，通过参数区分；默认与列表行的样式一致。
@@ -41,7 +43,7 @@ class LetterArtworkPlaceholder extends StatelessWidget {
         color: tintedBackground
             ? theme.colorScheme.primary.withValues(alpha: 0.12)
             : theme.cardColor,
-        borderRadius: borderRadius ?? BorderRadius.circular(10),
+        borderRadius: borderRadius ?? BorderRadius.circular(AppRadii.chip),
         boxShadow: boxShadow,
       ),
       child: Text(

@@ -7,6 +7,9 @@ import 'package:signals/signals.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/state/settings_state.dart';
+import '../../app/services/haptic_service.dart';
+import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_radii.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/router/app_page_route.dart';
 import '../../app/services/app_update_service.dart';
@@ -35,6 +38,28 @@ class HomePage extends StatefulWidget {
 }
 
 enum _DiscoveryKind { daily, recommended, heart }
+
+/// 一张发现卡的静态配置 + 它对应的歌单，从 build 里拆出来只是为了让三张卡走同一
+/// 条渲染路径，不用把 itemBuilder 写成三段 if。
+class _DiscoverySpec {
+  final _DiscoveryKind kind;
+  final String eyebrow;
+  final String title;
+  final IconData? icon;
+  final Color accent;
+  final SongEntity? cover;
+  final List<SongEntity> songs;
+
+  const _DiscoverySpec({
+    required this.kind,
+    required this.eyebrow,
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.cover,
+    required this.songs,
+  });
+}
 
 class _HomePageState extends State<HomePage> with SignalsMixin {
   static const String _prefsHomeFilter = 'home_filter';
@@ -363,25 +388,47 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
     );
   }
 
-  List<SongEntity> _dailySongs() {
-    final pool = _librarySongs.value.where(_matchesCurrentSource).toList();
-    return _recommender().daily(pool);
-  }
+  // 下面这几个 computed 是首页卡顿的关键。
+  //
+  // 以前它们是普通方法，在 body 的 Watch.builder 里直接调用，于是：
+  //   1. 每次重建都要把整个曲库过滤一遍 —— 三个方法各拷一份，
+  //      `_recommendedSongs` 内部还会再跑一次 `heart()`（有时还有 `daily()`），
+  //      一次重建最多四趟全量打分；
+  //   2. 那个 Watch.builder 同时还读了 `isPlayingSignal` / `queueSignal`，
+  //      所以**每次播放/暂停、每次队列变化都会重跑整套推荐**。
+  //
+  // 换成 computed 之后，它们只在真正的输入（曲库、筛选、播放次数、最近播放、
+  // 收藏）变化时才重算；播放状态变了不会碰它们。
+  late final _filteredPool = computed<List<SongEntity>>(
+    () => _librarySongs.value.where(_matchesCurrentSource).toList(),
+  );
 
-  List<SongEntity> _heartModeSongs() {
-    final pool = _librarySongs.value.where(_matchesCurrentSource).toList();
-    return _recommender().heart(pool);
-  }
+  late final _dailySongs = computed<List<SongEntity>>(
+    () => _recommender().daily(_filteredPool.value),
+  );
 
-  List<SongEntity> _recommendedSongs() {
-    final pool = _librarySongs.value.where(_matchesCurrentSource).toList();
-    final picks = _recommender().recommended(pool, limit: 6);
-    if (picks.isNotEmpty) return picks;
-    // Ultimate fallback: recently listened, then daily.
-    final recent = _recentSongs.value.where(_matchesCurrentSource).toList();
-    if (recent.isNotEmpty) return recent.take(6).toList();
-    return _dailySongs().take(6).toList();
-  }
+  late final _heartModeSongs = computed<List<SongEntity>>(
+    () => _recommender().heart(_filteredPool.value),
+  );
+
+  late final _recommendedSongs = computed<List<SongEntity>>(
+    // 把已经算好的 heart / daily 结果传进去复用 —— 不传的话 recommended() 内部会
+    // 把整个曲库重新打分排序一到两遍，而这两份首页本来就已经有了。
+    () => _recommender().recommended(
+      _filteredPool.value,
+      limit: 6,
+      heartRanked: _heartModeSongs.value,
+      dailyRanked: _dailySongs.value,
+    ),
+  );
+
+  late final _discoveryCovers = computed<List<SongEntity?>>(
+    () => _distinctDiscoveryCovers([
+      _dailySongs.value,
+      _recommendedSongs.value,
+      _heartModeSongs.value,
+    ]),
+  );
 
   List<SongEntity?> _distinctDiscoveryCovers(List<List<SongEntity>> groups) {
     final usedIds = <String>{};
@@ -639,97 +686,92 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
         onBottomNavTap: useBottomNavigation
             ? (index) => navigateToPrimaryDestination(context, index)
             : null,
-        body: Watch.builder(
-          builder: (context) {
-            final dailySongs = _dailySongs();
-            final heartSongs = _heartModeSongs();
-            final recommendedSongs = _recommendedSongs();
-            final discoveryCovers = _distinctDiscoveryCovers([
-              dailySongs,
-              recommendedSongs,
-              heartSongs,
-            ]);
-            final playerQueue = _player.queueSignal.value;
-            final isPlaying = _player.isPlayingSignal.value;
-            return RefreshIndicator(
-              onRefresh: () => _load(includeWebDavCounts: true),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-                children: [
-                  _HomeSourceSummary(
-                    title: _filterTitle.value,
-                    count: _filterCount.value,
-                    loading: _loading.value,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: _DiscoveryCard.height,
-                    child: ListView.separated(
+        body: RefreshIndicator(
+          onRefresh: () => _load(includeWebDavCounts: true),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            children: [
+              // 每一块各自订阅自己需要的 signal。以前整个 ListView 裹在一个
+              // Watch.builder 里，任何一个 signal 变化都要重建全部内容 ——
+              // 包括六个 ArtworkWidget，而封面重建意味着重新解码。
+              Watch.builder(
+                builder: (context) => _HomeSourceSummary(
+                  title: _filterTitle.value,
+                  count: _filterCount.value,
+                  loading: _loading.value,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: _DiscoveryCard.height,
+                child: Watch.builder(
+                  builder: (context) {
+                    final covers = _discoveryCovers.value;
+                    final specs = <_DiscoverySpec>[
+                      _DiscoverySpec(
+                        kind: _DiscoveryKind.daily,
+                        eyebrow: '每日推荐',
+                        title: '今日限定好歌推荐',
+                        icon: Icons.calendar_month_rounded,
+                        accent: const Color(0xFFEF4444),
+                        cover: covers[0],
+                        songs: _dailySongs.value,
+                      ),
+                      _DiscoverySpec(
+                        kind: _DiscoveryKind.recommended,
+                        eyebrow: '雷达歌单',
+                        title: '反复聆听你爱的歌',
+                        icon: null,
+                        accent: const Color(0xFF38A3A5),
+                        cover: covers[1],
+                        songs: _recommendedSongs.value,
+                      ),
+                      _DiscoverySpec(
+                        kind: _DiscoveryKind.heart,
+                        eyebrow: '心动模式',
+                        title: '红心歌曲和相似推荐',
+                        icon: Icons.favorite_rounded,
+                        accent: const Color(0xFF8B7CF6),
+                        cover: covers[2],
+                        songs: _heartModeSongs.value,
+                      ),
+                    ];
+                    return ListView.separated(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
-                      itemCount: 3,
+                      itemCount: specs.length,
                       separatorBuilder: (_, _) => const SizedBox(width: 10),
                       itemBuilder: (context, index) {
-                        if (index == 0) {
-                          return _DiscoveryCard(
-                            eyebrow: '每日推荐',
-                            title: '今日限定好歌推荐',
-                            icon: Icons.calendar_month_rounded,
-                            song: discoveryCovers[0],
-                            accent: const Color(0xFFEF4444),
+                        final spec = specs[index];
+                        // 播放态单独订阅：播放/暂停只重建这三张卡的外框，
+                        // 不会波及封面之外的东西，更不会重跑推荐。
+                        return Watch.builder(
+                          builder: (context) => _DiscoveryCard(
+                            eyebrow: spec.eyebrow,
+                            title: spec.title,
+                            icon: spec.icon,
+                            song: spec.cover,
+                            accent: spec.accent,
                             active: _isDiscoveryQueueActive(
-                              _DiscoveryKind.daily,
-                              dailySongs,
-                              playerQueue,
+                              spec.kind,
+                              spec.songs,
+                              _player.queueSignal.value,
                             ),
-                            playing: isPlaying,
-                            onTap: () => _playDiscoveryQueue(
-                              dailySongs,
-                              _DiscoveryKind.daily,
-                            ),
-                          );
-                        }
-                        if (index == 1) {
-                          return _DiscoveryCard(
-                            eyebrow: '雷达歌单',
-                            title: '反复聆听你爱的歌',
-                            icon: null,
-                            song: discoveryCovers[1],
-                            accent: const Color(0xFF38A3A5),
-                            active: _isDiscoveryQueueActive(
-                              _DiscoveryKind.recommended,
-                              recommendedSongs,
-                              playerQueue,
-                            ),
-                            playing: isPlaying,
-                            onTap: () => _playDiscoveryQueue(
-                              recommendedSongs,
-                              _DiscoveryKind.recommended,
-                            ),
-                          );
-                        }
-                        return _DiscoveryCard(
-                          eyebrow: '心动模式',
-                          title: '红心歌曲和相似推荐',
-                          icon: Icons.favorite_rounded,
-                          song: discoveryCovers[2],
-                          accent: const Color(0xFF8B7CF6),
-                          active: _isDiscoveryQueueActive(
-                            _DiscoveryKind.heart,
-                            heartSongs,
-                            playerQueue,
-                          ),
-                          playing: isPlaying,
-                          onTap: () => _playDiscoveryQueue(
-                            heartSongs,
-                            _DiscoveryKind.heart,
+                            playing: _player.isPlayingSignal.value,
+                            onTap: () =>
+                                _playDiscoveryQueue(spec.songs, spec.kind),
                           ),
                         );
                       },
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  _HomeRecommendationSection(
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 28),
+              Watch.builder(
+                builder: (context) {
+                  final recommendedSongs = _recommendedSongs.value;
+                  return _HomeRecommendationSection(
                     songs: recommendedSongs,
                     onPlayAll: () => _playDiscoveryQueue(
                       recommendedSongs,
@@ -744,17 +786,18 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                         index < 0 ? 0 : index,
                       );
                     },
-                  ),
-                  const SizedBox(height: 28),
-                  _HomeQuickLibrary(
-                    onArtists: () => _openTopLevel(const ArtistsPage()),
-                    onAlbums: () => _openTopLevel(const AlbumsPage()),
-                    onFolders: () => _openTopLevel(const FoldersPage()),
-                  ),
-                ],
+                  );
+                },
               ),
-            );
-          },
+              const SizedBox(height: 28),
+              // 不依赖任何 signal —— 放在 Watch 外面就不会跟着重建。
+              _HomeQuickLibrary(
+                onArtists: () => _openTopLevel(const ArtistsPage()),
+                onAlbums: () => _openTopLevel(const AlbumsPage()),
+                onFolders: () => _openTopLevel(const FoldersPage()),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -774,6 +817,7 @@ class _HomeSourceTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 48,
@@ -781,32 +825,39 @@ class _HomeSourceTabs extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 22),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final item = items[index];
           final selected = selectedValue == item.value;
-          return InkWell(
-            onTap: () => onSelected(item.value),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.only(top: 3, bottom: 5),
+          // 胶囊 Tab（对齐模板的 PillTabBar）：选中态是主题色淡底 + 主题色字，
+          // 不再用 Material 那条蓝下划线。
+          return Center(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                if (!selected) Haptics.selection();
+                onSelected(item.value);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: selected ? scheme.primary : Colors.transparent,
-                      width: 2.5,
-                    ),
-                  ),
+                  color: selected
+                      ? scheme.primary.withValues(alpha: 0.12)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
                 child: Text(
                   item.label,
                   maxLines: 1,
                   style: TextStyle(
-                    color: selected
-                        ? scheme.onSurface
-                        : scheme.onSurfaceVariant,
-                    fontSize: selected ? 18 : 16,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected ? scheme.primary : c.muted,
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
               ),
@@ -894,9 +945,9 @@ class _DiscoveryCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(AppRadii.card),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(5),
+            borderRadius: BorderRadius.circular(AppRadii.card),
             child: Column(
               children: [
                 SizedBox(
@@ -906,11 +957,18 @@ class _DiscoveryCard extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       if (currentSong != null)
+                        // 这里刻意**不用** preferOriginal。卡片只有 120 逻辑像素，
+                        // 3x 屏也就需要 360px，而磁盘缓存里的封面是 1024px，绰绰有余。
+                        // preferOriginal 会绕开缓存、在 UI isolate 上同步解析音频标签
+                        // 取出 1~3MB 的内嵌大图 —— 切换筛选时三张卡连着做三次，
+                        // 这是首页最贵的一笔开销，而且在这个尺寸上肉眼看不出差别。
+                        //
+                        // keepPreviousUntilLoaded：换歌时先留着旧封面，别先闪成空白。
                         ArtworkWidget(
                           song: currentSong,
                           size: _coverSize,
                           borderRadius: 0,
-                          preferOriginal: true,
+                          keepPreviousUntilLoaded: true,
                         )
                       else
                         DecoratedBox(
@@ -1136,10 +1194,13 @@ class _HomeRecommendationSectionState
                 ),
               ),
             ),
-            IconButton.filledTonal(
+            SoftIconButton(
+              icon: Icons.play_arrow_rounded,
               tooltip: '播放全部',
-              onPressed: widget.onPlayAll,
-              icon: const Icon(Icons.play_arrow_rounded),
+              onTap: widget.onPlayAll,
+              size: 34,
+              iconSize: 21,
+              radius: AppRadii.card,
             ),
           ],
         ),
@@ -1150,7 +1211,7 @@ class _HomeRecommendationSectionState
             padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
             decoration: BoxDecoration(
               color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(AppRadii.panel),
             ),
             child: Text(
               '收藏几首喜欢的歌后，这里会出现更贴合你的推荐',
@@ -1194,15 +1255,15 @@ class _RecommendationSongTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final c = AppColors.of(context);
     return SizedBox(
       height: 66,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadii.card),
         onTap: onTap,
         child: Row(
           children: [
-            ArtworkWidget(song: song, size: 52, borderRadius: 9),
+            ArtworkWidget(song: song, size: 52, borderRadius: AppRadii.chip),
             const SizedBox(width: 11),
             Expanded(
               child: Column(
@@ -1215,7 +1276,7 @@ class _RecommendationSongTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -1223,18 +1284,17 @@ class _RecommendationSongTile extends StatelessWidget {
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    style: TextStyle(fontSize: 12, color: c.muted),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.play_arrow_rounded,
-              size: 22,
-              color: scheme.onSurfaceVariant,
+            // 原来这里是一个孤零零的黑色 ▶ 图标，看不出是控件也不像卡片语言。
+            SoftIconButton(
+              icon: Icons.play_arrow_rounded,
+              onTap: onTap,
+              size: 28,
+              iconSize: 17,
             ),
             const SizedBox(width: 4),
           ],
@@ -1257,27 +1317,25 @@ class _HomeQuickLibrary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    // Three-tone tinted tiles keyed off the current theme's primary/tertiary
-    // colors, so the row picks up whatever accent the user chose in 应用外观.
+    final scheme = Theme.of(context).colorScheme;
+    // 三个瓦片各带一个强调色，但颜色只落在图标底上 —— 瓦片本身是和卡片同族的
+    // 白底方角，不再是三块撞色渐变。
     final buttons = <_QuickLibraryData>[
       _QuickLibraryData(
         label: '艺术家',
-        icon: Icons.person_rounded,
+        icon: Icons.person_outline_rounded,
         accent: scheme.primary,
         onTap: onArtists,
       ),
       _QuickLibraryData(
         label: '专辑',
-        icon: Icons.album_rounded,
+        icon: Icons.album_outlined,
         accent: scheme.tertiary,
         onTap: onAlbums,
       ),
       _QuickLibraryData(
         label: '文件夹',
-        icon: Icons.folder_rounded,
+        icon: Icons.folder_outlined,
         accent: scheme.secondary,
         onTap: onFolders,
       ),
@@ -1285,10 +1343,8 @@ class _HomeQuickLibrary extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < buttons.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
-          Expanded(
-            child: _QuickLibraryButton(data: buttons[i], isDark: isDark),
-          ),
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: _QuickLibraryButton(data: buttons[i])),
         ],
       ],
     );
@@ -1311,76 +1367,53 @@ class _QuickLibraryData {
 
 class _QuickLibraryButton extends StatelessWidget {
   final _QuickLibraryData data;
-  final bool isDark;
 
-  const _QuickLibraryButton({required this.data, required this.isDark});
+  const _QuickLibraryButton({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    // Blend the accent onto an opaque surface — the resulting color is fully
-    // solid, so text sitting on it never has to fight the background image
-    // for contrast. Then pick foreground colors against *this* blended
-    // color, not against the page.
-    final scaffold = Theme.of(context).scaffoldBackgroundColor;
-    final tileTop = Color.alphaBlend(
-      data.accent.withValues(alpha: isDark ? 0.55 : 0.28),
-      scaffold,
-    );
-    final tileBottom = Color.alphaBlend(
-      data.accent.withValues(alpha: isDark ? 0.32 : 0.16),
-      scaffold,
-    );
-    // Same blended-surface trick for the icon chip.
-    final iconChipBg = Color.alphaBlend(
-      data.accent.withValues(alpha: isDark ? 0.72 : 0.42),
-      scaffold,
-    );
-    final iconChipFg = _readableOn(iconChipBg);
-    final textColor = _readableOn(tileTop);
+    final c = AppColors.of(context);
+    final radius = BorderRadius.circular(AppRadii.card);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: data.onTap,
+        borderRadius: radius,
+        onTap: () {
+          Haptics.tap();
+          data.onTap();
+        },
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [tileTop, tileBottom],
-            ),
-            border: Border.all(
-              color: data.accent.withValues(alpha: isDark ? 0.45 : 0.30),
-              width: 0.8,
-            ),
+            color: c.surface,
+            borderRadius: radius,
+            border: Border.all(color: c.line, width: 0.5),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 28,
+                  height: 28,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: iconChipBg,
-                    borderRadius: BorderRadius.circular(10),
+                    color: data.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppRadii.chip),
                   ),
-                  child: Icon(data.icon, size: 18, color: iconChipFg),
+                  child: Icon(data.icon, size: 17, color: data.accent),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     data.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: textColor,
+                      color: c.text,
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -1391,14 +1424,6 @@ class _QuickLibraryButton extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// Return black or white — whichever has higher perceived contrast against
-  /// [background]. Uses ITU-R BT.601 luminance so it works on any tint.
-  static Color _readableOn(Color background) {
-    final luminance =
-        0.299 * background.r + 0.587 * background.g + 0.114 * background.b;
-    return luminance > 0.6 ? Colors.black : Colors.white;
   }
 }
 

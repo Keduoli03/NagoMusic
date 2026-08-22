@@ -11,6 +11,11 @@ class AppListTile extends StatelessWidget {
   /// Ignored when [titleWidget] is supplied.
   final Widget? titleBadge;
   final String? subtitle;
+
+  /// Optional widget pinned at the *start* of the subtitle line, before the
+  /// text (e.g. a quality badge). It sits outside the flexible text, so a long
+  /// subtitle ellipsises around it instead of pushing it away.
+  final Widget? subtitleLeading;
   final Color? titleColor;
   final Color? subtitleColor;
   final Widget? trailing;
@@ -27,6 +32,7 @@ class AppListTile extends StatelessWidget {
     this.titleWidget,
     this.titleBadge,
     this.subtitle,
+    this.subtitleLeading,
     this.titleColor,
     this.subtitleColor,
     this.trailing,
@@ -56,6 +62,26 @@ class AppListTile extends StatelessWidget {
     );
   }
 
+  Widget? _buildSubtitle(Color color) {
+    if (subtitle == null && subtitleLeading == null) return null;
+    final text = subtitle == null
+        ? null
+        : Text(
+            subtitle!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: color, fontSize: 12),
+          );
+    if (subtitleLeading == null) return text;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        subtitleLeading!,
+        if (text != null) Flexible(child: text),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -69,17 +95,7 @@ class AppListTile extends StatelessWidget {
         contentPadding: contentPadding,
         leading: leading,
         title: titleWidget ?? _buildTitle(titleColor ?? defaultTitleColor),
-        subtitle: subtitle != null
-            ? Text(
-                subtitle!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: subtitleColor ?? defaultSubtitleColor,
-                  fontSize: 12,
-                ),
-              )
-            : null,
+        subtitle: _buildSubtitle(subtitleColor ?? defaultSubtitleColor),
         trailing: trailing,
         onTap: onTap,
         onLongPress: onLongPress,

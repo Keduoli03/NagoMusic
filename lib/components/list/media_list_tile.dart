@@ -10,6 +10,9 @@ class MediaListTile extends StatelessWidget {
   /// Optional widget rendered inline right after the title (e.g. a quality tag).
   final Widget? titleBadge;
   final String? subtitle;
+
+  /// 钉在副标题最前面的小部件（音质标记）。见 [AppListTile.subtitleLeading]。
+  final Widget? subtitleLeading;
   final bool selected;
   final bool multiSelect;
   final bool isHighlighted;
@@ -24,6 +27,7 @@ class MediaListTile extends StatelessWidget {
     required this.title,
     this.titleBadge,
     this.subtitle,
+    this.subtitleLeading,
     required this.selected,
     required this.multiSelect,
     required this.isHighlighted,
@@ -65,6 +69,7 @@ class MediaListTile extends StatelessWidget {
       title: title,
       titleBadge: titleBadge,
       subtitle: subtitle,
+      subtitleLeading: subtitleLeading,
       titleColor: titleColor,
       subtitleColor: subtitleColor,
       contentPadding: padding ?? const EdgeInsets.symmetric(horizontal: 16),

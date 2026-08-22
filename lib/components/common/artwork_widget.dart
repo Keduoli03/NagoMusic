@@ -38,7 +38,8 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
   @override
   void initState() {
     super.initState();
-    _tryLoad();
+    // 先同步查一眼内存缓存：命中的话第一帧就是封面，不会闪占位图。
+    if (!_seedFromCache()) _tryLoad();
   }
 
   @override
@@ -49,12 +50,29 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
         oldWidget.song.uri != widget.song.uri ||
         oldWidget.preferOriginal != widget.preferOriginal ||
         oldWidget.keepPreviousUntilLoaded != widget.keepPreviousUntilLoaded) {
+      // 换歌时同样先走同步命中 —— 首页切筛选会一次换掉六个封面，
+      // 走异步的话这六个都要先闪一帧占位图。
+      if (_seedFromCache()) return;
       if (!widget.keepPreviousUntilLoaded) {
         _bytes.value = null;
       }
       _loading.value = false;
       _tryLoad();
     }
+  }
+
+  /// 内存缓存命中则直接填好并返回 true，未命中返回 false（由调用方去走异步加载）。
+  bool _seedFromCache() {
+    final cached = _artworkService.peekArtworkBytes(
+      uri: widget.song.uri,
+      localAssetId: widget.song.localAssetId,
+      isLocal: widget.song.isLocal,
+      preferOriginal: widget.preferOriginal,
+    );
+    if (cached == null || cached.isEmpty) return false;
+    _bytes.value = cached;
+    _loading.value = false;
+    return true;
   }
 
   Future<void> _tryLoad() async {
@@ -79,7 +97,9 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cachedPath = widget.song.localCoverPath;
-    final dpr = MediaQuery.of(context).devicePixelRatio;
+    // 只订阅 devicePixelRatio，不要用 MediaQuery.of(context) —— 那会连键盘弹出、
+    // 屏幕旋转、安全区变化都一起订阅，导致所有封面无谓重建。
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheSize = (widget.size * dpr).round();
     // Decode at the display's pixel size even for preferOriginal: a 3000px cover
     // shown in a ~400px box otherwise decodes at full native resolution and

@@ -292,7 +292,7 @@ class _FolderSongsPageState extends State<FolderSongsPage>
                       final isSelected = selected.contains(song.id);
                       return MediaListTile(
                         title: song.title,
-                        titleBadge: QualityTagBadge(song: song),
+                        subtitleLeading: QualityTagBadge(song: song),
                         subtitle: song.artist,
                         leading: ArtworkWidget(
                           song: song,

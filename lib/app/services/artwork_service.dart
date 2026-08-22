@@ -17,11 +17,16 @@ class ArtworkService {
   static final ArtworkService instance = ArtworkService._();
 
   static const bool _debugArtwork = false;
-  // Compressed bytes cache — a typical 320px JPEG thumb is ~15–30 KB, so 400
-  // entries sits around ~10 MB. Well below the decoded ImageCache budget and
-  // large enough that scroll-back through a full album grid doesn't churn.
+  // 条数上限只是次要保险，真正的约束是下面的字节预算 —— 缩略图和内嵌原图
+  // 体积差两个数量级，按条数根本控不住内存。
   static const int _maxCache = 400;
+  // 压缩字节的总预算。24MB 足够存下几百张缩略图，同时把内嵌原图（1~3MB 一张）
+  // 限制在十来张以内，不至于让播放历史一路把内存拖上去。
+  static const int _maxCacheBytes = 24 * 1024 * 1024;
   static const int _maxConcurrent = 6;
+
+  /// [_bytesCache] 里所有非 null 条目的字节数之和。
+  int _cachedBytes = 0;
 
   final LinkedHashMap<String, Uint8List?> _bytesCache =
       LinkedHashMap<String, Uint8List?>();
@@ -59,6 +64,32 @@ class ArtworkService {
       );
     }
     return resolved;
+  }
+
+  /// 同步查一眼内存缓存，命中就直接给出字节。
+  ///
+  /// [loadArtworkBytes] 是 async 的，**哪怕内存缓存命中也要等一个 microtask**，
+  /// 而那已经是当前这一帧画完之后了。调用方于是必然先画一帧占位图再换成封面 ——
+  /// 首页切换筛选时六个封面同时闪一下，观感上就是「卡」。有了这个同步入口，
+  /// 已经缓存过的封面可以在 build 之前就填好，一帧都不闪。
+  ///
+  /// 返回 null 有两种含义：没缓存过，或者缓存里记的就是「这首没有内嵌封面」。
+  /// 调用方不需要区分 —— 拿不到就照常走 [loadArtworkBytes]。
+  Uint8List? peekArtworkBytes({
+    required String? uri,
+    required String? localAssetId,
+    required bool isLocal,
+    required bool preferOriginal,
+  }) {
+    if (!isLocal) return null;
+    final trimmedUri = (uri ?? '').trim();
+    if (trimmedUri.isEmpty) return null;
+    final trimmedAssetId = (localAssetId ?? '').trim();
+    final cacheBase = trimmedAssetId.isNotEmpty
+        ? 'asset:$trimmedAssetId'
+        : trimmedUri;
+    // 不做 LRU 提升：peek 是渲染路径上的旁路查询，不该影响淘汰顺序。
+    return _bytesCache[preferOriginal ? '$cacheBase|original' : cacheBase];
   }
 
   Future<Uint8List?> loadArtworkBytes({
@@ -178,16 +209,43 @@ class ArtworkService {
   void clearByUri(String? uri) {
     final trimmed = (uri ?? '').trim();
     if (trimmed.isEmpty) return;
-    _bytesCache.remove(trimmed);
-    _bytesCache.remove('$trimmed|original');
+    _removeKey(trimmed);
+    _removeKey('$trimmed|original');
+    // 有 localAssetId 时缓存键是 'asset:<id>' 而不是 uri（见 loadArtworkBytes），
+    // 只删 uri 那两条的话本地歌曲的缓存根本删不掉，表现为「刮削完封面还是旧的」。
+    final assetId = _assetIdCache[_normalizePath(trimmed)];
+    if (assetId != null && assetId.isNotEmpty) {
+      _removeKey('asset:$assetId');
+      _removeKey('asset:$assetId|original');
+    }
+  }
+
+  /// 删一条并同步扣掉它的字节数。所有从 [_bytesCache] 移除的地方都要走这里，
+  /// 否则 [_cachedBytes] 会越漂越大，最后把缓存饿死（一直以为超预算而疯狂淘汰）。
+  void _removeKey(String key) {
+    final removed = _bytesCache.remove(key);
+    if (removed != null) _cachedBytes -= removed.length;
   }
 
   void _remember(String cacheKey, Uint8List? bytes) {
-    _bytesCache.remove(cacheKey);
+    _removeKey(cacheKey);
     _bytesCache[cacheKey] = bytes;
-    while (_bytesCache.length > _maxCache) {
-      _bytesCache.remove(_bytesCache.keys.first);
+    if (bytes != null) _cachedBytes += bytes.length;
+    _evict();
+  }
+
+  /// 按**字节总量**淘汰，条数只作次要上限。
+  ///
+  /// 以前只按条数淘汰（400 条），注释里按「320px 缩略图 ~20KB」估的 ~10MB。但
+  /// `|original` 那些条目存的是内嵌原图，一张 1~3MB —— 播过一百首歌，光这个 map
+  /// 就能吃掉几百兆。设备日志里进程 RSS 到过 717MB，这里是重要来源之一。
+  void _evict() {
+    while (_bytesCache.isNotEmpty &&
+        (_cachedBytes > _maxCacheBytes || _bytesCache.length > _maxCache)) {
+      _removeKey(_bytesCache.keys.first);
     }
+    // 负数只可能来自「同一份字节被记了两次」这类 bug，兜一下别让它越漂越远。
+    if (_cachedBytes < 0) _cachedBytes = 0;
   }
 
   void _drainQueue() {
@@ -263,22 +321,8 @@ class ArtworkService {
         }
       }
 
-      final file = File(uri);
-      if (!await file.exists()) return null;
-      final metadata = readMetadata(file, getImage: true);
-      var original = metadata.pictures.isNotEmpty
-          ? metadata.pictures.first.bytes
-          : Uint8List(0);
-      // The bundled reader misses OGG/Opus covers (METADATA_BLOCK_PICTURE in a
-      // Vorbis comment) — fall back to our own extractor for those.
-      if (original.isEmpty && isOggPath(uri)) {
-        final ogg = extractOggVorbisComments(uri, includeArtwork: true);
-        final oggArt = ogg?.artwork;
-        if (oggArt != null && oggArt.isNotEmpty) {
-          original = oggArt;
-        }
-      }
-      if (original.isEmpty) return null;
+      final original = await compute(_readEmbeddedArtworkIsolate, uri);
+      if (original == null || original.isEmpty) return null;
       if (kDebugMode && _debugArtwork) {
         debugPrint(
           '[ArtworkService] embedded art uri=$uri bytes=${original.length} preferOriginal=$preferOriginal',
@@ -307,6 +351,47 @@ class ArtworkService {
       }
       return null;
     }
+  }
+}
+
+/// 在后台 isolate 上把内嵌封面读出来。
+///
+/// `readMetadata` 和 `extractOggVorbisComments` 都是**同步**的，而且要把整个音频
+/// 文件读进来解析。带 1~3MB 内嵌大图的歌在 UI isolate 上做一次就是几十毫秒，
+/// 而一帧预算只有 16ms —— 表现就是播放页每次切歌掉几帧。
+///
+/// `tag_probe_service.dart` 的 `_readMetadataIsolate` 早就是这么跑的（同一个库、
+/// 同样开着 `getImage`），这里只是把最后一个漏掉的调用点补齐。
+///
+/// 只收路径、只回字节，两端都是可跨 isolate 传的类型。
+Uint8List? _readEmbeddedArtworkIsolate(String path) {
+  try {
+    final file = File(path);
+    if (!file.existsSync()) return null;
+
+    var original = Uint8List(0);
+    try {
+      final metadata = readMetadata(file, getImage: true);
+      if (metadata.pictures.isNotEmpty) {
+        original = metadata.pictures.first.bytes;
+      }
+    } catch (_) {
+      // 解析抛异常对 OGG 来说是常态，不能就此放弃 —— 下面还有自己的兜底提取器。
+      // （改成 isolate 之前这个异常会被最外层 catch 吞掉，直接跳过 OGG 兜底。）
+    }
+
+    // The bundled reader misses OGG/Opus covers (METADATA_BLOCK_PICTURE in a
+    // Vorbis comment) — fall back to our own extractor for those.
+    if (original.isEmpty && isOggPath(path)) {
+      final ogg = extractOggVorbisComments(path, includeArtwork: true);
+      final oggArt = ogg?.artwork;
+      if (oggArt != null && oggArt.isNotEmpty) {
+        original = oggArt;
+      }
+    }
+    return original.isEmpty ? null : original;
+  } catch (_) {
+    return null;
   }
 }
 

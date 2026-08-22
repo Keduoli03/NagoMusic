@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../app/services/haptic_service.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_radii.dart';
 
 /// 弹窗外壳 —— 供 [AppDialog] 和其它自定义弹窗复用，保证视觉统一。
 ///
 /// 移植自 flutter_template_local 的 `AppDialogShell`：
-/// 宽度 = 屏宽 - 64，上限 340（避免平板上出现横长弹窗），圆角 22，无阴影。
+/// 宽度 = 屏宽 - 64，上限 340（避免平板上出现横长弹窗），圆角 [AppRadii.dialog]，无阴影。
 class AppDialogShell extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -28,7 +29,9 @@ class AppDialogShell extends StatelessWidget {
       insetPadding: EdgeInsets.symmetric(
         horizontal: ((w - dialogW) / 2).clamp(16.0, 60.0),
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.dialog),
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: dialogW),
         child: Padding(padding: padding, child: child),
@@ -200,8 +203,7 @@ class AppDialog extends StatelessWidget {
                     child: AppDialogButton(
                       label: cancelText,
                       filled: false,
-                      onTap:
-                          onCancel ?? () => Navigator.of(context).pop(false),
+                      onTap: onCancel ?? () => Navigator.of(context).pop(false),
                     ),
                   ),
                   const SizedBox(width: 10),

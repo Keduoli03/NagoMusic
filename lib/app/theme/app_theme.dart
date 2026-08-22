@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_radii.dart';
 
 /// 全 App 的 ThemeData 构建入口，取代原来的 `buildMiuixMaterialTheme`。
 ///
@@ -50,7 +51,7 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
   );
 
   final pillShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(999),
+    borderRadius: BorderRadius.circular(AppRadii.pill),
   );
 
   return base.copyWith(
@@ -86,7 +87,9 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.panel),
+      ),
     ),
     listTileTheme: ListTileThemeData(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
@@ -98,7 +101,9 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
         color: c.text,
       ),
       subtitleTextStyle: TextStyle(fontSize: 12, height: 1.35, color: c.muted),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.panel),
+      ),
     ),
     dividerTheme: DividerThemeData(
       color: c.line,
@@ -110,7 +115,9 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
       backgroundColor: c.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.dialog),
+      ),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: c.surface,
@@ -119,7 +126,9 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
       elevation: 0,
       modalElevation: 0,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadii.sheet),
+        ),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -128,15 +137,15 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       hintStyle: TextStyle(color: c.muted, fontSize: 15),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.panel),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.panel),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.panel),
         borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
     ),
@@ -196,7 +205,9 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.panel),
+          ),
         ),
         side: WidgetStatePropertyAll(BorderSide(color: c.line)),
         padding: const WidgetStatePropertyAll(
@@ -219,7 +230,9 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
       color: c.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.panel),
+      ),
     ),
   );
 }
