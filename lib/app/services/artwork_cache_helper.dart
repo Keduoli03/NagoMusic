@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../utils/cache_key.dart';
 
 class ArtworkCacheHelper {
   static Future<String?> cacheCompressedArtwork({
@@ -19,7 +20,7 @@ class ArtworkCacheHelper {
       if (!await cacheDir.exists()) {
         await cacheDir.create(recursive: true);
       }
-      final name = _hashKey(key);
+      final name = fnv1a32Hex(key);
       final target = File(p.join(cacheDir.path, '$name.jpg'));
       if (await target.exists()) return target.path;
       final compressed = await FlutterImageCompress.compressWithList(
@@ -43,7 +44,7 @@ class ArtworkCacheHelper {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final cacheDir = Directory(p.join(dir.path, 'artwork_cache'));
-      final name = _hashKey(key);
+      final name = fnv1a32Hex(key);
       final target = File(p.join(cacheDir.path, '$name.jpg'));
       if (await target.exists()) return target.path;
     } catch (_) {}
@@ -54,7 +55,7 @@ class ArtworkCacheHelper {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final cacheDir = Directory(p.join(dir.path, 'artwork_cache'));
-      final name = _hashKey(key);
+      final name = fnv1a32Hex(key);
       final target = File(p.join(cacheDir.path, '$name.jpg'));
       if (await target.exists()) {
         await target.delete();
@@ -76,14 +77,5 @@ class ArtworkCacheHelper {
         await file.delete();
       }
     } catch (_) {}
-  }
-
-  static String _hashKey(String input) {
-    var hash = 0x811c9dc5;
-    for (final codeUnit in input.codeUnits) {
-      hash ^= codeUnit;
-      hash = (hash * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash.toRadixString(16);
   }
 }

@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../prefs_source_repository.dart';
 
 class NavidromeSource {
   final String id;
@@ -62,64 +63,30 @@ class NavidromeSource {
   }
 }
 
-class NavidromeSourceRepository {
+class NavidromeSourceRepository extends PrefsSourceRepository<NavidromeSource> {
   static final NavidromeSourceRepository instance =
       NavidromeSourceRepository._internal();
 
   NavidromeSourceRepository._internal();
 
-  static const String _prefsKey = 'navidrome_sources_v1';
   static const String apiVersion = '1.16.1';
   static const String clientName = 'nagomusic';
 
-  Future<List<NavidromeSource>> loadSources() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
-    if (raw == null || raw.trim().isEmpty) {
-      return const [];
-    }
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        final list = decoded
-            .whereType<Map>()
-            .map((e) => NavidromeSource.fromJson(e.cast<String, dynamic>()))
-            .where((e) => e.id.trim().isNotEmpty)
-            .toList();
-        if (list.isNotEmpty) return list;
-      }
-    } catch (_) {}
-    return const [];
-  }
+  @override
+  String get prefsKey => 'navidrome_sources_v1';
 
-  Future<void> saveSources(List<NavidromeSource> sources) async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = jsonEncode(sources.map((e) => e.toJson()).toList());
-    await prefs.setString(_prefsKey, data);
-  }
+  @override
+  String get idPrefix => 'navidrome';
 
-  Future<void> upsert(NavidromeSource source) async {
-    final list = await loadSources();
-    final idx = list.indexWhere((e) => e.id == source.id);
-    final next = [...list];
-    if (idx >= 0) {
-      next[idx] = source;
-    } else {
-      next.add(source);
-    }
-    await saveSources(next);
-  }
+  @override
+  NavidromeSource fromJson(Map<String, dynamic> json) =>
+      NavidromeSource.fromJson(json);
 
-  Future<void> removeById(String id) async {
-    final list = await loadSources();
-    final next = list.where((e) => e.id != id).toList();
-    await saveSources(next);
-  }
+  @override
+  Map<String, dynamic> toJson(NavidromeSource source) => source.toJson();
 
-  String newId() {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    return 'navidrome-$ts';
-  }
+  @override
+  String idOf(NavidromeSource source) => source.id;
 
   String newSalt() {
     const alphabet = '0123456789abcdef';

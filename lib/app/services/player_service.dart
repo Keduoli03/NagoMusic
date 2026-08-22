@@ -16,6 +16,8 @@ import 'cache/audio_cache_service.dart';
 import 'metadata/tag_probe_service.dart';
 import 'media_notification_service.dart';
 import 'stats_service.dart';
+import 'webdav/webdav_endpoint_resolver.dart';
+import 'webdav/webdav_source_repository.dart';
 import '../state/settings_state.dart';
 import '../state/song_state.dart';
 export '../state/player_state.dart';
@@ -35,6 +37,9 @@ class PlayerService with WidgetsBindingObserver {
   final SongDao _songDao = SongDao();
   final LyricsRepository _lyricsRepo = LyricsRepository();
   final StatsService _statsService = StatsService.instance;
+  final WebDavSourceRepository _webdavSourceRepo = WebDavSourceRepository.instance;
+  final WebDavEndpointResolver _webdavEndpointResolver =
+      WebDavEndpointResolver.instance;
   AudioSession? _audioSession;
 
   ValueNotifier<Duration> get position => _state.position;
@@ -581,8 +586,8 @@ class PlayerService with WidgetsBindingObserver {
     }
 
     final failedSong = list[failedIndex];
-    final rawUri = (failedSong.uri ?? '').trim();
-    if (failedSong.isLocal || !rawUri.startsWith('http')) {
+    final storedUri = (failedSong.uri ?? '').trim();
+    if (failedSong.isLocal || !storedUri.startsWith('http')) {
       if (kDebugMode) {
         debugPrint('PlayerService player error on non-remote source: $error');
       }
@@ -591,6 +596,10 @@ class PlayerService with WidgetsBindingObserver {
 
     _recoveringCurrentSource = true;
     try {
+      // Match whatever host was actually in use (may already have been
+      // rewritten to an alternate WebDAV address) so cache cleanup targets
+      // the right key.
+      final rawUri = await _resolveWebdavRawUri(failedSong, storedUri);
       final headers = _headersFromSong(failedSong);
       _debugLog(
         'recover current source index=$failedIndex song=${failedSong.title} error=${error.message}',
@@ -1396,6 +1405,37 @@ class PlayerService with WidgetsBindingObserver {
   void _invalidateResolvedSource(SongEntity song) {
     _resolvedRemoteSources.remove(song.id);
     _sourceResolveInflight.remove(song.id);
+    final sourceId = song.sourceId;
+    if (sourceId != null) {
+      _webdavEndpointResolver.invalidate(sourceId);
+    }
+  }
+
+  /// If [song] belongs to a WebDAV source with multiple addresses (e.g. LAN
+  /// at home, remote-access tunnel while away), rewrites [rawUri]'s host to
+  /// whichever address currently answers. Leaves [rawUri] untouched for
+  /// everything else (single-address sources, Navidrome, local files).
+  Future<String> _resolveWebdavRawUri(SongEntity song, String rawUri) async {
+    final sourceId = song.sourceId;
+    if (sourceId == null || !sourceId.startsWith('webdav')) return rawUri;
+    try {
+      final sources = await _webdavSourceRepo.loadSources();
+      WebDavSource? source;
+      for (final s in sources) {
+        if (s.id == sourceId) {
+          source = s;
+          break;
+        }
+      }
+      if (source == null || source.allEndpoints.length <= 1) return rawUri;
+      final active = await _webdavEndpointResolver.resolveActiveEndpoint(
+        source,
+      );
+      if (active == null) return rawUri;
+      return _webdavEndpointResolver.rewriteHost(rawUri, active).toString();
+    } catch (_) {
+      return rawUri;
+    }
   }
 
   void _applyLogicalQueue(List<SongEntity> songs, int currentQueueIndex) {
@@ -1461,10 +1501,11 @@ class PlayerService with WidgetsBindingObserver {
     SongEntity song, {
     bool forceRefresh = false,
   }) async {
-    final rawUri = (song.uri ?? '').trim();
-    if (song.isLocal || !rawUri.startsWith('http')) {
-      return Uri.file(rawUri);
+    final storedUri = (song.uri ?? '').trim();
+    if (song.isLocal || !storedUri.startsWith('http')) {
+      return Uri.file(storedUri);
     }
+    final rawUri = await _resolveWebdavRawUri(song, storedUri);
 
     final headers = _headersFromSong(song);
     final headersKey = _headersFingerprint(headers);
@@ -1541,12 +1582,13 @@ class PlayerService with WidgetsBindingObserver {
 
     if (!uri.startsWith('http')) return;
 
+    final resolvedUri = await _resolveWebdavRawUri(song, uri);
     final headers = _headersFromSong(song);
     final key =
         '${song.id}:${hasCover ? 1 : 0}:${hasDuration ? 1 : 0}:${song.tagsParsed ? 1 : 0}';
     if (_probeInflight.containsKey(key)) return;
 
-    final future = _probeAndPersist(song, uri: uri, headers: headers);
+    final future = _probeAndPersist(song, uri: resolvedUri, headers: headers);
     _probeInflight[key] = future;
     future.whenComplete(() => _probeInflight.remove(key));
   }

@@ -7,6 +7,9 @@ import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
+import '../../app/utils/multi_select_mixin.dart';
+import '../../app/utils/natural_sort.dart';
+import '../../app/utils/uri_utils.dart';
 import '../../components/index.dart';
 import '../library/playlists_page.dart';
 import '../songs/song_detail_sheet.dart';
@@ -27,36 +30,24 @@ class FolderSongsPage extends StatefulWidget {
   State<FolderSongsPage> createState() => _FolderSongsPageState();
 }
 
-class _RemoveProgress {
-  final int processed;
-  final int total;
-  final bool isRemoving;
-
-  const _RemoveProgress({
-    required this.processed,
-    required this.total,
-    required this.isRemoving,
-  });
-}
-
-class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
+class _FolderSongsPageState extends State<FolderSongsPage>
+    with SignalsMixin, MultiSelectMixin<FolderSongsPage> {
   static const double _itemExtent = 64;
 
   final SongDao _songDao = SongDao();
   final ScrollController _scrollController = ScrollController();
   final LyricsRepository _lyricsRepo = LyricsRepository();
-  final ValueNotifier<_RemoveProgress> _removeNotifier = ValueNotifier(
-    const _RemoveProgress(processed: 0, total: 0, isRemoving: false),
-  );
-  bool _isRemoving = false;
+  final RemoveProgressController _removeProgress = RemoveProgressController();
+
+  /// 该页进入多选时保留此前的选中项，仅在退出时清空。
+  @override
+  bool get clearSelectionOnEnter => false;
 
   late final _songs = createSignal<List<SongEntity>>([]);
   late final _isLoading = createSignal(true);
   late final _currentSongId = createSignal<String?>(null);
   late final _sortKey = createSignal('title');
   late final _ascending = createSignal(true);
-  late final _multiSelect = createSignal(false);
-  late final _selectedIds = createSignal<Set<String>>({});
   late final _isSequentialPlay = createSignal(true);
 
   @override
@@ -67,11 +58,22 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
     // Listen to current song changes to highlight playing track
     final currentSong = PlayerService.instance.currentSong;
     _currentSongId.value = currentSong.value?.id;
-    currentSong.addListener(() {
-      if (mounted) {
-        _currentSongId.value = currentSong.value?.id;
-      }
-    });
+    currentSong.addListener(_handleCurrentSongChanged);
+  }
+
+  @override
+  void dispose() {
+    PlayerService.instance.currentSong.removeListener(
+      _handleCurrentSongChanged,
+    );
+    _scrollController.dispose();
+    _removeProgress.dispose();
+    super.dispose();
+  }
+
+  void _handleCurrentSongChanged() {
+    if (!mounted) return;
+    _currentSongId.value = PlayerService.instance.currentSong.value?.id;
   }
 
   Future<void> _loadSongs() async {
@@ -104,6 +106,11 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
           return cmpText(a.album ?? '', b.album ?? '');
         case 'duration':
           return (a.durationMs ?? 0).compareTo(b.durationMs ?? 0);
+        case 'fileName':
+          return naturalCompare(
+            a.uri == null ? '' : UriUtils.extractFileName(a.uri!),
+            b.uri == null ? '' : UriUtils.extractFileName(b.uri!),
+          );
         case 'title':
         default:
           return cmpText(a.title, b.title);
@@ -129,6 +136,11 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
             ),
             SortOption(key: 'album', label: '专辑名称', icon: Icons.album_outlined),
             SortOption(key: 'duration', label: '歌曲时长', icon: Icons.schedule),
+            SortOption(
+              key: 'fileName',
+              label: '文件名称',
+              icon: Icons.description_outlined,
+            ),
           ],
           currentKey: _sortKey.value,
           ascending: _ascending.value,
@@ -143,90 +155,32 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
     );
   }
 
-  void _toggleMultiSelect() {
-    final next = !_multiSelect.value;
-    _multiSelect.value = next;
-    if (!next) {
-      _selectedIds.value = {};
-    }
-  }
-
   void _togglePlayMode() {
     _isSequentialPlay.value = !_isSequentialPlay.value;
   }
 
-  void _toggleSelectAll(List<SongEntity> songs) {
-    final selected = _selectedIds.value;
-    if (selected.length == songs.length) {
-      _selectedIds.value = {};
-      return;
-    }
-    _selectedIds.value = songs.map((e) => e.id).toSet();
-  }
-
-  void _showRemoveDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return ValueListenableBuilder<_RemoveProgress>(
-          valueListenable: _removeNotifier,
-          builder: (context, progress, child) {
-            final finished = !progress.isRemoving;
-            return AppDialog(
-              title: finished ? '移除完成' : '正在移除...',
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LinearProgressIndicator(
-                    value: progress.total > 0
-                        ? progress.processed / progress.total
-                        : 0,
-                  ),
-                  const SizedBox(height: 16),
-                  Text('已移除: ${progress.processed}'),
-                  const SizedBox(height: 4),
-                  Text('总计: ${progress.total}'),
-                ],
-              ),
-              confirmText: finished ? '知道了' : '隐藏',
-              showCancel: false,
-              onConfirm: () {},
-            );
-          },
-        );
-      },
-    );
-  }
-
   Future<void> _openAddToPlaylistSheet() async {
-    final ids = _selectedIds.value.toList(growable: false);
+    final ids = selection.toList(growable: false);
     if (ids.isEmpty) return;
     final added = await showAddToPlaylistDialog(context, songIds: ids);
     if (!mounted) return;
     if (added) {
-      _toggleMultiSelect();
+      toggleMultiSelect();
     }
   }
 
   Future<void> _removeSelectedSongs() async {
-    if (_isRemoving) {
-      _showRemoveDialog();
+    if (_removeProgress.isRemoving) {
+      _removeProgress.showDialogOn(context);
       return;
     }
-    final ids = _selectedIds.value.toList(growable: false);
+    final ids = selection.toList(growable: false);
     if (ids.isEmpty) return;
     final removedSongs = _songs.value
         .where((s) => ids.contains(s.id))
         .toList(growable: false);
-    _isRemoving = true;
-    _removeNotifier.value = _RemoveProgress(
-      processed: 0,
-      total: removedSongs.length,
-      isRemoving: true,
-    );
-    _showRemoveDialog();
+    _removeProgress.start(removedSongs.length);
+    _removeProgress.showDialogOn(context);
     var processed = 0;
     var removedCount = 0;
     for (final song in removedSongs) {
@@ -242,25 +196,14 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
       if (currentId != null && currentId == song.id) {
         _currentSongId.value = null;
       }
-      _selectedIds.value = Set<String>.from(_selectedIds.value)
-        ..remove(song.id);
+      removeFromSelection([song.id]);
       processed += 1;
-      _removeNotifier.value = _RemoveProgress(
-        processed: processed,
-        total: removedSongs.length,
-        isRemoving: true,
-      );
+      _removeProgress.update(processed);
     }
     if (!mounted) return;
-    _isRemoving = false;
-    _removeNotifier.value = _RemoveProgress(
-      processed: processed,
-      total: removedSongs.length,
-      isRemoving: false,
-    );
+    _removeProgress.finish(processed);
     AppToast.show(context, '已移除 $removedCount 首');
-    _selectedIds.value = <String>{};
-    _multiSelect.value = false;
+    exitMultiSelect();
   }
 
   Future<void> _cleanupCachesForSongs(List<SongEntity> songs) async {
@@ -290,7 +233,7 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
     return AppNavigationModeBuilder(
       builder: (context, useBottomNavigation) => AppPageScaffold(
         extendBodyBehindAppBar: true,
-        showMiniPlayer: !_multiSelect.value,
+        showMiniPlayer: !multiSelect.value,
         appBar: AppTopBar(
           title: widget.title,
           backgroundColor: Colors.transparent,
@@ -304,10 +247,8 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
 
             final songs = _sortedSongs(_songs.value);
             final currentId = _currentSongId.value;
-            final selected = _selectedIds.value;
-            final selectedCount = selected.length;
-            final isAllSelected =
-                songs.isNotEmpty && selectedCount == songs.length;
+            final selected = selection;
+            final isAllSelected = this.isAllSelected(songs.length);
 
             if (songs.isEmpty) {
               return const Center(child: Text('此文件夹没有歌曲'));
@@ -316,13 +257,14 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
             return Column(
               children: [
                 MediaListHeader(
-                  multiSelect: _multiSelect.value,
+                  multiSelect: multiSelect.value,
                   isAllSelected: isAllSelected,
                   selectedCount: selectedCount,
                   totalCount: songs.length,
                   playbackCount: songs.length,
                   isSequentialPlay: _isSequentialPlay.value,
-                  onToggleSelectAll: () => _toggleSelectAll(songs),
+                  onToggleSelectAll: () =>
+                      toggleSelectAll(songs.map((e) => e.id)),
                   onPlay: () {
                     if (songs.isEmpty) return;
                     final queue = List<SongEntity>.from(songs);
@@ -334,7 +276,7 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
                   onConfigurePlay: () {},
                   onTogglePlayMode: _togglePlayMode,
                   onSort: _showSortSheet,
-                  onToggleMultiSelect: _toggleMultiSelect,
+                  onToggleMultiSelect: toggleMultiSelect,
                 ),
                 Expanded(
                   child: MediaListView(
@@ -343,13 +285,14 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
                     itemExtent: _itemExtent,
                     bottomInset:
                         MediaQuery.of(context).padding.bottom +
-                        (_multiSelect.value ? 160 : 80),
+                        (multiSelect.value ? 160 : 80),
                     itemBuilder: (context, index) {
                       final song = songs[index];
                       final isPlaying = song.id == currentId;
                       final isSelected = selected.contains(song.id);
                       return MediaListTile(
                         title: song.title,
+                        titleBadge: QualityTagBadge(song: song),
                         subtitle: song.artist,
                         leading: ArtworkWidget(
                           song: song,
@@ -358,22 +301,16 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
                         ),
                         isHighlighted: isPlaying,
                         selected: isSelected,
-                        multiSelect: _multiSelect.value,
+                        multiSelect: multiSelect.value,
                         onTap: () {
-                          if (_multiSelect.value) {
-                            final next = Set<String>.from(selected);
-                            if (next.contains(song.id)) {
-                              next.remove(song.id);
-                            } else {
-                              next.add(song.id);
-                            }
-                            _selectedIds.value = next;
+                          if (multiSelect.value) {
+                            toggleSelected(song.id);
                             return;
                           }
                           _playQueue(songs, song);
                         },
                         onLongPress: () {
-                          if (_multiSelect.value) return;
+                          if (multiSelect.value) return;
                           showModalBottomSheet<void>(
                             context: context,
                             backgroundColor: Colors.transparent,
@@ -385,7 +322,7 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
                     },
                   ),
                 ),
-                if (_multiSelect.value)
+                if (multiSelect.value)
                   MultiSelectBottomBar(
                     actions: [
                       MultiSelectAction(
@@ -405,7 +342,7 @@ class _FolderSongsPageState extends State<FolderSongsPage> with SignalsMixin {
                                   context,
                                   '已将 $selectedCount 首歌曲加入下一首播放',
                                 );
-                                _toggleMultiSelect();
+                                toggleMultiSelect();
                               },
                       ),
                       MultiSelectAction(

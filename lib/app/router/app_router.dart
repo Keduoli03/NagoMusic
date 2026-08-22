@@ -9,10 +9,8 @@ import '../../pages/profile/profile_page.dart';
 import '../../pages/settings/gradient_settings_page.dart';
 import '../../pages/settings/lyrics_settings_page.dart';
 import '../../pages/settings/notification_settings_page.dart';
-import '../../pages/settings/permission_settings_page.dart';
 import '../../pages/settings/app_appearance_settings_page.dart';
-import '../../pages/settings/player_controls_settings_page.dart';
-import '../../pages/settings/player_appearance_settings_page.dart';
+import '../../pages/settings/player_settings_page.dart';
 import '../../pages/settings/cache_settings_page.dart';
 import '../../pages/settings/listening_stats_page.dart';
 import '../../pages/settings/backup_restore_page.dart';
@@ -38,9 +36,7 @@ class AppRoutes {
   static const gradientSettings = '/settings/gradient';
   static const lyricsSettings = '/settings/lyrics';
   static const notificationSettings = '/settings/notifications';
-  static const permissionSettings = '/settings/permissions';
-  static const playerControlsSettings = '/settings/player-controls';
-  static const playerAppearanceSettings = '/settings/player-appearance';
+  static const playerSettings = '/settings/player';
   static const cacheSettings = '/settings/cache';
   static const listeningStats = '/settings/listening-stats';
   static const dataBackup = '/settings/data-backup';
@@ -67,10 +63,7 @@ class AppRouter {
     AppRoutes.gradientSettings: (_) => const GradientSettingsPage(),
     AppRoutes.lyricsSettings: (_) => const LyricsSettingsPage(),
     AppRoutes.notificationSettings: (_) => const NotificationSettingsPage(),
-    AppRoutes.permissionSettings: (_) => const PermissionSettingsPage(),
-    AppRoutes.playerControlsSettings: (_) => const PlayerControlsSettingsPage(),
-    AppRoutes.playerAppearanceSettings: (_) =>
-        const PlayerAppearanceSettingsPage(),
+    AppRoutes.playerSettings: (_) => const PlayerSettingsPage(),
     AppRoutes.cacheSettings: (_) => const CacheSettingsPage(),
     AppRoutes.listeningStats: (_) => const ListeningStatsPage(),
     AppRoutes.dataBackup: (_) => const BackupRestorePage(),

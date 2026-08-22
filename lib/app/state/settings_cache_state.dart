@@ -1,28 +1,29 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 import '../services/cache/audio_cache_service.dart';
+import 'pref_entry.dart';
 
 class AppCacheSettings {
-  static const String _prefsAudioCacheLimitGb = 'audio_cache_limit_gb';
+  static final audioCacheLimitGb = PrefEntry.integer(
+    'audio_cache_limit_gb',
+    sanitize: (v) => v.clamp(0, 5),
+  );
 
-  static final ValueNotifier<int> audioCacheLimitGb = ValueNotifier(0);
-  static Future<void>? _loading;
+  static final _group = PrefGroup([
+    audioCacheLimitGb,
+  ], onLoaded: _applyCacheSettings);
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    audioCacheLimitGb.value = (prefs.getInt(_prefsAudioCacheLimitGb) ?? 0)
-        .clamp(0, 5);
-    _applyCacheSettings();
-  }
+  @visibleForTesting
+  static void debugResetLoaded() => _group.resetForTest();
 
+  /// 写入后立即同步到 [AudioCacheService]。
+  ///
+  /// 这里显式调用而不是挂 listener：listener 只能在 [ensureLoaded] 里注册，
+  /// 万一有调用方先调 setter 再 ensureLoaded，限额就不会下发到服务层。
   static Future<void> setAudioCacheLimitGb(int gb) async {
-    final prefs = await SharedPreferences.getInstance();
-    final value = gb.clamp(0, 5);
-    await prefs.setInt(_prefsAudioCacheLimitGb, value);
-    audioCacheLimitGb.value = value;
+    await audioCacheLimitGb.set(gb);
     _applyCacheSettings();
   }
 
@@ -34,37 +35,20 @@ class AppCacheSettings {
 }
 
 class SongDownloadSettings {
-  static const String _prefsCustomDirectory = 'song_download_custom_directory';
-  static const String _prefsUseCustomDirectory =
-      'song_download_use_custom_directory';
+  static final customDirectoryPath = PrefEntry.nullableText(
+    'song_download_custom_directory',
+  );
+  static final useCustomDirectory = PrefEntry.boolean(
+    'song_download_use_custom_directory',
+  );
 
-  static final ValueNotifier<String?> customDirectoryPath = ValueNotifier(null);
-  static final ValueNotifier<bool> useCustomDirectory = ValueNotifier(false);
+  static final _group = PrefGroup([customDirectoryPath, useCustomDirectory]);
 
-  static Future<void>? _loading;
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static Future<void> setCustomDirectoryPath(String? path) =>
+      customDirectoryPath.set(path);
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    customDirectoryPath.value = prefs.getString(_prefsCustomDirectory);
-    useCustomDirectory.value = prefs.getBool(_prefsUseCustomDirectory) ?? false;
-  }
-
-  static Future<void> setCustomDirectoryPath(String? path) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (path == null || path.trim().isEmpty) {
-      await prefs.remove(_prefsCustomDirectory);
-      customDirectoryPath.value = null;
-      return;
-    }
-    await prefs.setString(_prefsCustomDirectory, path);
-    customDirectoryPath.value = path;
-  }
-
-  static Future<void> setUseCustomDirectory(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsUseCustomDirectory, enabled);
-    useCustomDirectory.value = enabled;
-  }
+  static Future<void> setUseCustomDirectory(bool enabled) =>
+      useCustomDirectory.set(enabled);
 }

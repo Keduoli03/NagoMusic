@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../app/services/android_platform_service.dart';
 import '../../app/state/settings_state.dart';
@@ -12,14 +13,60 @@ class NotificationSettingsPage extends StatefulWidget {
       _NotificationSettingsPageState();
 }
 
-class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
+class _NotificationSettingsPageState extends State<NotificationSettingsPage>
+    with WidgetsBindingObserver {
   bool _supportsCustomActions = true;
+  final Map<Permission, PermissionStatus> _statuses = {};
+  bool _loadingPermissions = true;
+
+  List<_PermissionItem> get _items => const [
+    _PermissionItem(
+      permission: Permission.notification,
+      title: '通知权限',
+      description: '用于显示媒体播放通知和锁屏控制',
+      icon: Icons.notifications_active_outlined,
+    ),
+    _PermissionItem(
+      permission: Permission.audio,
+      title: '音乐与音频',
+      description: '用于扫描和读取本地音乐文件',
+      icon: Icons.library_music_outlined,
+    ),
+    _PermissionItem(
+      permission: Permission.storage,
+      title: '文件存储',
+      description: '用于旧版 Android 读取和保存音乐文件',
+      icon: Icons.folder_open_outlined,
+    ),
+    _PermissionItem(
+      permission: Permission.ignoreBatteryOptimizations,
+      title: '后台播放保护',
+      description: '建议在系统设置中允许后台活动和无限制电量策略',
+      icon: Icons.battery_saver_outlined,
+      openSettingsOnly: true,
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     MediaNotificationSettings.ensureLoaded();
     _loadCapabilities();
+    _loadStatuses();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadStatuses();
+    }
   }
 
   Future<void> _loadCapabilities() async {
@@ -29,13 +76,62 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     setState(() => _supportsCustomActions = supported);
   }
 
+  Future<void> _loadStatuses() async {
+    setState(() => _loadingPermissions = true);
+    final entries = await Future.wait(
+      _items.map((item) async {
+        return MapEntry(item.permission, await item.permission.status);
+      }),
+    );
+    if (!mounted) return;
+    setState(() {
+      _statuses
+        ..clear()
+        ..addEntries(entries);
+      _loadingPermissions = false;
+    });
+  }
+
+  Future<void> _request(_PermissionItem item) async {
+    if (item.openSettingsOnly) {
+      await openAppSettings();
+      return;
+    }
+    final status = await item.permission.request();
+    if (!mounted) return;
+    setState(() => _statuses[item.permission] = status);
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      await openAppSettings();
+    }
+  }
+
+  String _statusText(PermissionStatus? status) {
+    if (status == null) return '未知';
+    if (status.isGranted) return '已允许';
+    if (status.isLimited) return '部分允许';
+    if (status.isPermanentlyDenied) return '已永久拒绝';
+    if (status.isRestricted) return '受系统限制';
+    if (status.isDenied) return '未允许';
+    if (status.isProvisional) return '临时允许';
+    return '未知';
+  }
+
+  Color _statusColor(BuildContext context, PermissionStatus? status) {
+    final scheme = Theme.of(context).colorScheme;
+    if (status == null) return scheme.onSurfaceVariant;
+    if (status.isGranted || status.isLimited || status.isProvisional) {
+      return scheme.primary;
+    }
+    return scheme.error;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomPadding = AppPageScaffold.scrollableBottomPadding(context);
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
       appBar: const AppTopBar(
-        title: '通知设置',
+        title: '通知与权限',
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -109,8 +205,59 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          AppSettingSection(
+            title: '应用权限',
+            children: [
+              if (_loadingPermissions)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                ..._items.map((item) {
+                  final status = _statuses[item.permission];
+                  final statusColor = _statusColor(context, status);
+                  return AppSettingNavTile(
+                    title: item.title,
+                    subtitle: '${item.description}\n${_statusText(status)}',
+                    leading: Icon(item.icon, color: statusColor),
+                    onTap: () => _request(item),
+                  );
+                }),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppSettingSection(
+            title: '系统设置',
+            children: [
+              AppSettingTile(
+                title: '打开应用设置',
+                subtitle: '管理通知、电量、后台活动等系统权限',
+                leading: const Icon(Icons.settings_applications_outlined),
+                trailing: const Icon(Icons.open_in_new_rounded),
+                onTap: openAppSettings,
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+}
+
+class _PermissionItem {
+  final Permission permission;
+  final String title;
+  final String description;
+  final IconData icon;
+  final bool openSettingsOnly;
+
+  const _PermissionItem({
+    required this.permission,
+    required this.title,
+    required this.description,
+    required this.icon,
+    this.openSettingsOnly = false,
+  });
 }

@@ -5,19 +5,18 @@ import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
-import '../../../app/router/app_page_route.dart';
-import '../../../app/router/app_router.dart';
 import '../../../app/services/lyrics/lyrics_service.dart';
 import '../../../app/services/player_service.dart';
 import '../../../app/state/settings_state.dart';
 import '../../../app/state/song_state.dart';
 import '../../../components/common/artwork_widget.dart';
+import '../../../components/common/app_switch.dart';
 import '../../../components/common/labeled_slider.dart';
 import '../../../components/common/playing_bars.dart';
 import '../../../components/feedback/app_toast.dart';
-import '../../library/library_detail_pages.dart';
-import '../../songs/song_detail_sheet.dart';
 import 'player_background.dart';
+import '../../../app/utils/format_utils.dart';
+import '../../songs/show_song_detail_sheet.dart';
 
 class PlayerBottomPanel extends StatelessWidget {
   final PlayerService player;
@@ -284,14 +283,6 @@ class _PlayerSeekBar extends StatefulWidget {
 class _PlayerSeekBarState extends State<_PlayerSeekBar> with SignalsMixin {
   late final _dragValue = createSignal<double?>(null);
 
-  String _format(Duration? duration) {
-    final total = duration?.inSeconds ?? 0;
-    if (total <= 0) return '00:00';
-    final minutes = total ~/ 60;
-    final seconds = total % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Watch.builder(
@@ -349,14 +340,17 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> with SignalsMixin {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _format(Duration(milliseconds: currentMs)),
+                      formatClock(
+                        Duration(milliseconds: currentMs),
+                        zeroText: '00:00',
+                      ),
                       style: TextStyle(
                         fontSize: 12,
                         color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
                       ),
                     ),
                     Text(
-                      _format(duration),
+                      formatClock(duration, zeroText: '00:00'),
                       style: TextStyle(
                         fontSize: 12,
                         color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
@@ -557,27 +551,7 @@ class _BottomActions extends StatelessWidget {
       AppToast.show(context, '暂无歌曲');
       return;
     }
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => SongDetailSheet(
-        song: song,
-        onOpenPlayerAppearanceSettings: () {
-          Navigator.of(context).pushNamed(AppRoutes.playerAppearanceSettings);
-        },
-        onOpenArtist: (artistName) {
-          Navigator.of(context).push(
-            buildAppPageRoute((_) => ArtistDetailPage(artistName: artistName)),
-          );
-        },
-        onOpenAlbum: (albumName) {
-          Navigator.of(context).push(
-            buildAppPageRoute((_) => AlbumDetailPage(albumName: albumName)),
-          );
-        },
-      ),
-    );
+    showSongDetailSheet(context, song: song, enablePlayerAppearanceEntry: true);
   }
 }
 
@@ -699,13 +673,6 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> with SignalsMixin {
     }
   }
 
-  String _formatMinutes(num minutes) {
-    final totalMinutes = minutes.round();
-    final hours = totalMinutes ~/ 60;
-    final mins = totalMinutes % 60;
-    return '$hours:${mins.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final preferLightBackground =
@@ -746,7 +713,7 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> with SignalsMixin {
                         max: 120,
                         divisions: 115,
                         tickCount: 116,
-                        valueText: _formatMinutes(minutes),
+                        valueText: formatMinutesAsClock(minutes),
                         label: '${minutes.round()} 分钟',
                         onChanged: (v) => _minutes.value = v,
                         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -761,7 +728,7 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> with SignalsMixin {
                                   ?.copyWith(color: textColor),
                             ),
                           ),
-                          Switch.adaptive(
+                          AppSwitch(
                             value: untilSongEnd,
                             onChanged: (value) {
                               if (value) {

@@ -16,7 +16,8 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
     with SignalsMixin {
   static const String _prefsMeizuLyrics = 'lyrics_meizu_enabled';
   static const String _prefsLyriconEnabled = 'lyrics_lyricon_enabled';
-  static const String _prefsLyriconForceKaraoke = 'lyrics_lyricon_force_karaoke';
+  static const String _prefsLyriconForceKaraoke =
+      'lyrics_lyricon_force_karaoke';
   static const String _prefsLyriconHideTranslation =
       'lyrics_lyricon_hide_translation';
 

@@ -1,8 +1,9 @@
 import 'package:flutter/services.dart';
 
 class MeizuLyricsService {
-  static const MethodChannel _channel =
-      MethodChannel('com.lanke.nagomusic/meizu_lyrics');
+  static const MethodChannel _channel = MethodChannel(
+    'com.lanke.nagomusic/meizu_lyrics',
+  );
 
   static Future<bool> checkSupport() async {
     try {

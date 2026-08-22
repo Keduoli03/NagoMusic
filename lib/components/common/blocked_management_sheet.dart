@@ -31,10 +31,12 @@ class BlockedManagementSheet extends StatelessWidget {
                 // Or just show the string if it's not a path
                 final name = p.basename(item);
                 final isPath = name != item;
-                
+
                 return ListTile(
                   title: Text(isPath && name.isNotEmpty ? name : item),
-                  subtitle: isPath ? Text(item, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
+                  subtitle: isPath
+                      ? Text(item, maxLines: 1, overflow: TextOverflow.ellipsis)
+                      : null,
                   trailing: IconButton(
                     icon: const Icon(Icons.undo_rounded),
                     tooltip: '取消屏蔽',

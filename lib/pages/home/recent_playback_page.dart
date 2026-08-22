@@ -10,6 +10,7 @@ import '../../app/theme/app_styles.dart';
 import '../../components/common/app_list_tile.dart';
 import '../../components/common/artwork_widget.dart';
 import '../../components/common/glass_panel.dart';
+import '../../components/common/letter_artwork_placeholder.dart';
 import '../../components/layout/base/app_page_scaffold.dart';
 import '../../components/layout/base/app_top_bar.dart';
 import '../library/library_detail_pages.dart';
@@ -223,7 +224,10 @@ class _RecentPlaybackPageState extends State<RecentPlaybackPage> {
                   song: row.song,
                   size: 46,
                   borderRadius: 10,
-                  placeholder: _RecentArtworkPlaceholder(
+                  placeholder: LetterArtworkPlaceholder(
+                    size: 46,
+                    fontWeight: FontWeight.w700,
+
                     label: row.song.title.isEmpty ? '?' : row.song.title[0],
                   ),
                 ),
@@ -254,7 +258,10 @@ class _RecentPlaybackPageState extends State<RecentPlaybackPage> {
                   song: row.representative,
                   size: 46,
                   borderRadius: 10,
-                  placeholder: _RecentArtworkPlaceholder(
+                  placeholder: LetterArtworkPlaceholder(
+                    size: 46,
+                    fontWeight: FontWeight.w700,
+
                     label: row.stat.albumName.isEmpty
                         ? '?'
                         : row.stat.albumName[0],
@@ -350,31 +357,4 @@ class _RecentPlaylistRow {
   final PlaylistPlaybackStat stat;
 
   const _RecentPlaylistRow({required this.playlist, required this.stat});
-}
-
-class _RecentArtworkPlaceholder extends StatelessWidget {
-  final String label;
-
-  const _RecentArtworkPlaceholder({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
 }

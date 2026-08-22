@@ -5,6 +5,7 @@ import 'package:photo_manager/photo_manager.dart';
 
 import '../../app/services/local_music_service.dart';
 import '../../components/index.dart';
+import '../../app/services/scan_types.dart';
 
 class LocalSourceSettingsPage extends StatefulWidget {
   const LocalSourceSettingsPage({super.key});
@@ -16,8 +17,8 @@ class LocalSourceSettingsPage extends StatefulWidget {
 
 class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
   final LocalMusicService _service = LocalMusicService();
-  final ValueNotifier<LocalScanProgress> _scanNotifier = ValueNotifier(
-    const LocalScanProgress(processed: 0, added: 0, total: 0),
+  final ValueNotifier<ScanProgress> _scanNotifier = ValueNotifier(
+    const ScanProgress(processed: 0, added: 0, total: 0),
   );
 
   bool _loading = true;
@@ -168,7 +169,7 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
       useRootNavigator: false,
       barrierDismissible: false,
       builder: (ctx) {
-        return ValueListenableBuilder<LocalScanProgress>(
+        return ValueListenableBuilder<ScanProgress>(
           valueListenable: _scanNotifier,
           builder: (context, progress, child) {
             return SourceScanDialog(
@@ -209,11 +210,7 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
       _isScanning = true;
       _cancelScan = false;
     });
-    _scanNotifier.value = const LocalScanProgress(
-      processed: 0,
-      added: 0,
-      total: 0,
-    );
+    _scanNotifier.value = const ScanProgress(processed: 0, added: 0, total: 0);
     _showScanDialog();
     final result = await _service.scan(
       settings: _settings,
@@ -229,7 +226,7 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
       _isScanning = false;
       _localCount = count;
     });
-    _scanNotifier.value = LocalScanProgress(
+    _scanNotifier.value = ScanProgress(
       processed: progress.processed,
       added: progress.added,
       total: progress.total,

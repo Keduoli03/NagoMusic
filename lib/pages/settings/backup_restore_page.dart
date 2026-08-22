@@ -78,8 +78,12 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       AppToast.show(context, '请至少选择一项备份内容');
       return;
     }
-    final path = await _backup.exportToFile(_sections);
+    final path = await _backup.exportToPickedDirectory(_sections);
     if (!mounted) return;
+    if (path == null) {
+      AppToast.show(context, '已取消导出');
+      return;
+    }
     await _showResultDialog('备份已导出', path, copyLabel: '复制路径');
   });
 
@@ -581,18 +585,17 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                   children: [
                     AppSettingTile(
                       title: '导出到本地文件',
-                      subtitle: '生成 JSON 备份文件',
+                      subtitle: '选择保存位置并生成 JSON 备份文件',
                       leading: const Icon(Icons.save_alt_rounded),
                       trailing: _busy
                           ? _spinner()
                           : const Icon(Icons.chevron_right_rounded),
                       onTap: _busy ? null : _exportLocal,
                     ),
-                    AppSettingTile(
+                    AppSettingNavTile(
                       title: '从本地文件导入',
                       subtitle: '选择一个备份 JSON 文件',
                       leading: const Icon(Icons.file_open_rounded),
-                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: _busy ? null : _importLocal,
                     ),
                   ],
@@ -614,11 +617,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                           : const Icon(Icons.chevron_right_rounded),
                       onTap: _busy ? null : _exportWebDav,
                     ),
-                    AppSettingTile(
+                    AppSettingNavTile(
                       title: '从 WebDAV 导入',
                       subtitle: '从某个目标的备份历史中选择一个恢复',
                       leading: const Icon(Icons.cloud_download_rounded),
-                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: _busy ? null : _importWebDav,
                     ),
                   ],
@@ -634,12 +636,11 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       onChanged: _toggleAuto,
                     ),
                     if (_auto.enabled)
-                      AppSettingTile(
+                      AppSettingNavTile(
                         title: '备份间隔',
                         subtitle:
                             '最短 ${_intervalLabel(_auto.intervalHours)} 自动备份一次',
                         leading: const Icon(Icons.timer_outlined),
-                        trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: _busy ? null : _changeAutoInterval,
                       ),
                   ],
@@ -679,11 +680,10 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             ),
             onTap: _busy ? null : () => _editTargetPath(i),
           ),
-        AppSettingTile(
+        AppSettingNavTile(
           title: '添加备份目标',
           subtitle: '选择 WebDAV 源后浏览并选取服务器上的文件夹',
           leading: const Icon(Icons.add_circle_outline),
-          trailing: const Icon(Icons.chevron_right_rounded),
           onTap: _busy ? null : _addTarget,
         ),
       ],

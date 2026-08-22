@@ -1,11 +1,15 @@
 import 'dart:convert';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import '../prefs_source_repository.dart';
 
 class WebDavSource {
   final String id;
   final String name;
   final String endpoint;
+  // Alternate addresses for the same server (e.g. LAN address at home vs. a
+  // reverse-tunnel/DDNS address while away). Scanning and playback try
+  // [endpoint] first, then these in order, and cache whichever answers.
+  final List<String> altEndpoints;
   final String username;
   final String password;
   final String path;
@@ -17,6 +21,7 @@ class WebDavSource {
     required this.id,
     required this.name,
     required this.endpoint,
+    this.altEndpoints = const [],
     required this.username,
     required this.password,
     required this.path,
@@ -25,10 +30,23 @@ class WebDavSource {
     this.scrapeTagsOnScan = false,
   });
 
+  /// [endpoint] followed by [altEndpoints], trimmed and de-duplicated.
+  List<String> get allEndpoints {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final raw in [endpoint, ...altEndpoints]) {
+      final t = raw.trim();
+      if (t.isEmpty) continue;
+      if (seen.add(t)) result.add(t);
+    }
+    return result;
+  }
+
   WebDavSource copyWith({
     String? id,
     String? name,
     String? endpoint,
+    List<String>? altEndpoints,
     String? username,
     String? password,
     String? path,
@@ -40,6 +58,7 @@ class WebDavSource {
       id: id ?? this.id,
       name: name ?? this.name,
       endpoint: endpoint ?? this.endpoint,
+      altEndpoints: altEndpoints ?? this.altEndpoints,
       username: username ?? this.username,
       password: password ?? this.password,
       path: path ?? this.path,
@@ -54,6 +73,7 @@ class WebDavSource {
       'id': id,
       'name': name,
       'endpoint': endpoint,
+      'altEndpoints': altEndpoints,
       'username': username,
       'password': password,
       'path': path,
@@ -67,7 +87,10 @@ class WebDavSource {
     List<String> readList(String key) {
       final raw = json[key];
       if (raw is List) {
-        return raw.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+        return raw
+            .map((e) => e.toString())
+            .where((e) => e.trim().isNotEmpty)
+            .toList();
       }
       return const [];
     }
@@ -76,6 +99,7 @@ class WebDavSource {
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? 'WebDAV').toString(),
       endpoint: (json['endpoint'] ?? '').toString(),
+      altEndpoints: readList('altEndpoints'),
       username: (json['username'] ?? '').toString(),
       password: (json['password'] ?? '').toString(),
       path: (json['path'] ?? '/').toString(),
@@ -86,60 +110,26 @@ class WebDavSource {
   }
 }
 
-class WebDavSourceRepository {
-  static final WebDavSourceRepository instance = WebDavSourceRepository._internal();
+class WebDavSourceRepository extends PrefsSourceRepository<WebDavSource> {
+  static final WebDavSourceRepository instance =
+      WebDavSourceRepository._internal();
   WebDavSourceRepository._internal();
 
-  static const String _prefsKey = 'webdav_sources_v1';
+  @override
+  String get prefsKey => 'webdav_sources_v1';
 
-  Future<List<WebDavSource>> loadSources() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
-    if (raw == null || raw.trim().isEmpty) {
-      return const [];
-    }
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        final list = decoded
-            .whereType<Map>()
-            .map((e) => WebDavSource.fromJson(e.cast<String, dynamic>()))
-            .where((e) => e.id.trim().isNotEmpty)
-            .toList();
-        if (list.isNotEmpty) return list;
-      }
-    } catch (_) {}
-    return const [];
-  }
+  @override
+  String get idPrefix => 'webdav';
 
-  Future<void> saveSources(List<WebDavSource> sources) async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = jsonEncode(sources.map((e) => e.toJson()).toList());
-    await prefs.setString(_prefsKey, data);
-  }
+  @override
+  WebDavSource fromJson(Map<String, dynamic> json) =>
+      WebDavSource.fromJson(json);
 
-  Future<void> upsert(WebDavSource source) async {
-    final list = await loadSources();
-    final idx = list.indexWhere((e) => e.id == source.id);
-    final next = [...list];
-    if (idx >= 0) {
-      next[idx] = source;
-    } else {
-      next.add(source);
-    }
-    await saveSources(next);
-  }
+  @override
+  Map<String, dynamic> toJson(WebDavSource source) => source.toJson();
 
-  Future<void> removeById(String id) async {
-    final list = await loadSources();
-    final next = list.where((e) => e.id != id).toList();
-    await saveSources(next);
-  }
-
-  String newId() {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    return 'webdav-$ts';
-  }
+  @override
+  String idOf(WebDavSource source) => source.id;
 
   Map<String, String> buildHeaders(WebDavSource source) {
     final headers = <String, String>{

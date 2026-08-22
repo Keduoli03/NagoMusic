@@ -14,6 +14,7 @@ import 'ogg_vorbis_comment.dart';
 import 'probe_handlers.dart';
 import 'tag_probe_result.dart';
 import 'wav_id3_metadata.dart';
+import '../../utils/cache_key.dart';
 
 int? estimateAudioBitrate({required int? fileSize, required int? durationMs}) {
   final bytes = fileSize ?? 0;
@@ -109,7 +110,7 @@ class TagProbeService {
           ? p.extension(parsed.path)
           : '.mp3';
       final headerKey = _headersKey(headers);
-      final name = _hashKey('remote:${parsed.toString()}:$headerKey');
+      final name = fnv1a32Hex('remote:${parsed.toString()}:$headerKey');
       final base = File(p.join(cacheDir.path, '$name${ext.toLowerCase()}'));
       final basePart = File('${base.path}.part');
       final tail = File(
@@ -743,15 +744,6 @@ class TagProbeService {
     return entries.map((e) => '${e.key}=${e.value}').join('&');
   }
 
-  String _hashKey(String input) {
-    var hash = 0x811c9dc5;
-    for (final codeUnit in input.codeUnits) {
-      hash ^= codeUnit;
-      hash = (hash * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash.toRadixString(16);
-  }
-
   Future<File?> _existingRemoteCacheFile(
     Uri uri, {
     Map<String, String>? headers,
@@ -764,7 +756,7 @@ class TagProbeService {
           ? p.extension(uri.path)
           : '.mp3';
       final headerKey = _headersKey(headers);
-      final name = _hashKey('remote:${uri.toString()}:$headerKey');
+      final name = fnv1a32Hex('remote:${uri.toString()}:$headerKey');
       final suffix = tail ? '_tail' : '';
       final out = File(
         p.join(cacheDir.path, '$name$suffix${ext.toLowerCase()}'),
@@ -789,7 +781,7 @@ class TagProbeService {
           ? p.extension(uri.path)
           : '.mp3';
       final headerKey = _headersKey(headers);
-      final name = _hashKey('audio:${uri.toString()}:$headerKey');
+      final name = fnv1a32Hex('audio:${uri.toString()}:$headerKey');
       final complete = File(p.join(cacheDir.path, '$name${ext.toLowerCase()}'));
 
       final tmp = File('${complete.path}.tmp');
@@ -845,7 +837,7 @@ class TagProbeService {
           ? p.extension(uri.path)
           : '.mp3';
       final headerKey = _headersKey(headers);
-      final name = _hashKey('remote:${uri.toString()}:$headerKey');
+      final name = fnv1a32Hex('remote:${uri.toString()}:$headerKey');
       final out = File(p.join(cacheDir.path, '$name${ext.toLowerCase()}'));
       final tmp = File('${out.path}.part');
 
@@ -1019,7 +1011,7 @@ class TagProbeService {
           ? p.extension(uri.path)
           : '.mp3';
       final headerKey = _headersKey(headers);
-      final name = _hashKey('remote:${uri.toString()}:$headerKey');
+      final name = fnv1a32Hex('remote:${uri.toString()}:$headerKey');
       final out = File(
         p.join(cacheDir.path, '${name}_tail${ext.toLowerCase()}'),
       );

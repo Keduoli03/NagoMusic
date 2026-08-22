@@ -223,11 +223,10 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
                 leading: const Icon(Icons.delete_outline_rounded),
                 onTap: _clearLogs,
               ),
-              AppSettingTile(
+              AppSettingNavTile(
                 title: '导出日志',
                 subtitle: '生成日志文件，便于发送给开发者',
                 leading: const Icon(Icons.download_rounded),
-                trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: _exportLogs,
               ),
             ],

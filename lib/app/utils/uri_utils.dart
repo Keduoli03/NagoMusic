@@ -1,4 +1,3 @@
-
 import 'package:path/path.dart' as p;
 
 class UriUtils {
@@ -12,8 +11,7 @@ class UriUtils {
     if (s.isEmpty) return s;
     final sb = StringBuffer();
 
-    bool isWs(int cu) =>
-        cu == 0x20 || cu == 0x09 || cu == 0x0A || cu == 0x0D;
+    bool isWs(int cu) => cu == 0x20 || cu == 0x09 || cu == 0x0A || cu == 0x0D;
     bool isHex(int cu) =>
         (cu >= 0x30 && cu <= 0x39) ||
         (cu >= 0x41 && cu <= 0x46) ||
@@ -74,7 +72,7 @@ class UriUtils {
   static Uri? parseSafeUri(String uriStr) {
     final raw = repairUrlForBrokenPercentEscapes(uriStr);
     if (raw.isEmpty) return null;
-    
+
     // Try parsing the raw string, or encoded if raw fails
     final parsed = Uri.tryParse(raw) ?? Uri.tryParse(Uri.encodeFull(raw));
     if (parsed == null) return null;
@@ -87,7 +85,7 @@ class UriUtils {
       }).toList();
       return parsed.replace(pathSegments: segments);
     }
-    
+
     return parsed;
   }
 

@@ -1,51 +1,36 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'pref_entry.dart';
 
 class MediaNotificationSettings {
-  static const String _prefsShowLyrics = 'notification_show_lyrics';
-  static const String _prefsShowCloseAction = 'notification_show_close_action';
-  static const String _prefsLyricOnTop = 'notification_lyric_on_top';
-  static const String _prefsShowFavoriteAction =
-      'notification_show_favorite_action';
+  static final showLyrics = PrefEntry.boolean(
+    'notification_show_lyrics',
+    defaultValue: true,
+  );
+  static final showCloseAction = PrefEntry.boolean(
+    'notification_show_close_action',
+    defaultValue: true,
+  );
+  static final lyricOnTop = PrefEntry.boolean('notification_lyric_on_top');
+  static final showFavoriteAction = PrefEntry.boolean(
+    'notification_show_favorite_action',
+    defaultValue: true,
+  );
 
-  static final ValueNotifier<bool> showLyrics = ValueNotifier(true);
-  static final ValueNotifier<bool> showCloseAction = ValueNotifier(true);
-  static final ValueNotifier<bool> lyricOnTop = ValueNotifier(false);
-  static final ValueNotifier<bool> showFavoriteAction = ValueNotifier(true);
+  static final _group = PrefGroup([
+    showLyrics,
+    showCloseAction,
+    lyricOnTop,
+    showFavoriteAction,
+  ]);
 
-  static Future<void>? _loading;
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static Future<void> setShowLyrics(bool enabled) => showLyrics.set(enabled);
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    showLyrics.value = prefs.getBool(_prefsShowLyrics) ?? true;
-    showCloseAction.value = prefs.getBool(_prefsShowCloseAction) ?? true;
-    lyricOnTop.value = prefs.getBool(_prefsLyricOnTop) ?? false;
-    showFavoriteAction.value = prefs.getBool(_prefsShowFavoriteAction) ?? true;
-  }
+  static Future<void> setShowCloseAction(bool enabled) =>
+      showCloseAction.set(enabled);
 
-  static Future<void> setShowLyrics(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowLyrics, enabled);
-    showLyrics.value = enabled;
-  }
+  static Future<void> setLyricOnTop(bool enabled) => lyricOnTop.set(enabled);
 
-  static Future<void> setShowCloseAction(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowCloseAction, enabled);
-    showCloseAction.value = enabled;
-  }
-
-  static Future<void> setLyricOnTop(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsLyricOnTop, enabled);
-    lyricOnTop.value = enabled;
-  }
-
-  static Future<void> setShowFavoriteAction(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowFavoriteAction, enabled);
-    showFavoriteAction.value = enabled;
-  }
+  static Future<void> setShowFavoriteAction(bool enabled) =>
+      showFavoriteAction.set(enabled);
 }

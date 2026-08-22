@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/theme/app_styles.dart';
 
-/// Solid-but-optionally-transparent panel container.
+/// 跟随「面板透明度」滑块的面板容器。
 ///
-/// Previously this used `BackdropFilter` to blur whatever was underneath, but
-/// the blur was expensive, its "on/off" switch made the transparency slider
-/// look broken, and users just wanted a panel whose opacity they could tune.
-/// The widget name is kept for backwards compatibility with all the call
-/// sites — think of it now as "the app's standard panel", not a blur.
+/// 相当于 `SurfaceCard` 外面包了一层透明度逻辑：底色取
+/// `theme.appPanelColor`（= `AppColors.surface` × 面板透明度），描边取
+/// `AppColors.line`，浅色下再加一层极淡阴影。
+///
+/// 不需要跟随透明度滑块的普通卡片请直接用 `SurfaceCard`。
+///
+/// 早先这里用 `BackdropFilter` 做真实模糊，但开销大、开关又让透明度滑块看起来
+/// 像坏了，所以只保留了可调透明度。[blurSigma] 仅为兼容旧调用点保留，不生效。
 class GlassPanel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -82,9 +85,7 @@ class GlassPanel extends StatelessWidget {
         border: isInvisible ? null : Border.all(color: resolvedBorderColor),
         boxShadow: resolvedShadow,
       ),
-      child: padding == null
-          ? child
-          : Padding(padding: padding!, child: child),
+      child: padding == null ? child : Padding(padding: padding!, child: child),
     );
 
     final material = Material(
@@ -98,9 +99,6 @@ class GlassPanel extends StatelessWidget {
             ),
     );
 
-    return ClipRRect(
-      borderRadius: _resolvedBorderRadius,
-      child: material,
-    );
+    return ClipRRect(borderRadius: _resolvedBorderRadius, child: material);
   }
 }

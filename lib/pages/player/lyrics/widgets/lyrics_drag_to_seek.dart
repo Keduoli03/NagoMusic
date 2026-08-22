@@ -25,21 +25,28 @@ class _LyricsDragToSeekState extends State<LyricsDragToSeek> {
   @override
   void initState() {
     super.initState();
-    widget.lyrics.controller.isSelectingNotifier.addListener(_onSelectingChanged);
+    widget.lyrics.controller.isSelectingNotifier.addListener(
+      _onSelectingChanged,
+    );
   }
 
   @override
   void didUpdateWidget(covariant LyricsDragToSeek oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lyrics == widget.lyrics) return;
-    oldWidget.lyrics.controller.isSelectingNotifier
-        .removeListener(_onSelectingChanged);
-    widget.lyrics.controller.isSelectingNotifier.addListener(_onSelectingChanged);
+    oldWidget.lyrics.controller.isSelectingNotifier.removeListener(
+      _onSelectingChanged,
+    );
+    widget.lyrics.controller.isSelectingNotifier.addListener(
+      _onSelectingChanged,
+    );
   }
 
   @override
   void dispose() {
-    widget.lyrics.controller.isSelectingNotifier.removeListener(_onSelectingChanged);
+    widget.lyrics.controller.isSelectingNotifier.removeListener(
+      _onSelectingChanged,
+    );
     super.dispose();
   }
 

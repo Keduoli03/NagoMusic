@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'db_constants.dart';
+import 'migrations/webdav_song_id_migration.dart';
 
 class DbHelper {
   DbHelper._internal();
@@ -253,6 +254,9 @@ CREATE TABLE IF NOT EXISTS ${DbConstants.tablePlaylistStats} (
           await db.execute(
             'ALTER TABLE ${DbConstants.tableSongs} ADD COLUMN discNumber INTEGER',
           );
+        }
+        if (oldVersion < 11) {
+          await migrateWebdavSongIdsToPathBased(db);
         }
       },
     );

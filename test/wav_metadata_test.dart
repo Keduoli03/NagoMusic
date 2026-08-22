@@ -114,10 +114,7 @@ void main() {
       expect(result?.artwork, orderedEquals(_artworkBytes));
       expect(ranges, contains('bytes=0-65535'));
       expect(ranges, contains('bytes=-2097152'));
-      expect(
-        ranges.where((range) => range.isNotEmpty),
-        hasLength(2),
-      );
+      expect(ranges.where((range) => range.isNotEmpty), hasLength(2));
     } finally {
       await server.close(force: true);
       HttpOverrides.global = originalHttpOverrides;

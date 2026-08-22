@@ -15,11 +15,7 @@ String naturalPinyinSortKey(String text, {Map<String, String>? cache}) {
   return key;
 }
 
-int naturalPinyinCompare(
-  String a,
-  String b, {
-  Map<String, String>? cache,
-}) {
+int naturalPinyinCompare(String a, String b, {Map<String, String>? cache}) {
   return naturalCompare(
     naturalPinyinSortKey(a, cache: cache),
     naturalPinyinSortKey(b, cache: cache),
@@ -81,9 +77,9 @@ _NumberRunCompare _compareNumberRuns(
   }
 
   for (var i = 0; i < leftLength; i += 1) {
-    final diff = left.codeUnitAt(leftTrimmed + i).compareTo(
-      right.codeUnitAt(rightTrimmed + i),
-    );
+    final diff = left
+        .codeUnitAt(leftTrimmed + i)
+        .compareTo(right.codeUnitAt(rightTrimmed + i));
     if (diff != 0) return _NumberRunCompare(diff, leftEnd, rightEnd);
   }
 
@@ -116,9 +112,5 @@ class _NumberRunCompare {
   final int nextLeftIndex;
   final int nextRightIndex;
 
-  const _NumberRunCompare(
-    this.result,
-    this.nextLeftIndex,
-    this.nextRightIndex,
-  );
+  const _NumberRunCompare(this.result, this.nextLeftIndex, this.nextRightIndex);
 }

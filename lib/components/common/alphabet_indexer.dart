@@ -116,11 +116,7 @@ class IndexPreview extends StatelessWidget {
   final String text;
   final bool visible;
 
-  const IndexPreview({
-    super.key,
-    required this.text,
-    required this.visible,
-  });
+  const IndexPreview({super.key, required this.text, required this.visible});
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +131,9 @@ class IndexPreview extends StatelessWidget {
             height: 56,
             margin: const EdgeInsets.only(right: 36),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.9),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -210,8 +208,8 @@ class DraggableScrollbar extends StatelessWidget {
 
                 final viewPort = controller.position.viewportDimension;
                 final contentHeight = maxScroll + viewPort;
-                final thumbHeight =
-                    (viewPort / contentHeight * totalHeight).clamp(40.0, totalHeight);
+                final thumbHeight = (viewPort / contentHeight * totalHeight)
+                    .clamp(40.0, totalHeight);
 
                 final availableSlide = totalHeight - thumbHeight;
                 final thumbTop = scrollFraction * availableSlide;
@@ -225,10 +223,9 @@ class DraggableScrollbar extends StatelessWidget {
                         width: 4,
                         height: thumbHeight,
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),

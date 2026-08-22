@@ -318,13 +318,32 @@ class BackupService {
   }
 
   // ---- local file ----
-  Future<String> exportToFile(BackupSections sections) async {
+  /// Prompts the user to pick a destination folder, then writes the backup
+  /// there. Returns the written file path, or null if the picker was cancelled.
+  /// Falls back to the app documents directory only when [directory] is given.
+  Future<String?> exportToPickedDirectory(BackupSections sections) async {
+    final directoryPath = await FilePicker.platform.getDirectoryPath();
+    if (directoryPath == null || directoryPath.trim().isEmpty) return null;
+    return exportToFile(sections, directory: directoryPath);
+  }
+
+  /// Writes the backup JSON to [directory] (or the app documents directory when
+  /// omitted) and returns the file path.
+  Future<String> exportToFile(
+    BackupSections sections, {
+    String? directory,
+  }) async {
     final jsonStr = await buildBackupJson(sections);
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     final name =
         'nagomusic-backup-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}.json';
-    final dir = await getApplicationDocumentsDirectory();
+    final dirPath =
+        directory ?? (await getApplicationDocumentsDirectory()).path;
+    final dir = Directory(dirPath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
     final file = File(p.join(dir.path, name));
     await file.writeAsString(jsonStr, flush: true);
     return file.path;

@@ -14,19 +14,18 @@ import '../../app/services/stats_service.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
-import '../../app/router/app_page_route.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/state/song_state.dart';
 import '../../app/utils/deferred_page_init_mixin.dart';
+import '../../app/utils/multi_select_mixin.dart';
 import '../../app/utils/page_cache_store.dart';
 import '../../components/index.dart';
-import '../library/library_detail_pages.dart';
 import '../library/playlists_page.dart';
-import 'song_detail_sheet.dart';
 import 'songs_actions_controller.dart';
 import 'songs_artwork_coordinator.dart';
-import 'songs_selection_controller.dart';
 import 'songs_visible_controller.dart';
+import '../../app/utils/format_utils.dart';
+import 'show_song_detail_sheet.dart';
 
 class SongsPage extends StatefulWidget {
   const SongsPage({super.key});
@@ -42,20 +41,8 @@ class _SourceFilterItem {
   const _SourceFilterItem({required this.label, required this.value});
 }
 
-class _RemoveProgress {
-  final int processed;
-  final int total;
-  final bool isRemoving;
-
-  const _RemoveProgress({
-    required this.processed,
-    required this.total,
-    required this.isRemoving,
-  });
-}
-
 class _SongsPageState extends State<SongsPage>
-    with SignalsMixin, DeferredPageInitMixin {
+    with SignalsMixin, DeferredPageInitMixin, MultiSelectMixin<SongsPage> {
   static const String _prefsSourceFilter = 'songs_source_filter';
   static const String _prefsSortKey = 'songs_sort_key';
   static const String _prefsSortAsc = 'songs_sort_asc';
@@ -78,8 +65,6 @@ class _SongsPageState extends State<SongsPage>
   final ArtworkService _artworkService = ArtworkService.instance;
   final PageCacheStore _cacheStore = PageCacheStore.instance;
   final SongsVisibleController _visibleController = SongsVisibleController();
-  final SongsSelectionController _selectionController =
-      SongsSelectionController();
   final SongsActionsController _actionsController = SongsActionsController();
   late final SongsArtworkCoordinator _artworkCoordinator =
       SongsArtworkCoordinator(
@@ -100,10 +85,8 @@ class _SongsPageState extends State<SongsPage>
   int _metadataProbeActive = 0;
   Timer? _rebuildDebounceTimer;
   Timer? _artworkIdlePrefetchTimer;
-  late final _selectedIds = createSignal<Set<String>>(<String>{});
   late final _visibleSongs = createSignal<List<SongEntity>>([]);
   late final _visibleSongsAll = createSignal<List<SongEntity>>([]);
-  late final _multiSelect = createSignal(false);
   late final _isSequentialPlay = createSignal(false);
   late final _randomPlayCount = createSignal<int?>(null);
   late final _sequentialPlayCount = createSignal<int?>(null);
@@ -121,10 +104,7 @@ class _SongsPageState extends State<SongsPage>
   late final _scrapeSuccess = createSignal(0);
   OverlayEntry? _scrapeOverlay;
   final LayerLink _scrapeLayerLink = LayerLink();
-  final ValueNotifier<_RemoveProgress> _removeNotifier = ValueNotifier(
-    const _RemoveProgress(processed: 0, total: 0, isRemoving: false),
-  );
-  bool _isRemoving = false;
+  final RemoveProgressController _removeProgress = RemoveProgressController();
 
   @override
   void initState() {
@@ -159,7 +139,7 @@ class _SongsPageState extends State<SongsPage>
     PlayerService.instance.currentSong.removeListener(_handlePlayerSongChanged);
     _listController.removeListener(_handleScroll);
     _listController.dispose();
-    _removeNotifier.dispose();
+    _removeProgress.dispose();
     super.dispose();
   }
 
@@ -409,29 +389,15 @@ class _SongsPageState extends State<SongsPage>
     }
   }
 
-  void _toggleSelectAll(List<SongEntity> visible) {
-    _selectedIds.value = _selectionController.toggleSelectAll(
-      _selectedIds.value,
-      visible,
-    );
-  }
-
-  void _toggleMultiSelect() {
-    _multiSelect.value = _selectionController.toggleMultiSelect(
-      _multiSelect.value,
-    );
-    _selectedIds.value = _selectionController.clearSelection();
-  }
-
   Future<void> _openAddToPlaylistSheet() async {
     final added = await _actionsController.addSelectedToPlaylist(
-      selectedIds: _selectedIds.value,
+      selectedIds: selection,
       openDialog: (songIds) =>
           showAddToPlaylistDialog(context, songIds: songIds),
     );
     if (!mounted) return;
     if (added) {
-      _toggleMultiSelect();
+      toggleMultiSelect();
     }
   }
 
@@ -616,42 +582,6 @@ class _SongsPageState extends State<SongsPage>
     _scrapeOverlay = null;
   }
 
-  void _showRemoveDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return ValueListenableBuilder<_RemoveProgress>(
-          valueListenable: _removeNotifier,
-          builder: (context, progress, child) {
-            final finished = !progress.isRemoving;
-            return AppDialog(
-              title: finished ? '移除完成' : '正在移除...',
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LinearProgressIndicator(
-                    value: progress.total > 0
-                        ? progress.processed / progress.total
-                        : 0,
-                  ),
-                  const SizedBox(height: 16),
-                  Text('已移除: ${progress.processed}'),
-                  const SizedBox(height: 4),
-                  Text('总计: ${progress.total}'),
-                ],
-              ),
-              confirmText: finished ? '知道了' : '隐藏',
-              showCancel: false,
-              onConfirm: () {},
-            );
-          },
-        );
-      },
-    );
-  }
-
   void _showScrapeOverlay() {
     _removeScrapeOverlay();
     final overlay = Overlay.of(context);
@@ -733,8 +663,8 @@ class _SongsPageState extends State<SongsPage>
     }
 
     final visible = _visibleSongsAll.value;
-    final selected = _selectedIds.value;
-    final candidates = _multiSelect.value && selected.isNotEmpty
+    final selected = selection;
+    final candidates = multiSelect.value && selected.isNotEmpty
         ? visible.where((s) => selected.contains(s.id)).toList()
         : visible;
     if (candidates.isEmpty) {
@@ -966,6 +896,11 @@ class _SongsPageState extends State<SongsPage>
                 label: '播放次数',
                 icon: Icons.local_fire_department_outlined,
               ),
+              SortOption(
+                key: 'fileName',
+                label: '文件名称',
+                icon: Icons.description_outlined,
+              ),
             ],
             currentKey: _sortKey.value,
             ascending: _ascending.value,
@@ -985,14 +920,6 @@ class _SongsPageState extends State<SongsPage>
     );
   }
 
-  String _durationText(int? durationMs) {
-    if (durationMs == null || durationMs <= 0) return '--:--';
-    final totalSeconds = (durationMs / 1000).floor();
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
   Future<void> _openPlayerWithQueue(
     List<SongEntity> queue,
     int startIndex,
@@ -1007,22 +934,17 @@ class _SongsPageState extends State<SongsPage>
   }
 
   Future<void> _removeSelectedSongs() async {
-    if (_isRemoving) {
-      _showRemoveDialog();
+    if (_removeProgress.isRemoving) {
+      _removeProgress.showDialogOn(context);
       return;
     }
-    final ids = _selectedIds.value.toList(growable: false);
+    final ids = selection.toList(growable: false);
     if (ids.isEmpty) return;
     final removedSongs = _songs.value
         .where((s) => ids.contains(s.id))
         .toList(growable: false);
-    _isRemoving = true;
-    _removeNotifier.value = _RemoveProgress(
-      processed: 0,
-      total: removedSongs.length,
-      isRemoving: true,
-    );
-    _showRemoveDialog();
+    _removeProgress.start(removedSongs.length);
+    _removeProgress.showDialogOn(context);
     var processed = 0;
     final removedCount = await _actionsController.removeSongs(
       songsToRemove: removedSongs,
@@ -1045,31 +967,19 @@ class _SongsPageState extends State<SongsPage>
         if (removedIds.contains(_currentId.value)) {
           _currentId.value = null;
         }
-        final nextSelected = Set<String>.from(_selectedIds.value)
-          ..removeAll(removedIds);
-        _selectedIds.value = nextSelected;
+        removeFromSelection(removedIds);
       },
       onProgress: (nextProcessed, total) async {
         if (!mounted) return;
         processed = nextProcessed;
-        _removeNotifier.value = _RemoveProgress(
-          processed: nextProcessed,
-          total: total,
-          isRemoving: true,
-        );
+        _removeProgress.update(nextProcessed, total);
       },
     );
     if (!mounted) return;
     _cacheStore.clearScope(_cacheScopeVisible);
-    _isRemoving = false;
-    _removeNotifier.value = _RemoveProgress(
-      processed: processed,
-      total: removedSongs.length,
-      isRemoving: false,
-    );
+    _removeProgress.finish(processed);
     AppToast.show(context, '已移除 $removedCount 首');
-    _selectedIds.value = _selectionController.clearSelection();
-    _multiSelect.value = false;
+    exitMultiSelect();
     unawaited(_updateVisibleSongs());
   }
 
@@ -1089,7 +999,7 @@ class _SongsPageState extends State<SongsPage>
             return AppPageScaffold(
               key: _scaffoldKey,
               extendBodyBehindAppBar: true,
-              showMiniPlayer: !_multiSelect.value,
+              showMiniPlayer: !multiSelect.value,
               appBar: AppTopBar(
                 title: '歌曲',
                 centerTitle: !isTabletLandscape,
@@ -1137,15 +1047,13 @@ class _SongsPageState extends State<SongsPage>
 
           final visibleSongs = _visibleSongs.value;
           final totalCount = _visibleSongsAll.value.length;
-          final selectedCount = _selectionController.selectedCount(
-            _selectedIds.value,
-          );
+          final selectedCount = this.selectedCount;
           final isAllSelected = totalCount > 0 && selectedCount == totalCount;
 
           return AppPageScaffold(
             key: _scaffoldKey,
             extendBodyBehindAppBar: true,
-            showMiniPlayer: !_multiSelect.value,
+            showMiniPlayer: !multiSelect.value,
             appBar: AppTopBar(
               title: '歌曲',
               centerTitle: !isTabletLandscape,
@@ -1195,14 +1103,14 @@ class _SongsPageState extends State<SongsPage>
             body: Column(
               children: [
                 MediaListHeader(
-                  multiSelect: _multiSelect.value,
+                  multiSelect: multiSelect.value,
                   isAllSelected: isAllSelected,
                   selectedCount: selectedCount,
                   totalCount: totalCount,
                   playbackCount: _playCountForMode(totalCount),
                   isSequentialPlay: _isSequentialPlay.value,
                   onToggleSelectAll: () =>
-                      _toggleSelectAll(_visibleSongsAll.value),
+                      toggleSelectAll(_visibleSongsAll.value.map((e) => e.id)),
                   onPlay: () {
                     if (_visibleSongsAll.value.isEmpty) return;
                     final queue = _buildPlayQueue(_visibleSongsAll.value);
@@ -1211,7 +1119,7 @@ class _SongsPageState extends State<SongsPage>
                   onConfigurePlay: _showCurrentPlaySettings,
                   onTogglePlayMode: _togglePlayMode,
                   onSort: _showSortSheet,
-                  onToggleMultiSelect: _toggleMultiSelect,
+                  onToggleMultiSelect: toggleMultiSelect,
                 ),
                 Expanded(
                   child: totalCount == 0
@@ -1223,13 +1131,13 @@ class _SongsPageState extends State<SongsPage>
                           bottomInset:
                               bottomInset +
                               tabletMiniPlayerInset +
-                              (_multiSelect.value ? 160 : 80),
+                              (multiSelect.value ? 160 : 80),
                           indexLabelBuilder: (index) =>
                               _indexLabelForSong(visibleSongs[index]),
                           itemBuilder: (context, index) {
                             final song = visibleSongs[index];
                             final currentId = _currentId.value;
-                            final selected = _selectedIds.value;
+                            final selected = selection;
                             final isPlaying = currentId == song.id;
                             return MediaListTile(
                               leading: _SongArtwork(
@@ -1239,15 +1147,15 @@ class _SongsPageState extends State<SongsPage>
                                 onLoad: () => _loadArtwork(song),
                               ),
                               title: song.title,
+                              titleBadge: QualityTagBadge(song: song),
                               subtitle:
-                                  '${song.artist} · ${song.album ?? '未知专辑'} · ${_durationText(song.durationMs)}',
+                                  '${song.artist} · ${song.album ?? '未知专辑'} · ${formatDurationMs(song.durationMs)}',
                               selected: selected.contains(song.id),
-                              multiSelect: _multiSelect.value,
+                              multiSelect: multiSelect.value,
                               isHighlighted: isPlaying,
                               onTap: () {
-                                if (_multiSelect.value) {
-                                  _selectedIds.value = _selectionController
-                                      .toggleSong(selected, song.id);
+                                if (multiSelect.value) {
+                                  toggleSelected(song.id);
                                 } else {
                                   _currentId.value = song.id;
                                   final queue = _buildPlayQueue(
@@ -1264,92 +1172,60 @@ class _SongsPageState extends State<SongsPage>
                                 }
                               },
                               onLongPress: () {
-                                if (_multiSelect.value) {
-                                  _selectedIds.value = _selectionController
-                                      .toggleSong(selected, song.id);
+                                if (multiSelect.value) {
+                                  toggleSelected(song.id);
                                   return;
                                 }
 
-                                showModalBottomSheet<void>(
-                                  context: context,
-                                  backgroundColor: Colors.transparent,
-                                  isScrollControlled: true,
-                                  builder: (_) {
-                                    return SongDetailSheet(
-                                      song: song,
-                                      onOpenArtist: (artistName) {
-                                        Navigator.of(context).push(
-                                          buildAppPageRoute(
-                                            (_) => ArtistDetailPage(
-                                              artistName: artistName,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      onOpenAlbum: (albumName) {
-                                        Navigator.of(context).push(
-                                          buildAppPageRoute(
-                                            (_) => AlbumDetailPage(
-                                              albumName: albumName,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      onUpdated: (updated) {
-                                        if (!mounted) return;
-                                        final updatedSongs = _songs.value
-                                            .map(
-                                              (s) => s.id == updated.id
-                                                  ? updated
-                                                  : s,
-                                            )
-                                            .toList();
-                                        _songs.value = updatedSongs;
-                                        _cachedSongs = updatedSongs;
-                                        unawaited(_updateVisibleSongs());
-                                      },
-                                      onDeleted: (id) {
-                                        if (!mounted) return;
-                                        final currentSongs = _songs.value;
-                                        SongEntity? deleted;
-                                        for (final s in currentSongs) {
-                                          if (s.id == id) {
-                                            deleted = s;
-                                            break;
-                                          }
-                                        }
-                                        final nextSongs = currentSongs
-                                            .where((s) => s.id != id)
-                                            .toList();
-                                        _songs.value = nextSongs;
-                                        _cachedSongs = nextSongs;
-                                        if (_currentId.value == id) {
-                                          _currentId.value = null;
-                                        }
-                                        unawaited(_updateVisibleSongs());
-                                        if (deleted != null) {
-                                          Future.microtask(
-                                            () =>
-                                                _actionsController.removeSongs(
-                                                  songsToRemove: [deleted!],
-                                                  clearArtwork: (song) =>
-                                                      _artworkCoordinator
-                                                          .clearSong(
-                                                            song.id,
-                                                            uri: song.uri,
-                                                          ),
-                                                  onSongsRemoved:
-                                                      (removed) async {},
-                                                  onProgress:
-                                                      (
-                                                        processed,
-                                                        total,
-                                                      ) async {},
-                                                ),
-                                          );
-                                        }
-                                      },
-                                    );
+                                showSongDetailSheet(
+                                  context,
+                                  song: song,
+                                  onUpdated: (updated) {
+                                    if (!mounted) return;
+                                    final updatedSongs = _songs.value
+                                        .map(
+                                          (s) =>
+                                              s.id == updated.id ? updated : s,
+                                        )
+                                        .toList();
+                                    _songs.value = updatedSongs;
+                                    _cachedSongs = updatedSongs;
+                                    unawaited(_updateVisibleSongs());
+                                  },
+                                  onDeleted: (id) {
+                                    if (!mounted) return;
+                                    final currentSongs = _songs.value;
+                                    SongEntity? deleted;
+                                    for (final s in currentSongs) {
+                                      if (s.id == id) {
+                                        deleted = s;
+                                        break;
+                                      }
+                                    }
+                                    final nextSongs = currentSongs
+                                        .where((s) => s.id != id)
+                                        .toList();
+                                    _songs.value = nextSongs;
+                                    _cachedSongs = nextSongs;
+                                    if (_currentId.value == id) {
+                                      _currentId.value = null;
+                                    }
+                                    unawaited(_updateVisibleSongs());
+                                    if (deleted != null) {
+                                      Future.microtask(
+                                        () => _actionsController.removeSongs(
+                                          songsToRemove: [deleted!],
+                                          clearArtwork: (song) =>
+                                              _artworkCoordinator.clearSong(
+                                                song.id,
+                                                uri: song.uri,
+                                              ),
+                                          onSongsRemoved: (removed) async {},
+                                          onProgress:
+                                              (processed, total) async {},
+                                        ),
+                                      );
+                                    }
                                   },
                                 );
                               },
@@ -1385,7 +1261,7 @@ class _SongsPageState extends State<SongsPage>
                                 ),
                         ),
                 ),
-                if (_multiSelect.value)
+                if (multiSelect.value)
                   Padding(
                     padding: EdgeInsets.only(bottom: tabletMiniPlayerInset),
                     child: MultiSelectBottomBar(
@@ -1400,7 +1276,7 @@ class _SongsPageState extends State<SongsPage>
                                     context,
                                     '已添加 $selectedCount 首到下一首播放',
                                   );
-                                  _toggleMultiSelect();
+                                  toggleMultiSelect();
                                 },
                         ),
                         MultiSelectAction(
@@ -1508,7 +1384,12 @@ class _SongArtworkState extends State<_SongArtwork> with SignalsMixin {
                       .toInt(),
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
-                return _SongArtworkPlaceholder(song: widget.song);
+                return LetterArtworkPlaceholder(
+                  label: widget.song.title,
+                  size: 44,
+                  borderRadius: BorderRadius.circular(6),
+                  tintedBackground: true,
+                );
               },
             ),
           );
@@ -1531,35 +1412,13 @@ class _SongArtworkState extends State<_SongArtwork> with SignalsMixin {
             ),
           );
         }
-        return _SongArtworkPlaceholder(song: widget.song);
+        return LetterArtworkPlaceholder(
+          label: widget.song.title,
+          size: 44,
+          borderRadius: BorderRadius.circular(6),
+          tintedBackground: true,
+        );
       },
-    );
-  }
-}
-
-class _SongArtworkPlaceholder extends StatelessWidget {
-  final SongEntity song;
-
-  const _SongArtworkPlaceholder({required this.song});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        song.title.isEmpty ? '?' : song.title.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
     );
   }
 }

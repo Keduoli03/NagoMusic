@@ -72,15 +72,16 @@ class _MediaListViewState extends State<MediaListView> {
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) {
-      return widget.loadingWidget ?? const Center(child: CircularProgressIndicator());
+      return widget.loadingWidget ??
+          const Center(child: CircularProgressIndicator());
     }
 
     if (widget.itemCount == 0) {
       return widget.emptyWidget ?? Center(child: Text(widget.emptyText));
     }
 
-    final padding = widget.padding ??
-        EdgeInsets.only(right: 4, bottom: widget.bottomInset);
+    final padding =
+        widget.padding ?? EdgeInsets.only(right: 4, bottom: widget.bottomInset);
     final showIndexBar = widget.indexLabelBuilder != null;
 
     return Stack(
@@ -99,7 +100,9 @@ class _MediaListViewState extends State<MediaListView> {
             bottom: 0,
             child: IgnorePointer(
               child: AnimatedOpacity(
-                opacity: _indexPreviewVisible && _indexPreviewLetter != null ? 1 : 0,
+                opacity: _indexPreviewVisible && _indexPreviewLetter != null
+                    ? 1
+                    : 0,
                 duration: const Duration(milliseconds: 120),
                 child: Align(
                   alignment: Alignment.centerRight,

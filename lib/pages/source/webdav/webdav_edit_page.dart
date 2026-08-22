@@ -28,9 +28,12 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
   final TextEditingController _endpointCtrl = TextEditingController();
   final TextEditingController _usernameCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
+  final List<TextEditingController> _altEndpointCtrls = [];
 
   bool _showPassword = false;
   bool _saving = false;
+  bool _testingAll = false;
+  Map<String, bool>? _testResults;
 
   @override
   void initState() {
@@ -40,6 +43,9 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
     _endpointCtrl.text = _source.endpoint;
     _usernameCtrl.text = _source.username;
     _passwordCtrl.text = _source.password;
+    for (final endpoint in _source.altEndpoints) {
+      _altEndpointCtrls.add(TextEditingController(text: endpoint));
+    }
   }
 
   @override
@@ -48,7 +54,58 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
     _endpointCtrl.dispose();
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
+    for (final ctrl in _altEndpointCtrls) {
+      ctrl.dispose();
+    }
     super.dispose();
+  }
+
+  void _addAltEndpoint() {
+    setState(() {
+      _altEndpointCtrls.add(TextEditingController());
+      _testResults = null;
+    });
+  }
+
+  void _removeAltEndpoint(int index) {
+    setState(() {
+      final ctrl = _altEndpointCtrls.removeAt(index);
+      ctrl.dispose();
+      _testResults = null;
+    });
+  }
+
+  List<String> _altEndpointValues() => _altEndpointCtrls
+      .map((c) => c.text.trim())
+      .where((e) => e.isNotEmpty)
+      .toList();
+
+  Future<void> _testAllEndpoints() async {
+    final draft = _draftSource().copyWith(
+      includeFolders: _source.includeFolders,
+      excludeFolders: _source.excludeFolders,
+    );
+    if (draft.allEndpoints.isEmpty) {
+      AppToast.show(context, '请先填写至少一个地址', type: ToastType.error);
+      return;
+    }
+    setState(() {
+      _testingAll = true;
+      _testResults = null;
+    });
+    try {
+      final result = await _service.testConnections(draft);
+      if (!mounted) return;
+      final okCount = result.values.where((ok) => ok).length;
+      setState(() => _testResults = result);
+      AppToast.show(
+        context,
+        '$okCount/${result.length} 个地址可连接',
+        type: okCount > 0 ? ToastType.success : ToastType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _testingAll = false);
+    }
   }
 
   WebDavSource _draftSource() {
@@ -63,6 +120,7 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
     return _source.copyWith(
       name: name.isEmpty ? _source.name : name,
       endpoint: endpoint,
+      altEndpoints: _altEndpointValues(),
       username: username,
       password: password,
       path: path,
@@ -218,24 +276,24 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
           AppSettingSection(
             title: '连接信息',
             children: [
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '名称',
                 controller: _nameCtrl,
                 hintText: '自定义名称',
                 enabled: !_saving,
               ),
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '地址',
                 controller: _endpointCtrl,
                 hintText: 'https://example.com/dav',
                 enabled: !_saving,
               ),
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '用户名',
                 controller: _usernameCtrl,
                 enabled: !_saving,
               ),
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '密码',
                 controller: _passwordCtrl,
                 enabled: !_saving,
@@ -259,6 +317,56 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
                         _source = _source.copyWith(scrapeTagsOnScan: v);
                       }),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppSettingSection(
+            title: '备用地址',
+            children: [
+              for (var i = 0; i < _altEndpointCtrls.length; i++)
+                AppTextFieldTile(
+                  label: '备用地址 ${i + 1}',
+                  controller: _altEndpointCtrls[i],
+                  hintText: 'https://alt.example.com/dav',
+                  enabled: !_saving,
+                  suffix: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_testResults != null)
+                        Builder(
+                          builder: (context) {
+                            final ok =
+                                _testResults![_altEndpointCtrls[i].text
+                                    .trim()] ??
+                                false;
+                            return Icon(
+                              ok ? Icons.check_circle : Icons.error_outline,
+                              color: ok ? Colors.green : Colors.red,
+                              size: 18,
+                            );
+                          },
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: _saving
+                            ? null
+                            : () => _removeAltEndpoint(i),
+                      ),
+                    ],
+                  ),
+                ),
+              AppSettingTile(
+                title: '添加备用地址',
+                subtitle: '例如内网穿透/DDNS 地址，需指向同一台服务器',
+                leading: const Icon(Icons.add_link),
+                onTap: _saving ? null : _addAltEndpoint,
+              ),
+              if (_altEndpointCtrls.isNotEmpty)
+                AppSettingTile(
+                  title: _testingAll ? '测试中...' : '测试全部地址',
+                  leading: const Icon(Icons.wifi_tethering),
+                  onTap: _saving || _testingAll ? null : _testAllEndpoints,
+                ),
             ],
           ),
           if (!widget.isAdd) ...[
@@ -309,42 +417,6 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _TextFieldTile extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final String? hintText;
-  final bool enabled;
-  final bool obscureText;
-  final Widget? suffix;
-
-  const _TextFieldTile({
-    required this.label,
-    required this.controller,
-    this.hintText,
-    required this.enabled,
-    this.obscureText = false,
-    this.suffix,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: TextField(
-        controller: controller,
-        enabled: enabled,
-        obscureText: obscureText,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hintText,
-          border: InputBorder.none,
-          suffixIcon: suffix,
-        ),
       ),
     );
   }

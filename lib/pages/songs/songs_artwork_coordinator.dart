@@ -265,7 +265,9 @@ class SongsArtworkCoordinator {
       return bytes;
     } catch (_) {
       if (kDebugMode && _debugArtwork) {
-        debugPrint('[SongsArtwork] load failed id=${song.id} uri=${HttpUtils.redactUrl(song.uri)}');
+        debugPrint(
+          '[SongsArtwork] load failed id=${song.id} uri=${HttpUtils.redactUrl(song.uri)}',
+        );
       }
       return null;
     }

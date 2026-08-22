@@ -4,11 +4,7 @@ class PlayerTopBar extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback? onMore;
 
-  const PlayerTopBar({
-    super.key,
-    required this.onBack,
-    this.onMore,
-  });
+  const PlayerTopBar({super.key, required this.onBack, this.onMore});
 
   @override
   Widget build(BuildContext context) {
@@ -31,4 +27,3 @@ class PlayerTopBar extends StatelessWidget {
     );
   }
 }
-

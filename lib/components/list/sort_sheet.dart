@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_colors.dart';
 import '../common/sheet_panels.dart';
 
 class SortOption {
@@ -64,8 +65,7 @@ class _SortSheetState extends State<SortSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondaryTextColor =
-        isDark ? Colors.white70 : const Color.fromARGB(255, 100, 100, 100);
+    final secondaryTextColor = AppColors.of(context).muted;
     final primaryColor = theme.colorScheme.primary;
 
     void updateKey(String value) {
@@ -141,10 +141,7 @@ class _SortSheetState extends State<SortSheet> {
           width: double.infinity,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              left,
-              right,
-            ],
+            children: [left, right],
           ),
         ),
       );
@@ -154,7 +151,9 @@ class _SortSheetState extends State<SortSheet> {
       final rows = <Widget>[];
       for (var i = 0; i < widget.options.length; i += 2) {
         final left = widget.options[i];
-        final right = i + 1 < widget.options.length ? widget.options[i + 1] : null;
+        final right = i + 1 < widget.options.length
+            ? widget.options[i + 1]
+            : null;
         rows.add(
           row(
             buildGridOption(
@@ -186,8 +185,9 @@ class _SortSheetState extends State<SortSheet> {
           LayoutBuilder(
             builder: (context, constraints) {
               final maxWidth = constraints.maxWidth;
-              final contentWidth =
-                  (maxWidth - 56).clamp(0.0, maxWidth).toDouble();
+              final contentWidth = (maxWidth - 56)
+                  .clamp(0.0, maxWidth)
+                  .toDouble();
               return Align(
                 alignment: Alignment.center,
                 child: SizedBox(
@@ -204,8 +204,9 @@ class _SortSheetState extends State<SortSheet> {
           LayoutBuilder(
             builder: (context, constraints) {
               final maxWidth = constraints.maxWidth;
-              final contentWidth =
-                  (maxWidth - 96).clamp(0.0, maxWidth).toDouble();
+              final contentWidth = (maxWidth - 96)
+                  .clamp(0.0, maxWidth)
+                  .toDouble();
               return Align(
                 alignment: Alignment.center,
                 child: SizedBox(

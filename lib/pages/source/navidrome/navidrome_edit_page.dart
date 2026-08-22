@@ -155,24 +155,24 @@ class _NavidromeEditPageState extends State<NavidromeEditPage> {
           AppSettingSection(
             title: '连接信息',
             children: [
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '名称',
                 controller: _nameCtrl,
                 hintText: 'Navidrome',
                 enabled: !_saving,
               ),
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '服务地址',
                 controller: _endpointCtrl,
                 hintText: 'https://music.example.com',
                 enabled: !_saving,
               ),
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '用户名',
                 controller: _usernameCtrl,
                 enabled: !_saving,
               ),
-              _TextFieldTile(
+              AppTextFieldTile(
                 label: '密码',
                 controller: _passwordCtrl,
                 enabled: !_saving,
@@ -211,42 +211,6 @@ class _NavidromeEditPageState extends State<NavidromeEditPage> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _TextFieldTile extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final String? hintText;
-  final bool enabled;
-  final bool obscureText;
-  final Widget? suffix;
-
-  const _TextFieldTile({
-    required this.label,
-    required this.controller,
-    this.hintText,
-    required this.enabled,
-    this.obscureText = false,
-    this.suffix,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: TextField(
-        controller: controller,
-        enabled: enabled,
-        obscureText: obscureText,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hintText,
-          border: InputBorder.none,
-          suffixIcon: suffix,
-        ),
       ),
     );
   }

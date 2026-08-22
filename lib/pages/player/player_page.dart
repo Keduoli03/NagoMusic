@@ -3,8 +3,6 @@ import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
-import '../../app/router/app_page_route.dart';
-import '../../app/router/app_router.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/services/playlists_service.dart';
 import '../../app/services/player_service.dart';
@@ -12,12 +10,12 @@ import '../../app/state/settings_state.dart';
 import '../../app/state/song_state.dart';
 import '../../components/common/artwork_widget.dart';
 import '../../components/feedback/app_toast.dart';
-import '../library/library_detail_pages.dart';
-import '../songs/song_detail_sheet.dart';
 import 'lyrics/lyric_view.dart';
 import 'widgets/player_background.dart';
 import 'widgets/player_bottom_panel.dart';
 import 'widgets/player_header.dart';
+import '../../app/utils/format_utils.dart';
+import '../songs/show_song_detail_sheet.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -151,9 +149,7 @@ class _PlayerPageState extends State<PlayerPage>
           child: Stack(
             children: [
               RepaintBoundary(
-                child: PlayerBackground(
-                  songSignal: _player.currentSongSignal,
-                ),
+                child: PlayerBackground(songSignal: _player.currentSongSignal),
               ),
               PlayerTheme(
                 child: ValueListenableBuilder<PlayerStylePreset>(
@@ -503,8 +499,7 @@ class _PosterArtwork extends StatelessWidget {
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final boxSize =
-                        constraints.maxWidth > constraints.maxHeight
+                    final boxSize = constraints.maxWidth > constraints.maxHeight
                         ? constraints.maxWidth
                         : constraints.maxHeight;
                     final child = song == null
@@ -780,13 +775,6 @@ class _PosterSeekBar extends StatefulWidget {
 class _PosterSeekBarState extends State<_PosterSeekBar> with SignalsMixin {
   late final _dragValue = createSignal<double?>(null);
 
-  String _format(Duration? duration) {
-    final total = duration?.inSeconds ?? 0;
-    final minutes = total ~/ 60;
-    final seconds = total % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -805,7 +793,7 @@ class _PosterSeekBarState extends State<_PosterSeekBar> with SignalsMixin {
                 SizedBox(
                   width: 48,
                   child: Text(
-                    _format(Duration(milliseconds: currentMs)),
+                    formatClock(Duration(milliseconds: currentMs)),
                     style: TextStyle(
                       color: scheme.onSurfaceVariant.withValues(alpha: 0.78),
                       fontSize: 14,
@@ -852,7 +840,7 @@ class _PosterSeekBarState extends State<_PosterSeekBar> with SignalsMixin {
                 SizedBox(
                   width: 48,
                   child: Text(
-                    _format(duration),
+                    formatClock(duration),
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       color: scheme.onSurfaceVariant.withValues(alpha: 0.78),
@@ -943,27 +931,7 @@ void _showPosterSongDetailSheet(BuildContext context, PlayerService player) {
     AppToast.show(context, '暂无歌曲');
     return;
   }
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (_) => SongDetailSheet(
-      song: song,
-      onOpenPlayerAppearanceSettings: () {
-        Navigator.of(context).pushNamed(AppRoutes.playerAppearanceSettings);
-      },
-      onOpenArtist: (artistName) {
-        Navigator.of(context).push(
-          buildAppPageRoute((_) => ArtistDetailPage(artistName: artistName)),
-        );
-      },
-      onOpenAlbum: (albumName) {
-        Navigator.of(
-          context,
-        ).push(buildAppPageRoute((_) => AlbumDetailPage(albumName: albumName)));
-      },
-    ),
-  );
+  showSongDetailSheet(context, song: song, enablePlayerAppearanceEntry: true);
 }
 
 class _PlayerArtwork extends StatelessWidget {
@@ -998,10 +966,7 @@ class _PlayerArtwork extends StatelessWidget {
                         height: boxSize,
                         child: _ArtworkShadowContainer(
                           border: border,
-                          child: _ArtworkPlaceholder(
-                            border: border,
-                            label: '',
-                          ),
+                          child: _ArtworkPlaceholder(border: border, label: ''),
                         ),
                       ),
                     );

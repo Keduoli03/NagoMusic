@@ -1,127 +1,82 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'pref_entry.dart';
 
 class AppPlaybackVolumeSettings {
-  static const String _prefsVolume = 'player_app_volume';
+  static final volume = PrefEntry.number(
+    'player_app_volume',
+    defaultValue: 1,
+    sanitize: (v) => v.clamp(0, 1).toDouble(),
+  );
 
-  static final ValueNotifier<double> volume = ValueNotifier(1);
+  static final _group = PrefGroup([volume]);
 
-  static Future<void>? _loading;
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
-
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    volume.value = (prefs.getDouble(_prefsVolume) ?? 1).clamp(0, 1);
-  }
-
-  static Future<void> setVolume(double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    final normalized = value.clamp(0, 1).toDouble();
-    await prefs.setDouble(_prefsVolume, normalized);
-    volume.value = normalized;
-  }
+  static Future<void> setVolume(double value) => volume.set(value);
 }
 
 class WebDavPlaybackSettings {
-  static const String _prefsPrefetchEnabled = 'webdav_prefetch_enabled';
-  static const String _prefsSegmentedEnabled = 'webdav_segmented_enabled';
-  static const String _prefsSegmentConcurrency = 'webdav_segment_concurrency';
+  static final prefetchEnabled = PrefEntry.boolean(
+    'webdav_prefetch_enabled',
+    defaultValue: true,
+  );
+  static final segmentedEnabled = PrefEntry.boolean(
+    'webdav_segmented_enabled',
+    defaultValue: true,
+  );
+  static final segmentConcurrency = PrefEntry.integer(
+    'webdav_segment_concurrency',
+    defaultValue: 4,
+    sanitize: (v) => v.clamp(1, 8),
+  );
 
-  static final ValueNotifier<bool> prefetchEnabled = ValueNotifier(true);
-  static final ValueNotifier<bool> segmentedEnabled = ValueNotifier(true);
-  static final ValueNotifier<int> segmentConcurrency = ValueNotifier(4);
+  static final _group = PrefGroup([
+    prefetchEnabled,
+    segmentedEnabled,
+    segmentConcurrency,
+  ]);
 
-  static Future<void>? _loading;
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static Future<void> setPrefetchEnabled(bool enabled) =>
+      prefetchEnabled.set(enabled);
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    prefetchEnabled.value = prefs.getBool(_prefsPrefetchEnabled) ?? true;
-    segmentedEnabled.value = prefs.getBool(_prefsSegmentedEnabled) ?? true;
-    segmentConcurrency.value = (prefs.getInt(_prefsSegmentConcurrency) ?? 4)
-        .clamp(1, 8);
-  }
+  static Future<void> setSegmentedEnabled(bool enabled) =>
+      segmentedEnabled.set(enabled);
 
-  static Future<void> setPrefetchEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsPrefetchEnabled, enabled);
-    prefetchEnabled.value = enabled;
-  }
-
-  static Future<void> setSegmentedEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsSegmentedEnabled, enabled);
-    segmentedEnabled.value = enabled;
-  }
-
-  static Future<void> setSegmentConcurrency(int count) async {
-    final prefs = await SharedPreferences.getInstance();
-    final value = count.clamp(1, 8);
-    await prefs.setInt(_prefsSegmentConcurrency, value);
-    segmentConcurrency.value = value;
-  }
+  static Future<void> setSegmentConcurrency(int count) =>
+      segmentConcurrency.set(count);
 }
 
 class AppLaunchPlaybackSettings {
-  static const String _prefsAutoPlayOnAppLaunch =
-      'player_auto_play_on_app_launch';
-
-  static final ValueNotifier<bool> autoPlayOnAppLaunch = ValueNotifier(false);
+  static final autoPlayOnAppLaunch = PrefEntry.boolean(
+    'player_auto_play_on_app_launch',
+  );
   static bool hasHandledAutoPlayThisSession = false;
 
-  static Future<void>? _loading;
+  static final _group = PrefGroup([autoPlayOnAppLaunch]);
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    autoPlayOnAppLaunch.value =
-        prefs.getBool(_prefsAutoPlayOnAppLaunch) ?? false;
-  }
-
-  static Future<void> setAutoPlayOnAppLaunch(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsAutoPlayOnAppLaunch, enabled);
-    autoPlayOnAppLaunch.value = enabled;
-  }
+  static Future<void> setAutoPlayOnAppLaunch(bool enabled) =>
+      autoPlayOnAppLaunch.set(enabled);
 }
 
 /// Whether to automatically check for app updates on launch and prompt the user.
 class AppLaunchUpdateSettings {
-  static const String _prefsAutoCheckUpdate = 'app_auto_check_update_on_launch';
-
-  static final ValueNotifier<bool> autoCheckUpdateOnLaunch = ValueNotifier(
-    false,
+  static final autoCheckUpdateOnLaunch = PrefEntry.boolean(
+    'app_auto_check_update_on_launch',
   );
   static bool hasCheckedUpdateThisSession = false;
 
-  static Future<void>? _loading;
+  static final _group = PrefGroup([autoCheckUpdateOnLaunch]);
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    autoCheckUpdateOnLaunch.value =
-        prefs.getBool(_prefsAutoCheckUpdate) ?? false;
-  }
-
-  static Future<void> setAutoCheckUpdateOnLaunch(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsAutoCheckUpdate, enabled);
-    autoCheckUpdateOnLaunch.value = enabled;
-  }
+  static Future<void> setAutoCheckUpdateOnLaunch(bool enabled) =>
+      autoCheckUpdateOnLaunch.set(enabled);
 }
 
 class PlayerBottomActionSettings {
-  static const String _prefsShowPlaybackMode =
-      'player_bottom_show_playback_mode';
-  static const String _prefsShowSleepTimer = 'player_bottom_show_sleep_timer';
-  static const String _prefsShowPlaylist = 'player_bottom_show_playlist';
-  static const String _prefsShowMore = 'player_bottom_show_more';
-  static const String _prefsActionOrder = 'player_bottom_action_order';
-
   static const List<String> _defaultActionOrder = [
     'playback_mode',
     'sleep_timer',
@@ -129,42 +84,49 @@ class PlayerBottomActionSettings {
     'more',
   ];
 
-  static final ValueNotifier<bool> showPlaybackMode = ValueNotifier(true);
-  static final ValueNotifier<bool> showSleepTimer = ValueNotifier(true);
-  static final ValueNotifier<bool> showPlaylist = ValueNotifier(true);
-  static final ValueNotifier<bool> showMore = ValueNotifier(true);
-  static final ValueNotifier<List<String>> actionOrder = ValueNotifier(
-    _defaultActionOrder,
+  static final showPlaybackMode = PrefEntry.boolean(
+    'player_bottom_show_playback_mode',
+    defaultValue: true,
+  );
+  static final showSleepTimer = PrefEntry.boolean(
+    'player_bottom_show_sleep_timer',
+    defaultValue: true,
+  );
+  static final showPlaylist = PrefEntry.boolean(
+    'player_bottom_show_playlist',
+    defaultValue: true,
+  );
+  static final showMore = PrefEntry.boolean(
+    'player_bottom_show_more',
+    defaultValue: true,
   );
 
-  static Future<void>? _loading;
+  /// 底部动作顺序：过滤掉未知项，并补齐缺失的默认项。
+  static final actionOrder = PrefEntry.stringList(
+    'player_bottom_action_order',
+    defaultValue: _defaultActionOrder,
+    sanitize: _normalizeOrder,
+  );
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
+  static final _group = PrefGroup([
+    showPlaybackMode,
+    showSleepTimer,
+    showPlaylist,
+    showMore,
+    actionOrder,
+  ]);
 
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    showPlaybackMode.value = prefs.getBool(_prefsShowPlaybackMode) ?? true;
-    showSleepTimer.value = prefs.getBool(_prefsShowSleepTimer) ?? true;
-    showPlaylist.value = prefs.getBool(_prefsShowPlaylist) ?? true;
-    showMore.value = prefs.getBool(_prefsShowMore) ?? true;
-    actionOrder.value = _normalizeOrder(prefs.getStringList(_prefsActionOrder));
-  }
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> setActionOrder(List<String> order) async {
-    final prefs = await SharedPreferences.getInstance();
-    final normalized = _normalizeOrder(order);
-    await prefs.setStringList(_prefsActionOrder, normalized);
-    actionOrder.value = normalized;
-  }
+  static Future<void> setActionOrder(List<String> order) =>
+      actionOrder.set(order);
 
-  static List<String> _normalizeOrder(List<String>? raw) {
+  static List<String> _normalizeOrder(List<String> raw) {
     final seen = <String>{};
     final result = <String>[];
-    if (raw != null) {
-      for (final key in raw) {
-        if (_defaultActionOrder.contains(key) && seen.add(key)) {
-          result.add(key);
-        }
+    for (final key in raw) {
+      if (_defaultActionOrder.contains(key) && seen.add(key)) {
+        result.add(key);
       }
     }
     for (final key in _defaultActionOrder) {
@@ -175,50 +137,27 @@ class PlayerBottomActionSettings {
     return result;
   }
 
-  static Future<void> setShowPlaybackMode(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowPlaybackMode, enabled);
-    showPlaybackMode.value = enabled;
-  }
+  static Future<void> setShowPlaybackMode(bool enabled) =>
+      showPlaybackMode.set(enabled);
 
-  static Future<void> setShowSleepTimer(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowSleepTimer, enabled);
-    showSleepTimer.value = enabled;
-  }
+  static Future<void> setShowSleepTimer(bool enabled) =>
+      showSleepTimer.set(enabled);
 
-  static Future<void> setShowPlaylist(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowPlaylist, enabled);
-    showPlaylist.value = enabled;
-  }
+  static Future<void> setShowPlaylist(bool enabled) =>
+      showPlaylist.set(enabled);
 
-  static Future<void> setShowMore(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowMore, enabled);
-    showMore.value = enabled;
-  }
+  static Future<void> setShowMore(bool enabled) => showMore.set(enabled);
 }
 
 class MiniPlayerInfoSettings {
-  static const String _prefsShowLyricsInSubtitle =
-      'mini_player_show_lyrics_in_subtitle';
+  static final showLyricsInSubtitle = PrefEntry.boolean(
+    'mini_player_show_lyrics_in_subtitle',
+  );
 
-  static final ValueNotifier<bool> showLyricsInSubtitle = ValueNotifier(false);
+  static final _group = PrefGroup([showLyricsInSubtitle]);
 
-  static Future<void>? _loading;
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
-
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    showLyricsInSubtitle.value =
-        prefs.getBool(_prefsShowLyricsInSubtitle) ?? false;
-  }
-
-  static Future<void> setShowLyricsInSubtitle(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsShowLyricsInSubtitle, enabled);
-    showLyricsInSubtitle.value = enabled;
-  }
+  static Future<void> setShowLyricsInSubtitle(bool enabled) =>
+      showLyricsInSubtitle.set(enabled);
 }

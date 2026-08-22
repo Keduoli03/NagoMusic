@@ -4,8 +4,9 @@ import 'package:flutter_lyric/core/lyric_model.dart';
 import '../../state/song_state.dart';
 
 class LyriconService {
-  static const MethodChannel _channel =
-      MethodChannel('com.lanke.nagomusic/lyricon');
+  static const MethodChannel _channel = MethodChannel(
+    'com.lanke.nagomusic/lyricon',
+  );
 
   static Future<void> setPlaybackState(bool isPlaying) async {
     try {
@@ -26,7 +27,8 @@ class LyriconService {
             'text': line.text,
             'translation': hideTranslation ? null : line.translation,
             'begin': line.start.inMilliseconds,
-            'end': line.end?.inMilliseconds ?? (line.start.inMilliseconds + 3000),
+            'end':
+                line.end?.inMilliseconds ?? (line.start.inMilliseconds + 3000),
             'words': line.words
                 ?.map(
                   (w) => {
@@ -58,7 +60,9 @@ class LyriconService {
 
   static Future<void> setDisplayTranslation(bool display) async {
     try {
-      await _channel.invokeMethod('setDisplayTranslation', {'display': display});
+      await _channel.invokeMethod('setDisplayTranslation', {
+        'display': display,
+      });
     } catch (_) {}
   }
 

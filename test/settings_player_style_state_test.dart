@@ -5,9 +5,7 @@ import 'package:nagomusic/app/state/settings_player_style_state.dart';
 
 void main() {
   test('player style preset loads and saves selected preset', () async {
-    SharedPreferences.setMockInitialValues({
-      'player_style_preset': 'poster',
-    });
+    SharedPreferences.setMockInitialValues({'player_style_preset': 'poster'});
 
     await PlayerStyleSettings.ensureLoaded();
     expect(PlayerStyleSettings.stylePreset.value, PlayerStylePreset.poster);

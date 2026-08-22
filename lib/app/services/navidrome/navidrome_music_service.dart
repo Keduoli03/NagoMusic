@@ -5,25 +5,7 @@ import '../../state/song_state.dart';
 import '../artwork_cache_helper.dart';
 import '../db/dao/song_dao.dart';
 import 'navidrome_source_repository.dart';
-
-class NavidromeScanProgress {
-  final int processed;
-  final int added;
-  final int total;
-
-  const NavidromeScanProgress({
-    required this.processed,
-    required this.added,
-    required this.total,
-  });
-}
-
-class NavidromeScanResult {
-  final int processed;
-  final int added;
-
-  const NavidromeScanResult({required this.processed, required this.added});
-}
+import '../scan_types.dart';
 
 class NavidromeMusicService {
   final Dio _dio = Dio(
@@ -45,16 +27,16 @@ class NavidromeMusicService {
     }
   }
 
-  Future<NavidromeScanResult> scan({
+  Future<ScanResult> scan({
     required NavidromeSource source,
     required ValueGetter<bool> isCancelled,
-    required ValueChanged<NavidromeScanProgress> onProgress,
+    required ValueChanged<ScanProgress> onProgress,
   }) async {
     if (source.endpoint.trim().isEmpty || source.username.trim().isEmpty) {
-      return const NavidromeScanResult(processed: 0, added: 0);
+      return const ScanResult(processed: 0, added: 0);
     }
 
-    onProgress(const NavidromeScanProgress(processed: 0, added: 0, total: 0));
+    onProgress(const ScanProgress(processed: 0, added: 0, total: 0));
     final songs = <SongEntity>[];
     var processedAlbums = 0;
     var totalAlbums = 0;
@@ -115,7 +97,7 @@ class NavidromeMusicService {
         }
         processedAlbums += 1;
         onProgress(
-          NavidromeScanProgress(
+          ScanProgress(
             processed: processedAlbums,
             added: 0,
             total: totalAlbums,
@@ -125,7 +107,7 @@ class NavidromeMusicService {
     }
 
     if (isCancelled()) {
-      return NavidromeScanResult(processed: processedAlbums, added: 0);
+      return ScanResult(processed: processedAlbums, added: 0);
     }
 
     final existingIds = await _songDao.fetchIdsBySource(source.id);
@@ -134,13 +116,13 @@ class NavidromeMusicService {
     await _songDao.upsertSongs(songs);
 
     onProgress(
-      NavidromeScanProgress(
+      ScanProgress(
         processed: processedAlbums,
         added: added,
         total: totalAlbums,
       ),
     );
-    return NavidromeScanResult(processed: processedAlbums, added: added);
+    return ScanResult(processed: processedAlbums, added: added);
   }
 
   Future<Map<String, dynamic>> _request(

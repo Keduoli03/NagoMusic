@@ -11,7 +11,7 @@ import '../../app/services/player_service.dart';
 import '../../app/services/stats_service.dart';
 import '../../app/state/song_state.dart';
 import '../../components/index.dart';
-import '../songs/song_detail_sheet.dart';
+import '../songs/show_song_detail_sheet.dart';
 
 List<String> splitArtists(String raw) {
   final text = raw.trim();
@@ -380,6 +380,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                           ),
                         ),
                         title: song.title,
+                        titleBadge: QualityTagBadge(song: song),
                         subtitle: song.album?.trim().isNotEmpty == true
                             ? song.album!.trim()
                             : '未知专辑',
@@ -393,31 +394,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                           await player.playQueue(songs, index);
                         },
                         onLongPress: () {
-                          showModalBottomSheet(
-                            context: context,
-                            backgroundColor: Colors.transparent,
-                            isScrollControlled: true,
-                            builder: (_) => SongDetailSheet(
-                              song: song,
-                              onOpenArtist: (artistName) {
-                                Navigator.of(context).push(
-                                  buildAppPageRoute(
-                                    (_) => ArtistDetailPage(
-                                      artistName: artistName,
-                                    ),
-                                  ),
-                                );
-                              },
-                              onOpenAlbum: (albumName) {
-                                Navigator.of(context).push(
-                                  buildAppPageRoute(
-                                    (_) =>
-                                        AlbumDetailPage(albumName: albumName),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
+                          showSongDetailSheet(context, song: song);
                         },
                       );
                     },
@@ -586,10 +563,10 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
           },
           extra: Watch.builder(
             builder: (context) {
-              return SwitchListTile(
-                title: const Text('显示专辑封面'),
-                subtitle: const Text('关闭时显示歌曲序号'),
-                secondary: const Icon(Icons.image_outlined),
+              return AppSettingSwitchTile(
+                title: '显示专辑封面',
+                subtitle: '关闭时显示歌曲序号',
+                leading: const Icon(Icons.image_outlined),
                 value: _showCovers.value,
                 onChanged: (value) => _showCovers.value = value,
               );
@@ -804,6 +781,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                                 ),
                               ),
                         title: song.title,
+                        titleBadge: QualityTagBadge(song: song),
                         subtitle: song.artist,
                         titleColor: titleColor,
                         subtitleColor: subtitleColor,
@@ -816,31 +794,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                           await player.playQueue(songs, index);
                         },
                         onLongPress: () {
-                          showModalBottomSheet(
-                            context: context,
-                            backgroundColor: Colors.transparent,
-                            isScrollControlled: true,
-                            builder: (_) => SongDetailSheet(
-                              song: song,
-                              onOpenArtist: (artistName) {
-                                Navigator.of(context).push(
-                                  buildAppPageRoute(
-                                    (_) => ArtistDetailPage(
-                                      artistName: artistName,
-                                    ),
-                                  ),
-                                );
-                              },
-                              onOpenAlbum: (albumName) {
-                                Navigator.of(context).push(
-                                  buildAppPageRoute(
-                                    (_) =>
-                                        AlbumDetailPage(albumName: albumName),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
+                          showSongDetailSheet(context, song: song);
                         },
                       );
                     },

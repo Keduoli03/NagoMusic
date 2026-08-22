@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'pref_entry.dart';
 
 enum PlayerStylePreset { classic, poster }
 
@@ -24,42 +23,17 @@ extension PlayerStylePresetLabel on PlayerStylePreset {
 }
 
 class PlayerStyleSettings {
-  static const String _prefsStylePreset = 'player_style_preset';
-
-  static final ValueNotifier<PlayerStylePreset> stylePreset = ValueNotifier(
-    PlayerStylePreset.classic,
+  // 枚举名与原本存储的 'classic' / 'poster' 一致，改用 PrefEntry 不影响存档值。
+  static final stylePreset = PrefEntry.enumeration<PlayerStylePreset>(
+    'player_style_preset',
+    values: PlayerStylePreset.values,
+    defaultValue: PlayerStylePreset.classic,
   );
 
-  static Future<void>? _loading;
+  static final _group = PrefGroup([stylePreset]);
 
-  static PlayerStylePreset _presetFromString(String? raw) {
-    switch (raw) {
-      case 'poster':
-        return PlayerStylePreset.poster;
-      default:
-        return PlayerStylePreset.classic;
-    }
-  }
+  static Future<void> ensureLoaded() => _group.ensureLoaded();
 
-  static String _presetToString(PlayerStylePreset preset) {
-    switch (preset) {
-      case PlayerStylePreset.classic:
-        return 'classic';
-      case PlayerStylePreset.poster:
-        return 'poster';
-    }
-  }
-
-  static Future<void> ensureLoaded() => _loading ??= _doLoad();
-
-  static Future<void> _doLoad() async {
-    final prefs = await SharedPreferences.getInstance();
-    stylePreset.value = _presetFromString(prefs.getString(_prefsStylePreset));
-  }
-
-  static Future<void> setStylePreset(PlayerStylePreset preset) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsStylePreset, _presetToString(preset));
-    stylePreset.value = preset;
-  }
+  static Future<void> setStylePreset(PlayerStylePreset preset) =>
+      stylePreset.set(preset);
 }

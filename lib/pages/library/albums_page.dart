@@ -12,6 +12,7 @@ import '../../app/state/song_state.dart';
 import '../../app/utils/cache_version_store.dart';
 import '../../app/utils/deferred_page_init_mixin.dart';
 import '../../app/utils/page_cache_store.dart';
+import '../../app/utils/sort_utils.dart';
 import '../../components/common/blocked_management_sheet.dart';
 import '../../components/index.dart';
 import 'library_detail_pages.dart';
@@ -235,17 +236,12 @@ class _AlbumsPageState extends State<AlbumsPage>
       return pinyinKey(a.name).compareTo(pinyinKey(b.name));
     }
 
-    groups.sort(compare);
-    if (!_ascending.value) {
-      groups.replaceRange(0, groups.length, groups.reversed);
-    }
-    if (_sortMode.value != 'year') {
-      final idx = groups.indexWhere((g) => g.name == '未知专辑');
-      if (idx >= 0) {
-        final unknown = groups.removeAt(idx);
-        groups.insert(0, unknown);
-      }
-    }
+    sortGroupsWithUnknownFirst<AlbumGroup>(
+      groups,
+      compare: compare,
+      ascending: _ascending.value,
+      isUnknown: _sortMode.value == 'year' ? null : (g) => g.name == '未知专辑',
+    );
   }
 
   void _showSortSheet() {
@@ -290,8 +286,8 @@ class _AlbumsPageState extends State<AlbumsPage>
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SwitchListTile(
-                    title: const Text('显示已屏蔽入口'),
+                  AppSettingSwitchTile(
+                    title: '显示已屏蔽入口',
                     value: _showBlockedEntry.value,
                     onChanged: (v) {
                       _showBlockedEntry.value = v;
@@ -857,16 +853,11 @@ List<Map<String, dynamic>> buildAlbumGroups(Map<String, dynamic> payload) {
     ).compareTo(pinyinKey(b['name'] as String));
   }
 
-  groups.sort(compare);
-  if (!ascending) {
-    groups.replaceRange(0, groups.length, groups.reversed);
-  }
-  if (sortMode != 'year') {
-    final idx = groups.indexWhere((g) => g['name'] == '未知专辑');
-    if (idx >= 0) {
-      final unknown = groups.removeAt(idx);
-      groups.insert(0, unknown);
-    }
-  }
+  sortGroupsWithUnknownFirst<Map<String, dynamic>>(
+    groups,
+    compare: compare,
+    ascending: ascending,
+    isUnknown: sortMode == 'year' ? null : (g) => g['name'] == '未知专辑',
+  );
   return groups;
 }

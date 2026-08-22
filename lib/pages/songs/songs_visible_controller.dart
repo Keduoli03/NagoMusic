@@ -4,7 +4,9 @@ import 'package:lpinyin/lpinyin.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/state/song_state.dart';
 import '../../app/utils/cache_version_store.dart';
+import '../../app/utils/natural_sort.dart';
 import '../../app/utils/page_cache_store.dart';
+import '../../app/utils/uri_utils.dart';
 
 class SongsVisibleResult {
   final List<SongEntity> allVisible;
@@ -134,8 +136,9 @@ List<Map<String, dynamic>> _buildVisibleSongsIsolate(
   final sourceFilter = (args['sourceFilter'] as String?) ?? 'all';
   final sortKey = (args['sortKey'] as String?) ?? 'title';
   final ascending = (args['ascending'] as bool?) ?? true;
-  final playCounts = ((args['playCounts'] as Map?) ?? const {})
-      .map((key, value) => MapEntry(key.toString(), (value as num).toInt()));
+  final playCounts = ((args['playCounts'] as Map?) ?? const {}).map(
+    (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+  );
   final rawSongs = (args['songs'] as List).cast<Map>();
   final songs = rawSongs
       .map((e) => SongEntity.fromMap(e.cast<String, dynamic>()))
@@ -178,6 +181,17 @@ List<Map<String, dynamic>> _buildVisibleSongsIsolate(
     return a.isEmpty || a == '未知专辑';
   }
 
+  final fileNameCache = <String, String>{};
+  String fileNameOf(SongEntity s) {
+    final uri = s.uri;
+    if (uri == null || uri.trim().isEmpty) return '';
+    final cached = fileNameCache[uri];
+    if (cached != null) return cached;
+    final name = UriUtils.extractFileName(uri);
+    fileNameCache[uri] = name;
+    return name;
+  }
+
   int compare(SongEntity a, SongEntity b) {
     int result;
     switch (sortKey) {
@@ -218,6 +232,9 @@ List<Map<String, dynamic>> _buildVisibleSongsIsolate(
         break;
       case 'duration':
         result = (a.durationMs ?? 0).compareTo(b.durationMs ?? 0);
+        break;
+      case 'fileName':
+        result = naturalCompare(fileNameOf(a), fileNameOf(b));
         break;
       case 'playCount':
         result = (playCounts[a.id] ?? 0).compareTo(playCounts[b.id] ?? 0);

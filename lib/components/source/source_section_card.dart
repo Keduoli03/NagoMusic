@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_styles.dart';
 import '../common/glass_panel.dart';
 
@@ -17,8 +18,7 @@ class SourceSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (children.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white70 : Colors.black87;
+    final titleColor = AppColors.of(context).text;
     final cardColor = theme.appPanelElevatedColor;
     final shadowColor = theme.appPanelShadowColor;
     final borderColor = theme.appPanelBorderColor;

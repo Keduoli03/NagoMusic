@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_colors.dart';
 import '../common/app_list_tile.dart';
 
 class MediaListTile extends StatelessWidget {
   final Widget? leading;
   final String title;
+
+  /// Optional widget rendered inline right after the title (e.g. a quality tag).
+  final Widget? titleBadge;
   final String? subtitle;
   final bool selected;
   final bool multiSelect;
@@ -18,6 +22,7 @@ class MediaListTile extends StatelessWidget {
     super.key,
     this.leading,
     required this.title,
+    this.titleBadge,
     this.subtitle,
     required this.selected,
     required this.multiSelect,
@@ -31,12 +36,12 @@ class MediaListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final subtitleColor = isHighlighted
         ? theme.colorScheme.primary
-        : (isDark ? Colors.white70 : const Color.fromARGB(255, 100, 100, 100));
-    final titleColor =
-        isHighlighted ? theme.colorScheme.primary : theme.colorScheme.onSurface;
+        : AppColors.of(context).muted;
+    final titleColor = isHighlighted
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface;
 
     final leadingWidget = multiSelect
         ? Row(
@@ -45,7 +50,9 @@ class MediaListTile extends StatelessWidget {
               Icon(
                 selected ? Icons.check_circle : Icons.circle_outlined,
                 size: 20,
-                color: selected ? theme.colorScheme.primary : theme.disabledColor,
+                color: selected
+                    ? theme.colorScheme.primary
+                    : theme.disabledColor,
               ),
               const SizedBox(width: 12),
               leading ?? const SizedBox.shrink(),
@@ -56,6 +63,7 @@ class MediaListTile extends StatelessWidget {
     return AppListTile(
       leading: leadingWidget,
       title: title,
+      titleBadge: titleBadge,
       subtitle: subtitle,
       titleColor: titleColor,
       subtitleColor: subtitleColor,

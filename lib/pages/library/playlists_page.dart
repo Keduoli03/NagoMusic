@@ -12,28 +12,18 @@ import '../../app/router/app_page_route.dart';
 import '../../app/state/song_state.dart';
 import '../../app/utils/cache_version_store.dart';
 import '../../app/utils/deferred_page_init_mixin.dart';
+import '../../app/utils/multi_select_mixin.dart';
+import '../../app/utils/natural_sort.dart';
 import '../../app/utils/page_cache_store.dart';
+import '../../app/utils/uri_utils.dart';
 import '../../components/index.dart';
-import '../library/library_detail_pages.dart';
-import '../songs/song_detail_sheet.dart';
+import '../songs/show_song_detail_sheet.dart';
 
 class PlaylistsPage extends StatefulWidget {
   const PlaylistsPage({super.key});
 
   @override
   State<PlaylistsPage> createState() => _PlaylistsPageState();
-}
-
-class _RemoveProgress {
-  final int processed;
-  final int total;
-  final bool isRemoving;
-
-  const _RemoveProgress({
-    required this.processed,
-    required this.total,
-    required this.isRemoving,
-  });
 }
 
 class _PlaylistsPageState extends State<PlaylistsPage>
@@ -422,7 +412,7 @@ class PlaylistDetailPage extends StatefulWidget {
 }
 
 class _PlaylistDetailPageState extends State<PlaylistDetailPage>
-    with SignalsMixin {
+    with SignalsMixin, MultiSelectMixin<PlaylistDetailPage> {
   final PlaylistsService _service = PlaylistsService.instance;
   final SongDao _songDao = SongDao();
   final StatsService _statsService = StatsService.instance;
@@ -433,14 +423,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
   late final _originalSongs = createSignal<List<SongEntity>>([]);
   late final _showCovers = createSignal(true);
   late final _isSequentialPlay = createSignal(false);
-  late final _multiSelect = createSignal(false);
-  late final _selectedIds = createSignal<Set<String>>({});
   late final _sortKey = createSignal('default');
   late final _sortAscending = createSignal(true);
-  final ValueNotifier<_RemoveProgress> _removeNotifier = ValueNotifier(
-    const _RemoveProgress(processed: 0, total: 0, isRemoving: false),
-  );
-  bool _isRemoving = false;
+  final RemoveProgressController _removeProgress = RemoveProgressController();
 
   @override
   void initState() {
@@ -450,7 +435,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
 
   @override
   void dispose() {
-    _removeNotifier.dispose();
+    _removeProgress.dispose();
     super.dispose();
   }
 
@@ -479,6 +464,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
           return a.artist.compareTo(b.artist);
         case 'album':
           return (a.album ?? '').compareTo(b.album ?? '');
+        case 'fileName':
+          return naturalCompare(
+            a.uri == null ? '' : UriUtils.extractFileName(a.uri!),
+            b.uri == null ? '' : UriUtils.extractFileName(b.uri!),
+          );
         default:
           return 0;
       }
@@ -499,6 +489,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
           SortOption(key: 'title', label: '歌曲名称', icon: Icons.sort_by_alpha),
           SortOption(key: 'artist', label: '歌手名称', icon: Icons.person_outline),
           SortOption(key: 'album', label: '专辑名称', icon: Icons.album_outlined),
+          SortOption(
+            key: 'fileName',
+            label: '文件名称',
+            icon: Icons.description_outlined,
+          ),
         ],
         currentKey: _sortKey.value,
         ascending: _sortAscending.value,
@@ -521,56 +516,6 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
     );
   }
 
-  void _toggleSelectAll() {
-    if (_songs.value.isEmpty) return;
-    if (_selectedIds.value.length == _songs.value.length) {
-      _selectedIds.value = {};
-    } else {
-      _selectedIds.value = _songs.value.map((e) => e.id).toSet();
-    }
-  }
-
-  void _toggleMultiSelect() {
-    _multiSelect.value = !_multiSelect.value;
-    _selectedIds.value = {};
-  }
-
-  void _showRemoveDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return ValueListenableBuilder<_RemoveProgress>(
-          valueListenable: _removeNotifier,
-          builder: (context, progress, child) {
-            final finished = !progress.isRemoving;
-            return AppDialog(
-              title: finished ? '移除完成' : '正在移除...',
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LinearProgressIndicator(
-                    value: progress.total > 0
-                        ? progress.processed / progress.total
-                        : 0,
-                  ),
-                  const SizedBox(height: 16),
-                  Text('已移除: ${progress.processed}'),
-                  const SizedBox(height: 4),
-                  Text('总计: ${progress.total}'),
-                ],
-              ),
-              confirmText: finished ? '知道了' : '隐藏',
-              showCancel: false,
-              onConfirm: () {},
-            );
-          },
-        );
-      },
-    );
-  }
-
   void _togglePlayMode() {
     _isSequentialPlay.value = !_isSequentialPlay.value;
     AppToast.show(context, _isSequentialPlay.value ? '已切换为顺序播放' : '已切换为随机播放');
@@ -586,8 +531,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
   }
 
   Future<void> _removeSongsByIds(List<String> ids) async {
-    if (_isRemoving) {
-      _showRemoveDialog();
+    if (_removeProgress.isRemoving) {
+      _removeProgress.showDialogOn(context);
       return;
     }
     final playlist = _playlist.value;
@@ -595,13 +540,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
     final songsToRemove = _songs.value
         .where((s) => ids.contains(s.id))
         .toList();
-    _isRemoving = true;
-    _removeNotifier.value = _RemoveProgress(
-      processed: 0,
-      total: songsToRemove.length,
-      isRemoving: true,
-    );
-    _showRemoveDialog();
+    _removeProgress.start(songsToRemove.length);
+    _removeProgress.showDialogOn(context);
     var processed = 0;
     for (final song in songsToRemove) {
       if (!mounted) break;
@@ -611,22 +551,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
       _originalSongs.value = _originalSongs.value
           .where((s) => s.id != song.id)
           .toList();
-      _selectedIds.value = Set<String>.from(_selectedIds.value)
-        ..remove(song.id);
+      removeFromSelection([song.id]);
       processed += 1;
-      _removeNotifier.value = _RemoveProgress(
-        processed: processed,
-        total: songsToRemove.length,
-        isRemoving: true,
-      );
+      _removeProgress.update(processed);
     }
     if (!mounted) return;
-    _isRemoving = false;
-    _removeNotifier.value = _RemoveProgress(
-      processed: processed,
-      total: songsToRemove.length,
-      isRemoving: false,
-    );
+    _removeProgress.finish(processed);
     AppToast.show(context, '已移除 $processed 首');
     await _load();
   }
@@ -702,7 +632,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
     return AppNavigationModeBuilder(
       builder: (context, useBottomNavigation) => AppPageScaffold(
         extendBodyBehindAppBar: true,
-        showMiniPlayer: !_multiSelect.value,
+        showMiniPlayer: !multiSelect.value,
         appBar: AppTopBar(
           title: _playlist.value?.name ?? '歌单',
           backgroundColor: Colors.transparent,
@@ -725,14 +655,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
         body: Watch.builder(
           builder: (context) {
             final playlist = _playlist.value;
-            final canReorder =
-                _multiSelect.value && _sortKey.value == 'default';
+            final canReorder = multiSelect.value && _sortKey.value == 'default';
             final totalCount = _songs.value.length;
-            final selectedCount = _selectedIds.value.length;
+            final selectedCount = selection.length;
             final isAllSelected = totalCount > 0 && selectedCount == totalCount;
             final bottomInset =
                 MediaQuery.of(context).padding.bottom +
-                (_multiSelect.value ? 160 : 80);
+                (multiSelect.value ? 160 : 80);
             return _loading.value
                 ? const Center(child: CircularProgressIndicator())
                 : playlist == null
@@ -742,13 +671,14 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                 : Column(
                     children: [
                       MediaListHeader(
-                        multiSelect: _multiSelect.value,
+                        multiSelect: multiSelect.value,
                         isAllSelected: isAllSelected,
                         selectedCount: selectedCount,
                         totalCount: totalCount,
                         playbackCount: totalCount,
                         isSequentialPlay: _isSequentialPlay.value,
-                        onToggleSelectAll: _toggleSelectAll,
+                        onToggleSelectAll: () =>
+                            toggleSelectAll(_songs.value.map((e) => e.id)),
                         onPlay: () async {
                           if (_songs.value.isEmpty) return;
                           final queue = List<SongEntity>.from(_songs.value);
@@ -763,7 +693,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                         onConfigurePlay: () {},
                         onTogglePlayMode: _togglePlayMode,
                         onSort: _showSortSheet,
-                        onToggleMultiSelect: _toggleMultiSelect,
+                        onToggleMultiSelect: toggleMultiSelect,
                       ),
                       Expanded(
                         child: canReorder
@@ -818,52 +748,50 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                                 },
                               ),
                       ),
-                      if (_multiSelect.value)
+                      if (multiSelect.value)
                         MultiSelectBottomBar(
                           actions: [
                             MultiSelectAction(
                               icon: Icons.queue_play_next,
                               label: '下一首播放',
-                              onTap: _selectedIds.value.isEmpty
+                              onTap: selection.isEmpty
                                   ? null
                                   : () async {
                                       final selected = _songs.value
                                           .where(
-                                            (s) => _selectedIds.value.contains(
-                                              s.id,
-                                            ),
+                                            (s) => selection.contains(s.id),
                                           )
                                           .toList();
                                       await player.insertNext(selected);
                                       if (!context.mounted) return;
                                       AppToast.show(
                                         context,
-                                        '已将 ${_selectedIds.value.length} 首歌曲加入下一首播放',
+                                        '已将 ${selection.length} 首歌曲加入下一首播放',
                                       );
-                                      _toggleMultiSelect();
+                                      toggleMultiSelect();
                                     },
                             ),
                             MultiSelectAction(
                               icon: Icons.playlist_add,
                               label: '添加到歌单',
-                              onTap: _selectedIds.value.isEmpty
+                              onTap: selection.isEmpty
                                   ? null
                                   : () async {
-                                      final ids = _selectedIds.value.toList();
+                                      final ids = selection.toList();
                                       final added =
                                           await showAddToPlaylistDialog(
                                             context,
                                             songIds: ids,
                                           );
                                       if (!mounted) return;
-                                      if (added) _toggleMultiSelect();
+                                      if (added) toggleMultiSelect();
                                     },
                             ),
                             MultiSelectAction(
                               icon: Icons.delete_outline,
                               label: '移出',
                               isDestructive: true,
-                              onTap: _selectedIds.value.isEmpty
+                              onTap: selection.isEmpty
                                   ? null
                                   : () async {
                                       final confirmed = await showDialog<bool>(
@@ -872,7 +800,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                                           return AlertDialog(
                                             title: const Text('移出选中歌曲'),
                                             content: Text(
-                                              '确定要从歌单中移出这 ${_selectedIds.value.length} 首歌曲吗？',
+                                              '确定要从歌单中移出这 ${selection.length} 首歌曲吗？',
                                             ),
                                             actions: [
                                               TextButton(
@@ -894,10 +822,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                                         },
                                       );
                                       if (confirmed != true) return;
-                                      final ids = _selectedIds.value.toList();
+                                      final ids = selection.toList();
                                       await _removeSongsByIds(ids);
                                       if (!mounted) return;
-                                      _toggleMultiSelect();
+                                      toggleMultiSelect();
                                     },
                             ),
                           ],
@@ -927,7 +855,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
         final theme = Theme.of(context);
         final isDark = theme.brightness == Brightness.dark;
         final isCurrent = current?.id == song.id;
-        final isSelected = _selectedIds.value.contains(song.id);
+        final isSelected = selection.contains(song.id);
         final titleColor = isCurrent
             ? theme.colorScheme.primary
             : theme.colorScheme.onSurface;
@@ -941,7 +869,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
           leading: SizedBox(
             width: 48,
             height: 48,
-            child: _multiSelect.value
+            child: multiSelect.value
                 ? Align(
                     alignment: Alignment.centerLeft,
                     child: Icon(
@@ -955,9 +883,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                 : _coverOrIndex(context, song, index, subtitleColor),
           ),
           title: song.title,
+          titleBadge: QualityTagBadge(song: song),
           subtitle: song.artist,
           titleColor: titleColor,
-          trailing: _multiSelect.value && canReorder
+          trailing: multiSelect.value && canReorder
               ? ReorderableDragStartListener(
                   index: index,
                   child: const SizedBox(
@@ -967,48 +896,24 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                 )
               : null,
           onTap: () async {
-            if (_multiSelect.value) {
-              final next = _selectedIds.value.toSet();
-              if (isSelected) {
-                next.remove(song.id);
-              } else {
-                next.add(song.id);
-              }
-              _selectedIds.value = next;
+            if (multiSelect.value) {
+              toggleSelected(song.id);
               return;
             }
             await _statsService.recordPlaylistPlay(widget.playlistId);
             await player.playQueue(_songs.value, index);
           },
           onLongPress: () {
-            showModalBottomSheet<void>(
-              context: context,
-              backgroundColor: Colors.transparent,
-              isScrollControlled: true,
-              builder: (_) => SongDetailSheet(
-                song: song,
-                onUpdated: (_) => _load(),
-                onDeleted: (_) => _load(),
-                onOpenArtist: (artistName) {
-                  Navigator.of(context).push(
-                    buildAppPageRoute(
-                      (_) => ArtistDetailPage(artistName: artistName),
-                    ),
-                  );
-                },
-                onOpenAlbum: (albumName) {
-                  Navigator.of(context).push(
-                    buildAppPageRoute(
-                      (_) => AlbumDetailPage(albumName: albumName),
-                    ),
-                  );
-                },
-              ),
+            showSongDetailSheet(
+              context,
+              song: song,
+              onUpdated: (_) => _load(),
+              onDeleted: (_) => _load(),
             );
           },
         );
 
-        if (_multiSelect.value) return tile;
+        if (multiSelect.value) return tile;
 
         final playlist = _playlist.value;
         if (playlist == null) return tile;

@@ -26,10 +26,8 @@ Future<void> showAppUpdateDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (context) => _UpdateAvailableDialog(
-      info: info,
-      currentVersion: currentVersion,
-    ),
+    builder: (context) =>
+        _UpdateAvailableDialog(info: info, currentVersion: currentVersion),
   );
 }
 

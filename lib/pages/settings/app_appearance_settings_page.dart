@@ -6,7 +6,9 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import '../../app/services/haptic_service.dart';
 import '../../app/state/settings_state.dart';
+import '../../app/theme/app_colors.dart';
 import '../../components/index.dart';
 
 class AppAppearanceSettingsPage extends StatefulWidget {
@@ -24,99 +26,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
     AppLayoutSettings.ensureLoaded();
     AppThemeSettings.ensureLoaded();
     AppBackgroundSettings.ensureLoaded();
-  }
-
-  String _themeLabel(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.light:
-        return '浅色';
-      case ThemeMode.dark:
-        return '深色';
-      case ThemeMode.system:
-        return '跟随系统';
-    }
-  }
-
-  Widget _modeTile(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required bool selected,
-    VoidCallback? onTap,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = selected
-        ? scheme.primary
-        : (isDark ? Colors.white12 : Colors.black12);
-    final iconColor = selected
-        ? scheme.primary
-        : (isDark ? Colors.white70 : Colors.black54);
-    final textColor = selected
-        ? scheme.primary
-        : (isDark ? Colors.white70 : Colors.black87);
-    final background = selected
-        ? scheme.primary.withAlpha(31)
-        : Colors.transparent;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: iconColor, size: 22),
-              const SizedBox(height: 6),
-              Text(label, style: TextStyle(fontSize: 12, color: textColor)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _modeRow(
-    BuildContext context, {
-    required ThemeMode selected,
-    required ValueChanged<ThemeMode> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Row(
-        children: [
-          _modeTile(
-            context,
-            icon: Icons.phone_android,
-            label: _themeLabel(ThemeMode.system),
-            selected: selected == ThemeMode.system,
-            onTap: () => onChanged(ThemeMode.system),
-          ),
-          const SizedBox(width: 8),
-          _modeTile(
-            context,
-            icon: Icons.light_mode_outlined,
-            label: _themeLabel(ThemeMode.light),
-            selected: selected == ThemeMode.light,
-            onTap: () => onChanged(ThemeMode.light),
-          ),
-          const SizedBox(width: 8),
-          _modeTile(
-            context,
-            icon: Icons.dark_mode_outlined,
-            label: _themeLabel(ThemeMode.dark),
-            selected: selected == ThemeMode.dark,
-            onTap: () => onChanged(ThemeMode.dark),
-          ),
-        ],
-      ),
-    );
+    SongListDisplaySettings.ensureLoaded();
   }
 
   Future<void> _showThemeColorPickerDialog(BuildContext context) async {
@@ -158,6 +68,47 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
         ),
         child: Center(child: child),
       ),
+    );
+  }
+
+  Future<void> _showHapticLevelSheet(
+    BuildContext context,
+    HapticLevel current,
+  ) async {
+    const options = [
+      (HapticLevel.standard, '标准', '按操作语义原样触发'),
+      (HapticLevel.light, '轻柔', '所有震动整体降一级'),
+      (HapticLevel.off, '关闭', '不再有任何震动反馈'),
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return AppSheetPanel(
+          title: '触感反馈',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (level, label, desc) in options)
+                AppSettingTile(
+                  title: label,
+                  subtitle: desc,
+                  trailing: level == current
+                      ? Icon(
+                          Icons.check_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    // setLevel 自己会震一下作为预览，所以不用再补 Haptics 调用。
+                    Haptics.setLevel(level);
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -207,10 +158,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
     // fine — no need to react to rotation while the cropper UI is on screen.
     if (!context.mounted) return;
     final size = MediaQuery.of(context).size;
-    final ratio = CropAspectRatio(
-      ratioX: size.width,
-      ratioY: size.height,
-    );
+    final ratio = CropAspectRatio(ratioX: size.width, ratioY: size.height);
 
     final cropped = await ImageCropper().cropImage(
       sourcePath: file!.path!,
@@ -341,12 +289,43 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                 },
               ),
               ValueListenableBuilder<bool>(
+                valueListenable: SongListDisplaySettings.showQualityTag,
+                builder: (context, enabled, _) {
+                  return AppSettingSwitchTile(
+                    title: '显示音质标签',
+                    subtitle: '在歌曲列表标题旁显示 Hi-Res / 无损 / HQ',
+                    value: enabled,
+                    onChanged: (value) {
+                      SongListDisplaySettings.setShowQualityTag(value);
+                    },
+                  );
+                },
+              ),
+              ValueListenableBuilder<HapticLevel>(
+                valueListenable: Haptics.levelListenable,
+                builder: (context, level, _) {
+                  return AppSettingNavTile(
+                    title: '触感反馈',
+                    subtitle: '拨开关、切 Tab 等操作时的震动强度',
+                    value: switch (level) {
+                      HapticLevel.off => '关闭',
+                      HapticLevel.light => '轻柔',
+                      HapticLevel.standard => '标准',
+                    },
+                    onTap: () => _showHapticLevelSheet(context, level),
+                  );
+                },
+              ),
+              ValueListenableBuilder<bool>(
                 valueListenable: AppThemeSettings.dynamicColorEnabled,
                 builder: (context, enabled, _) {
                   return ValueListenableBuilder<Color?>(
                     valueListenable: AppThemeSettings.themeSeedColor,
                     builder: (context, seedColor, _) {
                       final colors = [
+                        // 第一个是 kBrand —— 没选过主题色时的默认值，
+                        // 放在首位这样默认状态下能看出选中的是哪一个。
+                        kBrand,
                         const Color(0xFF3B82F6),
                         const Color(0xFF22C55E),
                         const Color(0xFFA855F7),
@@ -464,8 +443,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
               ValueListenableBuilder<ThemeMode>(
                 valueListenable: AppThemeSettings.themeMode,
                 builder: (context, mode, _) {
-                  return _modeRow(
-                    context,
+                  return ThemeModeSelector(
                     selected: mode,
                     onChanged: (value) {
                       AppThemeSettings.setThemeMode(value);
@@ -497,10 +475,9 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AppSettingTile(
+                      AppSettingNavTile(
                         title: '自定义背景',
                         subtitle: name,
-                        trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: () => _showBackgroundImageSheet(context),
                       ),
                       if (hasImage)

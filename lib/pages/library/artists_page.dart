@@ -12,6 +12,7 @@ import '../../app/state/song_state.dart';
 import '../../app/utils/cache_version_store.dart';
 import '../../app/utils/deferred_page_init_mixin.dart';
 import '../../app/utils/page_cache_store.dart';
+import '../../app/utils/sort_utils.dart';
 import '../../components/common/blocked_management_sheet.dart';
 import '../../components/index.dart';
 import 'library_detail_pages.dart';
@@ -196,17 +197,12 @@ class _ArtistsPageState extends State<ArtistsPage>
       return pinyinKey(a.name).compareTo(pinyinKey(b.name));
     }
 
-    groups.sort(compare);
-    if (!_ascending.value) {
-      groups.replaceRange(0, groups.length, groups.reversed);
-    }
-    if (!_filterUnknown.value) {
-      final idx = groups.indexWhere((g) => g.name == '未知艺术家');
-      if (idx >= 0) {
-        final unknown = groups.removeAt(idx);
-        groups.insert(0, unknown);
-      }
-    }
+    sortGroupsWithUnknownFirst<ArtistGroup>(
+      groups,
+      compare: compare,
+      ascending: _ascending.value,
+      isUnknown: _filterUnknown.value ? null : (g) => g.name == '未知艺术家',
+    );
   }
 
   void _showSortSheet() {
@@ -250,8 +246,8 @@ class _ArtistsPageState extends State<ArtistsPage>
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SwitchListTile(
-                    title: const Text('过滤未知艺术家'),
+                  AppSettingSwitchTile(
+                    title: '过滤未知艺术家',
                     value: _filterUnknown.value,
                     onChanged: (v) {
                       _filterUnknown.value = v;
@@ -261,8 +257,8 @@ class _ArtistsPageState extends State<ArtistsPage>
                       _savePrefs();
                     },
                   ),
-                  SwitchListTile(
-                    title: const Text('显示已屏蔽入口'),
+                  AppSettingSwitchTile(
+                    title: '显示已屏蔽入口',
                     value: _showBlockedEntry.value,
                     onChanged: (v) {
                       _showBlockedEntry.value = v;
@@ -517,16 +513,11 @@ List<Map<String, dynamic>> buildArtistGroups(Map<String, dynamic> payload) {
     ).compareTo(pinyinKey(b['name'] as String));
   }
 
-  groups.sort(compare);
-  if (!ascending) {
-    groups.replaceRange(0, groups.length, groups.reversed);
-  }
-  if (!filterUnknown) {
-    final idx = groups.indexWhere((g) => g['name'] == '未知艺术家');
-    if (idx >= 0) {
-      final unknown = groups.removeAt(idx);
-      groups.insert(0, unknown);
-    }
-  }
+  sortGroupsWithUnknownFirst<Map<String, dynamic>>(
+    groups,
+    compare: compare,
+    ascending: ascending,
+    isUnknown: filterUnknown ? null : (g) => g['name'] == '未知艺术家',
+  );
   return groups;
 }

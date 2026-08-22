@@ -11,6 +11,7 @@ import 'artwork_cache_helper.dart';
 import 'db/dao/song_dao.dart';
 import 'lyrics/lyrics_repository.dart';
 import 'metadata/tag_probe_service.dart';
+import '../services/scan_types.dart';
 
 class LocalSourceSettings {
   final bool useSystemLibrary;
@@ -96,25 +97,6 @@ class LocalSourceSettings {
       localMetadataConcurrency: json['localMetadataConcurrency'] as int? ?? 6,
     );
   }
-}
-
-class LocalScanProgress {
-  final int processed;
-  final int added;
-  final int total;
-
-  const LocalScanProgress({
-    required this.processed,
-    required this.added,
-    required this.total,
-  });
-}
-
-class LocalScanResult {
-  final int processed;
-  final int added;
-
-  const LocalScanResult({required this.processed, required this.added});
 }
 
 class _LocalScanCandidate {
@@ -247,10 +229,10 @@ class LocalMusicService {
     return paths.where((p) => !p.isAll).toList();
   }
 
-  Future<LocalScanResult> scan({
+  Future<ScanResult> scan({
     required LocalSourceSettings settings,
     required ValueGetter<bool> isCancelled,
-    required ValueChanged<LocalScanProgress> onProgress,
+    required ValueChanged<ScanProgress> onProgress,
   }) async {
     var processed = 0;
     var added = 0;
@@ -278,7 +260,7 @@ class LocalMusicService {
       lastProgressAtMs = elapsedMs;
       lastProgressProcessed = processed;
       onProgress(
-        LocalScanProgress(processed: processed, added: added, total: total),
+        ScanProgress(processed: processed, added: added, total: total),
       );
     }
 
@@ -505,7 +487,7 @@ class LocalMusicService {
     if (kDebugMode) {
       debugPrint('Local scan finished: $processed processed, $inserted added.');
     }
-    return LocalScanResult(processed: processed, added: inserted);
+    return ScanResult(processed: processed, added: inserted);
   }
 
   Future<String?> _cacheArtwork({

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/router/app_router.dart';
 import '../../app/state/settings_state.dart';
+import '../../app/theme/app_colors.dart';
 
 const _primaryNavigationRoutes = <String>[
   AppRoutes.home,
@@ -119,24 +120,32 @@ class ModernNavigationBar extends StatelessWidget {
           scheme.surface,
         );
         final barColor = tinted.withValues(alpha: panelOpacity);
+        // The bar is the same white as the page in light mode, so it needs a
+        // hairline of its own to stay readable against scrolling content.
+        final edgeColor = AppColors.of(context).line;
         return Material(
           color: barColor,
           elevation: 0,
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 52,
-              child: Row(
-                children: List.generate(_labels.length, (index) {
-                  final selected = currentIndex == index;
-                  return Expanded(
-                    child: _NavItem(
-                      label: _labels[index],
-                      selected: selected,
-                      onTap: () => onTap(index),
-                    ),
-                  );
-                }),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: edgeColor, width: 1)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 52,
+                child: Row(
+                  children: List.generate(_labels.length, (index) {
+                    final selected = currentIndex == index;
+                    return Expanded(
+                      child: _NavItem(
+                        label: _labels[index],
+                        selected: selected,
+                        onTap: () => onTap(index),
+                      ),
+                    );
+                  }),
+                ),
               ),
             ),
           ),

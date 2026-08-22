@@ -8,6 +8,7 @@ import 'package:signals_flutter/signals_flutter.dart' hide computed;
 import '../../app/services/cache/audio_cache_service.dart';
 import '../../app/state/settings_state.dart';
 import '../../components/index.dart';
+import '../../app/utils/format_utils.dart';
 
 class CacheSettingsPage extends StatefulWidget {
   const CacheSettingsPage({super.key});
@@ -29,6 +30,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
     AppCacheSettings.ensureLoaded();
     SongDownloadSettings.ensureLoaded();
     LibraryRefreshSettings.ensureLoaded();
+    WebDavPlaybackSettings.ensureLoaded();
     _loadCacheSizes();
   }
 
@@ -180,18 +182,6 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
     AppToast.show(context, '缓存已清除');
   }
 
-  String _formatSize(int bytes) {
-    if (bytes <= 0) return '0 B';
-    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var i = 0;
-    double size = bytes.toDouble();
-    while (size >= 1024 && i < suffixes.length - 1) {
-      size /= 1024;
-      i++;
-    }
-    return '${size.toStringAsFixed(2)} ${suffixes[i]}';
-  }
-
   String _limitLabel(int gb) {
     if (gb <= 0) return '无限制';
     return '$gb GB';
@@ -203,7 +193,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
       appBar: const AppTopBar(
-        title: '缓存设置',
+        title: '存储与缓存',
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -237,7 +227,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                   title: '音频缓存',
                   subtitle: _loading.value
                       ? '计算中...'
-                      : '占用空间: ${_formatSize(_audioCacheSize.value)}',
+                      : '占用空间: ${formatFileSize(_audioCacheSize.value, fractionDigits: 2, placeholder: '0 B')}',
                   trailing: Icon(Icons.music_note_outlined),
                   onTap: _loading.value ? null : _clearAudioCache,
                 ),
@@ -245,7 +235,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                   title: '封面缓存',
                   subtitle: _loading.value
                       ? '计算中...'
-                      : '占用空间: ${_formatSize(_artworkCacheSize.value)}',
+                      : '占用空间: ${formatFileSize(_artworkCacheSize.value, fractionDigits: 2, placeholder: '0 B')}',
                   trailing: const Icon(Icons.image_outlined),
                   onTap: _loading.value ? null : _clearArtworkCache,
                 ),
@@ -253,7 +243,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                   title: '歌词缓存',
                   subtitle: _loading.value
                       ? '计算中...'
-                      : '占用空间: ${_formatSize(_lyricsCacheSize.value)}',
+                      : '占用空间: ${formatFileSize(_lyricsCacheSize.value, fractionDigits: 2, placeholder: '0 B')}',
                   trailing: const Icon(Icons.description_outlined),
                   onTap: _loading.value ? null : _clearLyricsCache,
                 ),
@@ -262,6 +252,60 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                   subtitle: '清除音频、封面与歌词缓存',
                   trailing: const Icon(Icons.delete_forever_outlined),
                   onTap: _loading.value ? null : _clearAllCaches,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            AppSettingSection(
+              title: '云端播放',
+              children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: WebDavPlaybackSettings.prefetchEnabled,
+                  builder: (context, enabled, _) {
+                    return AppSettingSwitchTile(
+                      title: '预取下一首',
+                      subtitle: '提前缓存下一首减少卡顿',
+                      value: enabled,
+                      onChanged: WebDavPlaybackSettings.setPrefetchEnabled,
+                    );
+                  },
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: WebDavPlaybackSettings.segmentedEnabled,
+                  builder: (context, enabled, _) {
+                    return AppSettingSwitchTile(
+                      title: '分段并发下载',
+                      subtitle: '提高弱网下缓存速度',
+                      value: enabled,
+                      onChanged: WebDavPlaybackSettings.setSegmentedEnabled,
+                    );
+                  },
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: WebDavPlaybackSettings.segmentedEnabled,
+                  builder: (context, enabled, _) {
+                    if (!enabled) return const SizedBox.shrink();
+                    return ValueListenableBuilder<int>(
+                      valueListenable:
+                          WebDavPlaybackSettings.segmentConcurrency,
+                      builder: (context, count, _) {
+                        return AppSettingSlider(
+                          title: '分段并发数',
+                          description: '并发越高速度越快但更耗网络',
+                          value: count.toDouble(),
+                          min: 1,
+                          max: 8,
+                          divisions: 7,
+                          valueText: '$count',
+                          onChanged: (value) {
+                            WebDavPlaybackSettings.setSegmentConcurrency(
+                              value.round(),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
                 ),
               ],
             ),
@@ -299,10 +343,9 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                         (pathValue == null || pathValue.trim().isEmpty)
                         ? '未设置，当前使用 Download/NagoMusic'
                         : pathValue;
-                    return AppSettingTile(
+                    return AppSettingNavTile(
                       title: '下载路径',
                       subtitle: subtitle,
-                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: _pickDownloadDirectory,
                     );
                   },

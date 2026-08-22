@@ -31,7 +31,7 @@ class HttpUtils {
   }
 
   /// Fetches a resource with manual redirect handling.
-  /// 
+  ///
   /// This method manually follows 3xx redirects (up to [maxRedirects]).
   /// If a redirect points to a different host, it automatically strips
   /// the 'Authorization' header to prevent 403 Forbidden errors (common with WebDAV -> OSS/S3).
@@ -60,7 +60,9 @@ class HttpUtils {
 
     for (var i = 0; i < maxRedirects; i++) {
       if (kDebugMode) {
-        debugPrint('HttpUtils: Fetching ${redactUri(currentUri)} (Attempt ${i + 1})');
+        debugPrint(
+          'HttpUtils: Fetching ${redactUri(currentUri)} (Attempt ${i + 1})',
+        );
       }
 
       try {
@@ -75,28 +77,30 @@ class HttpUtils {
           final location = response.headers.value(HttpHeaders.locationHeader);
           if (location != null && location.isNotEmpty) {
             final newUri = currentUri.resolve(location);
-            
+
             // If host changed, drop Authorization header
             if (newUri.host != currentUri.host) {
               if (kDebugMode) {
-                debugPrint('HttpUtils: Redirecting to different host (${newUri.host}), dropping auth headers');
+                debugPrint(
+                  'HttpUtils: Redirecting to different host (${newUri.host}), dropping auth headers',
+                );
               }
               currentOptions.headers?.remove(HttpHeaders.authorizationHeader);
               currentOptions.headers?.remove('Authorization');
             }
-            
+
             currentUri = newUri;
             continue;
           }
         }
-        
+
         return response;
       } catch (e) {
         if (i == maxRedirects - 1) rethrow;
-        rethrow; 
+        rethrow;
       }
     }
-    
+
     throw Exception('Too many redirects ($maxRedirects)');
   }
 }

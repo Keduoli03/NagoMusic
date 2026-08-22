@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/settings_background_state.dart';
-import '../state/settings_theme_state.dart';
+import 'app_colors.dart';
 
 class AppScrollBehavior extends MaterialScrollBehavior {
   const AppScrollBehavior();
@@ -73,60 +73,27 @@ extension AppThemeSurfaceX on ThemeData {
         (backgroundPath != null && backgroundPath.trim().isNotEmpty);
   }
 
+  AppColors get appColors =>
+      extension<AppColors>() ?? AppColors.forBrightness(brightness);
+
+  /// 面板底色 = `AppColors.surface` × 「面板透明度」滑块。
+  ///
+  /// 页面底色现在是纯白，白卡叠白底本身看不出边界，所以面板的层次靠
+  /// [appPanelBorderColor] 的描边和 [appPanelShadowColor] 的淡阴影撑起来；
+  /// 透明度只在用户设了背景图 / 开了页面流光时才真正透出东西。
   Color get appPanelColor {
     final panelOpacity = AppBackgroundSettings.panelOpacity.value;
     if (panelOpacity <= 0) return Colors.transparent;
-
-    if (AppThemeSettings.visualStyle.value == AppVisualStyle.miuix) {
-      // miuix panels used to be forced fully opaque; honour the transparency
-      // slider here too so users get a single unified control.
-      return colorScheme.surface.withValues(alpha: panelOpacity);
-    }
-    final isDark = brightness == Brightness.dark;
-    // Panel opacity is now an unconditional control — no more gating on a
-    // separate "glass effect" toggle. 1.0 = fully solid panel, 0.0 = fully
-    // transparent (the background/glow shows through).
-    final base = isDark
-        ? Color.alphaBlend(
-            colorScheme.primary.withValues(alpha: 0.08),
-            colorScheme.surfaceContainerHigh,
-          )
-        : Color.alphaBlend(
-            colorScheme.primary.withValues(alpha: 0.12),
-            Colors.white,
-          );
-    return base.withValues(alpha: panelOpacity);
+    return appColors.surface.withValues(alpha: panelOpacity);
   }
 
   Color get appPanelShadowColor {
-    if (AppThemeSettings.visualStyle.value == AppVisualStyle.miuix) {
-      return Colors.transparent;
-    }
-    final isDark = brightness == Brightness.dark;
-    return isDark
-        ? Colors.black.withValues(alpha: 0.35)
-        : colorScheme.primary.withValues(alpha: 0.16);
+    return brightness == Brightness.dark
+        ? Colors.transparent
+        : Colors.black.withValues(alpha: 0.05);
   }
 
-  Color get appPanelBorderColor {
-    if (AppThemeSettings.visualStyle.value == AppVisualStyle.miuix) {
-      return Colors.transparent;
-    }
-    final isDark = brightness == Brightness.dark;
-    return isDark
-        ? colorScheme.outline.withValues(alpha: 0.36)
-        : colorScheme.primary.withValues(alpha: 0.12);
-  }
+  Color get appPanelBorderColor => appColors.line;
 
-  Color get appPanelElevatedColor {
-    if (AppThemeSettings.visualStyle.value == AppVisualStyle.miuix) {
-      return colorScheme.surfaceContainerHigh;
-    }
-    final base = appPanelColor;
-    if (base.a <= 0) return Colors.transparent;
-    final overlay = brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.white.withValues(alpha: 0.25);
-    return Color.alphaBlend(overlay, base);
-  }
+  Color get appPanelElevatedColor => appColors.mediaBg;
 }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme/app_visual_theme.dart';
+import '../../app/theme/app_colors.dart';
 
+/// 底部面板外壳：圆角 + 拖拽把手 + 可选标题。
 class AppSheetPanel extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -19,19 +20,12 @@ class AppSheetPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final miuix = context.usesMiuix;
-    final isDark = theme.brightness == Brightness.dark;
-    final cardColor = theme.cardTheme.color ?? theme.cardColor;
-    final secondaryTextColor = isDark
-        ? Colors.white70
-        : const Color.fromARGB(255, 100, 100, 100);
+    final c = AppColors.of(context);
 
     return Container(
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(miuix ? 30 : 22),
-        ),
+        color: c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
         top: false,
@@ -43,22 +37,20 @@ class AppSheetPanel extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: secondaryTextColor.withValues(alpha: 0.35),
+                color: c.muted.withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
             if (title != null)
               Padding(
-                padding: EdgeInsets.fromLTRB(20, miuix ? 18 : 16, 20, 10),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
                 child: Text(
                   title!,
-                  style: miuix
-                      ? theme.textTheme.titleLarge?.copyWith(fontSize: 20)
-                      : TextStyle(
-                          color: secondaryTextColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
                 ),
               ),
             if (expand)

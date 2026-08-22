@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_colors.dart';
+
 class AppBottomBar extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -20,17 +22,16 @@ class AppBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg =
-        backgroundColor ?? (isDark ? const Color(0xFF1C1F24) : Colors.white);
-    final border =
-        borderColor ?? (isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(13));
+    final colors = AppColors.of(context);
+    final bg = backgroundColor ?? colors.surface;
+    final border = borderColor ?? colors.line;
 
     Widget body = Container(
       decoration: BoxDecoration(
         color: bg,
         border: Border(top: BorderSide(color: border, width: 1)),
-        boxShadow: boxShadow ??
+        boxShadow:
+            boxShadow ??
             [
               BoxShadow(
                 color: Colors.black.withAlpha(13),
@@ -40,7 +41,8 @@ class AppBottomBar extends StatelessWidget {
             ],
       ),
       child: Padding(
-        padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding:
+            padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: child,
       ),
     );

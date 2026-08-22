@@ -21,11 +21,7 @@ class LyricsActionsBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _LyricsBadge(
-          text: '词',
-          onTap: onOpenSettings,
-          color: color,
-        ),
+        _LyricsBadge(text: '词', onTap: onOpenSettings, color: color),
         if (hasTranslation)
           _LyricsBadge(
             text: '译',
@@ -89,4 +85,3 @@ class _LyricsBadge extends StatelessWidget {
     );
   }
 }
-

@@ -20,9 +20,11 @@ import '../../app/services/song_download_service.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/state/song_state.dart';
 import '../../components/common/app_list_tile.dart';
+import '../../components/common/setting_widgets.dart';
 import '../../components/common/sheet_panels.dart';
 import '../../components/feedback/app_toast.dart';
 import '../library/playlists_page.dart';
+import '../../app/utils/format_utils.dart';
 
 class SongDetailSheet extends StatefulWidget {
   final SongEntity song;
@@ -687,46 +689,6 @@ class _SongInfoSheetState extends State<SongInfoSheet> {
     }
   }
 
-  String _durationText(int? ms) {
-    final v = ms ?? 0;
-    if (v <= 0) return '--:--';
-    final total = (v / 1000).round();
-    final m = total ~/ 60;
-    final s = total % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
-  String _formatFileSize(int? bytes) {
-    final v = bytes ?? 0;
-    if (v <= 0) return '-';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var size = v.toDouble();
-    var idx = 0;
-    while (size >= 1024 && idx < units.length - 1) {
-      size /= 1024;
-      idx++;
-    }
-    final fixed = size < 10 && idx > 0 ? 2 : 1;
-    return '${size.toStringAsFixed(fixed)} ${units[idx]}';
-  }
-
-  String _formatBitrate(int? bitrate) {
-    final v = bitrate ?? 0;
-    if (v <= 0) return '-';
-    final kbps = v / 1000;
-    final fixed = kbps >= 100 ? 0 : 1;
-    return '${kbps.toStringAsFixed(fixed)} kbps';
-  }
-
-  String _formatSampleRate(int? sampleRate) {
-    final v = sampleRate ?? 0;
-    if (v <= 0) return '-';
-    if (v < 1000) return '$v Hz';
-    final khz = v / 1000;
-    final fixed = khz >= 100 ? 0 : 1;
-    return '${khz.toStringAsFixed(fixed)} kHz';
-  }
-
   Future<String> _resolveSourceName() async {
     if (_song.isLocal) return '本地音乐';
     final id = (_song.sourceId ?? '').trim();
@@ -776,10 +738,17 @@ class _SongInfoSheetState extends State<SongInfoSheet> {
           row('标题', song.title),
           row('艺术家', song.artist),
           row('专辑', song.album ?? '-'),
-          row('时长', _durationText(song.durationMs)),
-          row('码率', _formatBitrate(song.bitrate)),
-          row('采样率', _formatSampleRate(song.sampleRate)),
-          row('大小', _formatFileSize(song.fileSize)),
+          row(
+            '时长',
+            formatDurationMs(
+              song.durationMs,
+              padMinutes: true,
+              roundSeconds: true,
+            ),
+          ),
+          row('码率', formatBitrate(song.bitrate)),
+          row('采样率', formatSampleRate(song.sampleRate)),
+          row('大小', formatFileSize(song.fileSize)),
           row('格式', fmtStr(song.format)),
           FutureBuilder<String>(
             future: _resolveSourceName(),
@@ -1122,10 +1091,9 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> with SignalsMixin {
                   if (!_isLocal)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('强制刮削'),
-                        subtitle: const Text('忽略缓存，重新读取内置标签'),
+                      child: AppSettingSwitchTile(
+                        title: '强制刮削',
+                        subtitle: '忽略缓存，重新读取内置标签',
                         value: _force.value,
                         onChanged: isWorking ? null : (v) => _force.value = v,
                       ),

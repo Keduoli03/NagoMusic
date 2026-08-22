@@ -7,31 +7,15 @@ import 'package:path/path.dart' as p;
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
 import '../../state/song_state.dart';
+import '../../utils/webdav_song_id.dart';
 import '../artwork_cache_helper.dart';
 import '../debug_log_service.dart';
 import '../db/dao/song_dao.dart';
 import '../metadata/tag_probe_service.dart';
 import '../metadata/tag_probe_result.dart';
+import 'webdav_endpoint_resolver.dart';
 import 'webdav_source_repository.dart';
-
-class WebDavScanProgress {
-  final int processed;
-  final int added;
-  final int total;
-
-  const WebDavScanProgress({
-    required this.processed,
-    required this.added,
-    required this.total,
-  });
-}
-
-class WebDavScanResult {
-  final int processed;
-  final int added;
-
-  const WebDavScanResult({required this.processed, required this.added});
-}
+import '../scan_types.dart';
 
 /// Thrown when a WebDAV scan cannot reach/authenticate against the server, so
 /// callers can distinguish a genuine connection failure from an empty folder.
@@ -56,6 +40,7 @@ class WebDavMusicService {
   final SongDao _songDao = SongDao();
   final TagProbeService _tagProbe = TagProbeService.instance;
   final WebDavSourceRepository _repo = WebDavSourceRepository.instance;
+  final WebDavEndpointResolver _endpointResolver = WebDavEndpointResolver.instance;
   final DebugLogService _debugLogs = DebugLogService.instance;
 
   static const _audioExts = {
@@ -88,11 +73,26 @@ class WebDavMusicService {
   }
 
   Future<bool> testConnection(WebDavSource source) async {
-    final endpoint = source.endpoint.trim();
-    if (endpoint.isEmpty) return false;
+    return _testEndpoint(source, source.endpoint);
+  }
+
+  /// Tests every configured address (primary + alternates) independently,
+  /// so the settings UI can show which ones currently work.
+  Future<Map<String, bool>> testConnections(WebDavSource source) async {
+    final endpoints = source.allEndpoints;
+    final result = <String, bool>{};
+    for (final endpoint in endpoints) {
+      result[endpoint] = await _testEndpoint(source, endpoint);
+    }
+    return result;
+  }
+
+  Future<bool> _testEndpoint(WebDavSource source, String endpoint) async {
+    final trimmed = endpoint.trim();
+    if (trimmed.isEmpty) return false;
     final headers = _repo.buildHeaders(source);
     try {
-      final client = _newClient(endpoint, headers);
+      final client = _newClient(trimmed, headers);
       final searchPath = _normalizeWebDavPath(
         source.path.trim().isEmpty ? '/' : source.path,
       );
@@ -134,14 +134,18 @@ class WebDavMusicService {
     return dirs;
   }
 
-  Future<WebDavScanResult> scan({
+  Future<ScanResult> scan({
     required WebDavSource source,
     required ValueGetter<bool> isCancelled,
-    required ValueChanged<WebDavScanProgress> onProgress,
+    required ValueChanged<ScanProgress> onProgress,
   }) async {
-    final endpoint = source.endpoint.trim();
+    final resolvedEndpoint = await _endpointResolver.resolveActiveEndpoint(
+      source,
+      forceRefresh: true,
+    );
+    final endpoint = (resolvedEndpoint ?? source.endpoint).trim();
     if (endpoint.isEmpty) {
-      return const WebDavScanResult(processed: 0, added: 0);
+      return const ScanResult(processed: 0, added: 0);
     }
     await _debugLogs.ensureLoaded();
 
@@ -169,7 +173,7 @@ class WebDavMusicService {
     }
 
     var discovered = 0;
-    onProgress(const WebDavScanProgress(processed: 0, added: 0, total: 0));
+    onProgress(const ScanProgress(processed: 0, added: 0, total: 0));
 
     final collected = <SongEntity>[];
     for (final path in pathsToScan) {
@@ -212,7 +216,9 @@ class WebDavMusicService {
 
           collected.add(
             SongEntity(
-              id: href, // Keep original href as ID for stability
+              // Path-based, not the raw href — stays stable across the
+              // source's alternate addresses (see webdav_song_id.dart).
+              id: buildWebdavSongId(sourceId: source.id, hrefOrUri: href),
               title: title.isNotEmpty ? title : '未知标题',
               artist: source.name.trim().isNotEmpty ? source.name.trim() : '云端',
               album: album.isNotEmpty ? album : null,
@@ -223,15 +229,13 @@ class WebDavMusicService {
               tagsParsed: false,
             ),
           );
-          onProgress(
-            WebDavScanProgress(processed: discovered, added: 0, total: 0),
-          );
+          onProgress(ScanProgress(processed: discovered, added: 0, total: 0));
         },
       );
     }
 
     if (isCancelled()) {
-      return WebDavScanResult(processed: discovered, added: 0);
+      return ScanResult(processed: discovered, added: 0);
     }
 
     final existingList = await _songDao.fetchAll(sourceId: source.id);
@@ -258,7 +262,7 @@ class WebDavMusicService {
               .toList();
 
     if (isCancelled()) {
-      return WebDavScanResult(processed: discovered, added: 0);
+      return ScanResult(processed: discovered, added: 0);
     }
 
     final added = enriched
@@ -267,13 +271,9 @@ class WebDavMusicService {
     await _songDao.deleteBySource(source.id);
     await _songDao.upsertSongs(enriched);
     onProgress(
-      WebDavScanProgress(
-        processed: discovered,
-        added: added,
-        total: discovered,
-      ),
+      ScanProgress(processed: discovered, added: added, total: discovered),
     );
-    return WebDavScanResult(processed: discovered, added: added);
+    return ScanResult(processed: discovered, added: added);
   }
 
   Future<void> _scanRecursive({

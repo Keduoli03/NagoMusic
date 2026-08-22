@@ -2,11 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:signals/signals.dart';
 import 'song_state.dart';
 
-enum PlaybackMode {
-  shuffle,
-  loop,
-  single,
-}
+enum PlaybackMode { shuffle, loop, single }
 
 class PlaybackSnapshot {
   final SongEntity? song;
@@ -56,10 +52,12 @@ class AppPlayerState {
   final ValueNotifier<List<SongEntity>> queue = ValueNotifier(const []);
   final ValueNotifier<int> currentIndex = ValueNotifier(-1);
   final ValueNotifier<SongEntity?> currentSong = ValueNotifier(null);
-  final ValueNotifier<PlaybackSnapshot> snapshot =
-      ValueNotifier(PlaybackSnapshot.initial());
-  final ValueNotifier<PlaybackMode> playbackMode =
-      ValueNotifier(PlaybackMode.loop);
+  final ValueNotifier<PlaybackSnapshot> snapshot = ValueNotifier(
+    PlaybackSnapshot.initial(),
+  );
+  final ValueNotifier<PlaybackMode> playbackMode = ValueNotifier(
+    PlaybackMode.loop,
+  );
   final ValueNotifier<String?> sleepTimerDisplayText = ValueNotifier(null);
   final ValueNotifier<bool> sleepUntilSongEnd = ValueNotifier(false);
 
@@ -85,9 +83,9 @@ class AppPlayerState {
     isPlaying.addListener(() => isPlayingSignal.value = isPlaying.value);
     queue.addListener(() => queueSignal.value = queue.value);
     currentIndex.addListener(
-        () => currentIndexSignal.value = currentIndex.value);
-    currentSong.addListener(
-        () => currentSongSignal.value = currentSong.value);
+      () => currentIndexSignal.value = currentIndex.value,
+    );
+    currentSong.addListener(() => currentSongSignal.value = currentSong.value);
     snapshot.addListener(() => snapshotSignal.value = snapshot.value);
     playbackMode.addListener(
       () => playbackModeSignal.value = playbackMode.value,
@@ -99,7 +97,7 @@ class AppPlayerState {
       () => sleepUntilSongEndSignal.value = sleepUntilSongEnd.value,
     );
   }
-  
+
   void dispose() {
     position.dispose();
     duration.dispose();

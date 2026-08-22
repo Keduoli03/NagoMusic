@@ -12,6 +12,7 @@ import '../../components/layout/base/app_top_bar.dart';
 import '../../components/list/media_list_tile.dart';
 import '../library/library_detail_pages.dart';
 import '../songs/song_detail_sheet.dart';
+import '../../app/utils/format_utils.dart';
 
 enum _TrendMode { week, month }
 
@@ -130,21 +131,6 @@ class _ListeningStatsPageState extends State<ListeningStatsPage> {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  String _durationText(int? durationMs) {
-    if (durationMs == null || durationMs <= 0) return '--:--';
-    final totalSeconds = (durationMs / 1000).floor();
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  String _dayKey(DateTime t) {
-    final y = t.year.toString().padLeft(4, '0');
-    final m = t.month.toString().padLeft(2, '0');
-    final d = t.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
   List<_TrendBar> _buildTrendBars() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -152,11 +138,12 @@ class _ListeningStatsPageState extends State<ListeningStatsPage> {
     if (_trendMode == _TrendMode.week) {
       return List.generate(7, (i) {
         final date = today.subtract(Duration(days: 6 - i));
-        final ms = _dayMap[_dayKey(date)]?.listenMs ?? 0;
+        final ms = _dayMap[formatDayKey(date)]?.listenMs ?? 0;
         return _TrendBar(
           value: ms,
           label: weekdayLabels[date.weekday - 1],
-          fullLabel: '${date.month}月${date.day}日 周${weekdayLabels[date.weekday - 1]}',
+          fullLabel:
+              '${date.month}月${date.day}日 周${weekdayLabels[date.weekday - 1]}',
           highlight: date == today,
           showLabel: true,
         );
@@ -166,7 +153,7 @@ class _ListeningStatsPageState extends State<ListeningStatsPage> {
     return List.generate(days, (i) {
       final day = i + 1;
       final date = DateTime(now.year, now.month, day);
-      final ms = _dayMap[_dayKey(date)]?.listenMs ?? 0;
+      final ms = _dayMap[formatDayKey(date)]?.listenMs ?? 0;
       final showLabel = day == 1 || day % 5 == 0 || day == today.day;
       return _TrendBar(
         value: ms,
@@ -276,14 +263,21 @@ class _ListeningStatsPageState extends State<ListeningStatsPage> {
           child: _SegmentedToggle(
             options: const ['歌曲', '艺术家', '专辑'],
             selectedIndex: _leaderTab.index,
-            onChanged: (i) =>
-                setState(() => _leaderTab = _LeaderTab.values[i]),
+            onChanged: (i) => setState(() => _leaderTab = _LeaderTab.values[i]),
           ),
         ),
         switch (_leaderTab) {
           _LeaderTab.songs => _buildTopSongs(context),
-          _LeaderTab.artists => _buildAggList(context, _topArtists, isAlbum: false),
-          _LeaderTab.albums => _buildAggList(context, _topAlbums, isAlbum: true),
+          _LeaderTab.artists => _buildAggList(
+            context,
+            _topArtists,
+            isAlbum: false,
+          ),
+          _LeaderTab.albums => _buildAggList(
+            context,
+            _topAlbums,
+            isAlbum: true,
+          ),
         },
       ],
     );
@@ -311,8 +305,7 @@ class _ListeningStatsPageState extends State<ListeningStatsPage> {
                 ),
               ),
               title: song.title,
-              subtitle:
-                  '${song.artist} · ${_durationText(song.durationMs)}',
+              subtitle: '${song.artist} · ${formatDurationMs(song.durationMs)}',
               selected: false,
               multiSelect: false,
               isHighlighted: current?.id == song.id,
@@ -680,7 +673,9 @@ class _RankedArtwork extends StatelessWidget {
               height: 18,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: topThree ? scheme.primary : scheme.surfaceContainerHighest,
+                color: topThree
+                    ? scheme.primary
+                    : scheme.surfaceContainerHighest,
                 shape: BoxShape.circle,
                 border: Border.all(color: scheme.surface, width: 1.5),
               ),

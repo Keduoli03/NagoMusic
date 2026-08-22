@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../state/song_state.dart';
 import '../metadata/tag_probe_service.dart';
+import '../../utils/cache_key.dart';
 
 class LyricsRepository {
   Future<String?> loadLrc(SongEntity song) async {
@@ -82,27 +83,14 @@ class LyricsRepository {
       if (!await lyricsDir.exists()) {
         await lyricsDir.create(recursive: true);
       }
-      final file = File(p.join(lyricsDir.path, '${_cacheKey(songId)}.lrc'));
+      final file = File(p.join(lyricsDir.path, '${fnv1a64Hex(songId)}.lrc'));
       await file.writeAsString(content, flush: true);
     } catch (_) {}
   }
 
   Future<File> _cacheFileForSongId(String songId) async {
     final dir = await getApplicationSupportDirectory();
-    return File(p.join(dir.path, 'lyrics', '${_cacheKey(songId)}.lrc'));
-  }
-
-  String _cacheKey(String songId) {
-    final bytes = utf8.encode(songId);
-    const int offsetBasis = 0xcbf29ce484222325;
-    const int prime = 0x100000001b3;
-    const int mask64 = 0xFFFFFFFFFFFFFFFF;
-    var hash = offsetBasis;
-    for (final b in bytes) {
-      hash ^= b;
-      hash = (hash * prime) & mask64;
-    }
-    return hash.toUnsigned(64).toRadixString(16).padLeft(16, '0');
+    return File(p.join(dir.path, 'lyrics', '${fnv1a64Hex(songId)}.lrc'));
   }
 
   Future<String?> _readFromEmbeddedTags(SongEntity song) async {
@@ -151,8 +139,7 @@ class LyricsRepository {
       final entries = <File>[];
       // Async listing so a large lyrics folder never blocks the UI isolate.
       await for (final entry in dirHandle.list(followLinks: false)) {
-        if (entry is File &&
-            p.extension(entry.path).toLowerCase() == '.lrc') {
+        if (entry is File && p.extension(entry.path).toLowerCase() == '.lrc') {
           entries.add(entry);
         }
       }

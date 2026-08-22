@@ -63,10 +63,7 @@ class LabeledSlider extends StatelessWidget {
             children: [
               SizedBox(
                 width: titleWidth,
-                child: Text(
-                  title,
-                  style: TextStyle(fontSize: titleFontSize),
-                ),
+                child: Text(title, style: TextStyle(fontSize: titleFontSize)),
               ),
               const Spacer(),
               if (displayValue != null)

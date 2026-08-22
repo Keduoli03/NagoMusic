@@ -6,7 +6,6 @@ import '../../../app/router/app_page_route.dart';
 import '../../../app/services/block_list_service.dart';
 import '../../../app/services/db/dao/song_dao.dart';
 import '../../../app/services/webdav/webdav_source_repository.dart';
-import '../../../components/common/blocked_management_sheet.dart';
 import '../../../components/index.dart';
 import '../folder_info.dart';
 import '../folder_songs_page.dart';
@@ -154,57 +153,10 @@ class _WebDavFolderBrowserState extends State<WebDavFolderBrowser>
             },
             itemBuilder: (context, index) {
               if (hasBlocked && index == 0) {
-                final theme = Theme.of(context);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: SizedBox(
-                    height: 64,
-                    child: Material(
-                      color: theme.cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => BlockedManagementSheet(
-                              title: '已屏蔽文件夹',
-                              items: blocked.toList(),
-                              onUnblock: (item) async {
-                                final blockedKey =
-                                    'blocked_folders_${widget.sourceId}';
-                                await BlockListService.instance.remove(
-                                  blockedKey,
-                                  item,
-                                );
-                                if (context.mounted) {
-                                  Navigator.pop(context);
-                                  _loadFolders();
-                                }
-                              },
-                            ),
-                          );
-                        },
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 16),
-                            Icon(
-                              Icons.folder_off,
-                              color: theme.colorScheme.error,
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(child: Text('已屏蔽的文件夹')),
-                            Text('${blocked.length} 个'),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right_rounded),
-                            const SizedBox(width: 12),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                return BlockedFoldersEntryCard(
+                  blockListKey: 'blocked_folders_${widget.sourceId}',
+                  blocked: blocked.toList(),
+                  onChanged: _loadFolders,
                 );
               }
 
@@ -215,45 +167,12 @@ class _WebDavFolderBrowserState extends State<WebDavFolderBrowser>
                 subtitle: '${folder.count} 首歌曲',
                 actions: [],
                 onLongPress: () {
-                  final pageContext = context;
-                  showModalBottomSheet(
-                    context: pageContext,
-                    backgroundColor: Colors.transparent,
-                    builder: (sheetContext) {
-                      return AppSheetPanel(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ListTile(
-                              leading: const Icon(
-                                Icons.folder_off,
-                                color: Colors.red,
-                              ),
-                              title: const Text('屏蔽此文件夹'),
-                              titleTextStyle: TextStyle(
-                                color: Theme.of(sheetContext).colorScheme.error,
-                              ),
-                              onTap: () async {
-                                Navigator.pop(sheetContext);
-                                final blockedKey =
-                                    'blocked_folders_${widget.sourceId}';
-                                await BlockListService.instance.add(
-                                  blockedKey,
-                                  folder.id,
-                                );
-                                if (!pageContext.mounted) return;
-                                AppToast.show(
-                                  pageContext,
-                                  '已屏蔽: ${folder.name}',
-                                );
-                                _loadFolders();
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                      );
-                    },
+                  showBlockFolderSheet(
+                    context,
+                    blockListKey: 'blocked_folders_${widget.sourceId}',
+                    folderId: folder.id,
+                    folderName: folder.name,
+                    onBlocked: _loadFolders,
                   );
                 },
                 onTap: () {

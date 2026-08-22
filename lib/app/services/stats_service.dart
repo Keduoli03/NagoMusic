@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../state/player_state.dart';
+import '../utils/format_utils.dart';
 import 'db/db_constants.dart';
 import 'db/db_helper.dart';
 
@@ -120,8 +121,8 @@ class StatsService {
     final db = await DbHelper.instance.database;
     final start = DateTime(year, month, 1);
     final end = DateTime(year, month + 1, 0);
-    final startKey = _dayKey(start);
-    final endKey = _dayKey(end);
+    final startKey = formatDayKey(start);
+    final endKey = formatDayKey(end);
     final rows = await db.query(
       DbConstants.tableListeningDays,
       where: 'dayKey >= ? AND dayKey <= ?',
@@ -169,7 +170,8 @@ class StatsService {
     return map;
   }
 
-  Future<List<SongListeningStat>> fetchTopSongs({int limit = 20}) async {    final db = await DbHelper.instance.database;
+  Future<List<SongListeningStat>> fetchTopSongs({int limit = 20}) async {
+    final db = await DbHelper.instance.database;
     final rows = await db.query(
       DbConstants.tableSongStats,
       orderBy: 'playCount DESC, listenMs DESC',
@@ -280,13 +282,6 @@ class StatsService {
     );
   }
 
-  String _dayKey(DateTime time) {
-    final y = time.year.toString().padLeft(4, '0');
-    final m = time.month.toString().padLeft(2, '0');
-    final d = time.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
   int _parseInt(dynamic value) {
     if (value is int) return value;
     if (value == null) return 0;
@@ -316,7 +311,7 @@ class StatsService {
       final db = await DbHelper.instance.database;
       final now = DateTime.now();
       final nowMs = now.millisecondsSinceEpoch;
-      final dayKey = _dayKey(now);
+      final dayKey = formatDayKey(now);
       await db.transaction((txn) async {
         if (songListenMs > 0 || songPlayCount > 0) {
           final rows = await txn.query(

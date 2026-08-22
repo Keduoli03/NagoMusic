@@ -56,16 +56,15 @@ class LibraryWarmupService {
     List<SongEntity> songs,
     int songVersion,
   ) async {
-    final sortMode = (prefs.getString(albumsPrefsSortMode)?.trim().isNotEmpty ??
-            false)
+    final sortMode =
+        (prefs.getString(albumsPrefsSortMode)?.trim().isNotEmpty ?? false)
         ? prefs.getString(albumsPrefsSortMode)!.trim()
         : albumsDefaultSortMode;
     final ascending =
         prefs.getBool(albumsPrefsSortAscending) ?? albumsDefaultAscending;
-    final blockedSorted =
-        (await BlockListService.instance.load(albumsPrefsBlockedAlbums))
-            .toList()
-          ..sort();
+    final blockedSorted = (await BlockListService.instance.load(
+      albumsPrefsBlockedAlbums,
+    )).toList()..sort();
     final cacheKey = albumsCacheKeyForVersion(
       songVersion: songVersion,
       sortMode: sortMode,
@@ -106,19 +105,17 @@ class LibraryWarmupService {
     List<SongEntity> songs,
     int songVersion,
   ) async {
-    final sortKey = (prefs.getString(artistsPrefsSortKey)?.trim().isNotEmpty ??
-            false)
+    final sortKey =
+        (prefs.getString(artistsPrefsSortKey)?.trim().isNotEmpty ?? false)
         ? prefs.getString(artistsPrefsSortKey)!.trim()
         : artistsDefaultSortKey;
     final ascending =
         prefs.getBool(artistsPrefsSortAscending) ?? artistsDefaultAscending;
     final filterUnknown =
-        prefs.getBool(artistsPrefsFilterUnknown) ??
-            artistsDefaultFilterUnknown;
-    final blockedSorted =
-        (await BlockListService.instance.load(artistsPrefsBlockedArtists))
-            .toList()
-          ..sort();
+        prefs.getBool(artistsPrefsFilterUnknown) ?? artistsDefaultFilterUnknown;
+    final blockedSorted = (await BlockListService.instance.load(
+      artistsPrefsBlockedArtists,
+    )).toList()..sort();
     final cacheKey = artistsCacheKeyForVersion(
       songVersion: songVersion,
       sortKey: sortKey,

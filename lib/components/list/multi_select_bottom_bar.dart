@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 class MultiSelectBottomBar extends StatelessWidget {
   final List<MultiSelectAction> actions;
 
-  const MultiSelectBottomBar({
-    super.key,
-    required this.actions,
-  });
+  const MultiSelectBottomBar({super.key, required this.actions});
 
   @override
   Widget build(BuildContext context) {

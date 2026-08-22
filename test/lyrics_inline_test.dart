@@ -52,8 +52,9 @@ void main() {
     expect(at(65590).translation, isNull);
 
     // Whole model has translation -> 译 button should appear
-    final hasTranslation =
-        model.lines.any((l) => (l.translation ?? '').trim().isNotEmpty);
+    final hasTranslation = model.lines.any(
+      (l) => (l.translation ?? '').trim().isNotEmpty,
+    );
     expect(hasTranslation, isTrue);
   });
 }
