@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/router/app_router.dart';
 import '../../app/services/playlists_service.dart';
 import '../../components/index.dart';
-import '../library/playlists_page.dart';
+import '../library/playlist_detail_page.dart';
 
 /// 底部导航第 4 项「我的」入口页。
 ///

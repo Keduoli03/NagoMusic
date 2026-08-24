@@ -11,7 +11,7 @@ import '../../app/utils/multi_select_mixin.dart';
 import '../../app/utils/natural_sort.dart';
 import '../../app/utils/uri_utils.dart';
 import '../../components/index.dart';
-import '../library/playlists_page.dart';
+import '../library/playlist_picker_sheet.dart';
 import '../songs/song_detail_sheet.dart';
 
 class FolderSongsPage extends StatefulWidget {

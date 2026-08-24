@@ -21,7 +21,7 @@ import '../../components/common/app_list_tile.dart';
 import '../../components/common/setting_widgets.dart';
 import '../../components/common/sheet_panels.dart';
 import '../../components/feedback/app_toast.dart';
-import '../library/playlists_page.dart';
+import '../library/playlist_picker_sheet.dart';
 import '../../app/utils/format_utils.dart';
 
 class SongDetailSheet extends StatefulWidget {

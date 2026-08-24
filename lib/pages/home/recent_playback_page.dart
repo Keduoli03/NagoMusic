@@ -14,7 +14,7 @@ import '../../components/common/letter_artwork_placeholder.dart';
 import '../../components/layout/base/app_page_scaffold.dart';
 import '../../components/layout/base/app_top_bar.dart';
 import '../library/library_detail_pages.dart';
-import '../library/playlists_page.dart';
+import '../library/playlist_detail_page.dart';
 
 enum RecentPlaybackTab { songs, albums, playlists }
 

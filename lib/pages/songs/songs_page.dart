@@ -21,7 +21,7 @@ import '../../app/utils/deferred_page_init_mixin.dart';
 import '../../app/utils/multi_select_mixin.dart';
 import '../../app/utils/page_cache_store.dart';
 import '../../components/index.dart';
-import '../library/playlists_page.dart';
+import '../library/playlist_picker_sheet.dart';
 import 'songs_actions_controller.dart';
 import 'songs_artwork_coordinator.dart';
 import 'songs_visible_controller.dart';
