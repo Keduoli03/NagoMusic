@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/router/app_router.dart';
+import '../../app/services/playlists_service.dart';
 import '../../components/index.dart';
+import '../library/playlists_page.dart';
 
 /// 底部导航第 4 项「我的」入口页。
 ///
@@ -40,6 +42,26 @@ class ProfilePage extends StatelessWidget {
               AppSettingSection(
                 title: '资源库',
                 children: [
+                  _tile(
+                    context,
+                    icon: Icons.favorite_rounded,
+                    title: PlaylistsService.favoritePlaylistName,
+                    subtitle: '所有标记过红心的歌曲',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const PlaylistDetailPage(
+                          playlistId: PlaylistsService.favoritePlaylistId,
+                        ),
+                      ),
+                    ),
+                  ),
+                  _navTile(
+                    context,
+                    icon: Icons.queue_music_rounded,
+                    title: '歌单',
+                    route: AppRoutes.playlists,
+                  ),
                   _navTile(
                     context,
                     icon: Icons.album_rounded,
@@ -125,6 +147,22 @@ class ProfilePage extends StatelessWidget {
     String? subtitle,
     required String route,
   }) {
+    return _tile(
+      context,
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      onTap: () => Navigator.pushNamed(context, route),
+    );
+  }
+
+  Widget _tile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     return AppSettingTile(
       title: title,
@@ -140,7 +178,7 @@ class ProfilePage extends StatelessWidget {
         child: Icon(icon, size: 20, color: scheme.primary),
       ),
       trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => Navigator.pushNamed(context, route),
+      onTap: onTap,
     );
   }
 }

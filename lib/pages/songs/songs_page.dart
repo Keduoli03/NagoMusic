@@ -8,6 +8,7 @@ import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/router/app_router.dart';
 import '../../app/services/artwork_service.dart';
+import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/local_music_service.dart';
 import '../../app/services/stats_service.dart';
@@ -163,6 +164,8 @@ class _SongsPageState extends State<SongsPage>
       final name = s.name.trim().isEmpty ? 'Navidrome' : s.name.trim();
       map[s.id] = name;
     }
+    // B 站是登录制的内置源，不在 PrefsSourceRepository 里，名字写死。
+    map[BiliMusicService.sourceId] = 'B站';
     if (!mounted) return;
     _webDavNameMap.value = map;
   }

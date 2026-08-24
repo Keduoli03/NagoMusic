@@ -85,6 +85,11 @@ class SideMenu extends StatelessWidget {
                     const SizedBox(height: 8),
                     _sectionLabel(context, '更多'),
                     _MenuItem(
+                      icon: Icons.live_tv_rounded,
+                      label: 'B站',
+                      onTap: () => _navigateAndClose(context, AppRoutes.bili),
+                    ),
+                    _MenuItem(
                       icon: Icons.radar_rounded,
                       label: '音源',
                       onTap: () => _navigateAndClose(context, AppRoutes.source),

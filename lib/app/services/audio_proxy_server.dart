@@ -10,15 +10,42 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'http_utils.dart';
 
 class _StreamSource {
-  final Uri uri;
+  /// 上游地址。为 null 表示要等第一次真正取流时再通过 [resolveUri] 解析出来
+  /// （B 站的直链带时效签名，在建队列时就全部解析一遍等于开播前打几十次请求）。
+  Uri? uri;
+
+  /// 参数为 true 时要求绕过调用方自己的缓存，重新问一次上游。
+  final Future<Uri?> Function(bool forceRefresh)? resolveUri;
   final Map<String, String> headers;
   final File cacheFile;
 
-  const _StreamSource({
-    required this.uri,
+  bool _needsFresh = false;
+
+  _StreamSource({
+    this.uri,
+    this.resolveUri,
     required this.headers,
     required this.cacheFile,
-  });
+  }) : assert(uri != null || resolveUri != null);
+
+  /// 惰性拿到上游地址。解析结果会写回 [uri]，同一个 token 只解析一次。
+  Future<Uri> ensureUri() async {
+    final cached = uri;
+    if (cached != null) return cached;
+    final resolved = await resolveUri!(_needsFresh);
+    _needsFresh = false;
+    if (resolved == null) {
+      throw StateError('无法解析上游音频地址');
+    }
+    return uri = resolved;
+  }
+
+  /// 上游返回 403 通常意味着签名过期，需要丢掉缓存的地址重新解析一次。
+  void invalidate() {
+    if (resolveUri == null) return;
+    uri = null;
+    _needsFresh = true;
+  }
 }
 
 class _ByteRange {
@@ -49,7 +76,10 @@ class AudioProxyServer {
 
   // Upper bound on retained stream tokens. Each resolve/warmup/TTL re-register
   // creates a fresh token; without a cap the map leaks for the whole session.
-  static const int _maxSources = 64;
+  // 队列里的每一首都会注册一个 token，所以这个上限必须高过常见队列长度 ——
+  // 64 的时候一个 57 P 的合集就已经贴着天花板，再长一点就会把正在播的那首挤掉。
+  // 每个 token 只是一个 uri + headers + File，几百个也就几十 KB。
+  static const int _maxSources = 512;
 
   final dio.Dio _client = dio.Dio(
     dio.BaseOptions(
@@ -87,7 +117,8 @@ class AudioProxyServer {
   }
 
   Future<Uri> registerSource({
-    required Uri uri,
+    Uri? uri,
+    Future<Uri?> Function(bool forceRefresh)? resolveUri,
     required Map<String, String> headers,
     required File cacheFile,
   }) async {
@@ -101,6 +132,7 @@ class AudioProxyServer {
     }
     _sources[token] = _StreamSource(
       uri: uri,
+      resolveUri: resolveUri,
       headers: headers,
       cacheFile: cacheFile,
     );
@@ -576,14 +608,24 @@ class AudioProxyServer {
     int retryCount = 0;
     while (true) {
       try {
-        return await HttpUtils.fetchWithManualRedirect<dio.ResponseBody>(
+        final upstream = await source.ensureUri();
+        final response = await HttpUtils.fetchWithManualRedirect<
+          dio.ResponseBody
+        >(
           _client,
-          source.uri,
+          upstream,
           options: dio.Options(
             headers: currentHeaders,
             responseType: dio.ResponseType.stream,
           ),
         );
+        // 403 在带签名的直链上就是「地址过期了」，重新解析一次再打。
+        if (response.statusCode == HttpStatus.forbidden && retryCount < 2) {
+          source.invalidate();
+          retryCount++;
+          continue;
+        }
+        return response;
       } catch (e) {
         retryCount++;
         if (retryCount >= 3) rethrow;

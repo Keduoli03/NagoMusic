@@ -309,7 +309,9 @@ class _PlaylistsPageState extends State<PlaylistsPage>
         extendBodyBehindAppBar: true,
         appBar: AppTopBar(
           title: '歌单',
-          showBackButton: !useBottomNavigation,
+          // 歌单不再是底栏一级页（那一格换成了 B站），现在统一由「我的」推进来，
+          // 所以底栏模式下也要有返回键。侧栏模式仍然用汉堡键打开抽屉。
+          showBackButton: true,
           leading: useBottomNavigation
               ? null
               : IconButton(
@@ -333,7 +335,9 @@ class _PlaylistsPageState extends State<PlaylistsPage>
             : SideMenu(
                 onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
               ),
-        bottomNavIndex: useBottomNavigation ? 2 : null,
+        // 歌单从底栏一级页降级成「我的」里的入口后，跟专辑 / 艺术家一样保留底栏，
+        // 只是选中项归 0 —— 它自己已经不占底栏的格子了。
+        bottomNavIndex: useBottomNavigation ? 0 : null,
         onBottomNavTap: useBottomNavigation
             ? (index) => navigateToPrimaryDestination(context, index)
             : null,
@@ -834,7 +838,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                   );
           },
         ),
-        bottomNavIndex: useBottomNavigation ? 2 : null,
+        bottomNavIndex: useBottomNavigation ? 0 : null,
         onBottomNavTap: useBottomNavigation
             ? (index) => navigateToPrimaryDestination(context, index)
             : null,

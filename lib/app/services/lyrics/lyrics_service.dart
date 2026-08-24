@@ -8,6 +8,8 @@ import 'package:signals/signals.dart';
 
 import '../player_service.dart';
 import '../../state/song_state.dart';
+import '../bili/bili_music_service.dart';
+import '../bili/bili_subtitle_service.dart';
 import 'lyrics_parser.dart';
 import 'lyrics_repository.dart';
 import 'lyricon_service.dart';
@@ -62,6 +64,7 @@ class LyricsService {
       'lyrics_lyricon_hide_translation';
   static const String _prefsMeizuLyrics = 'lyrics_meizu_enabled';
   static const String _prefsViewForceKaraoke = 'lyrics_view_force_karaoke';
+  static const String prefsBiliSubtitleEnabled = 'lyrics_bili_subtitle_enabled';
 
   final LyricsRepository _repo = LyricsRepository();
   final PlayerService _player = PlayerService.instance;
@@ -89,6 +92,7 @@ class LyricsService {
   bool _meizuEnabled = false;
   int _meizuLastIndex = -1;
   bool _viewForceKaraoke = false;
+  bool _biliSubtitleEnabled = true;
 
   LyricsService._internal() {
     snapshot.addListener(() => snapshotSignal.value = snapshot.value);
@@ -131,6 +135,7 @@ class LyricsService {
         prefs.getBool(_prefsLyriconHideTranslation) ?? false;
     _meizuEnabled = prefs.getBool(_prefsMeizuLyrics) ?? false;
     _viewForceKaraoke = prefs.getBool(_prefsViewForceKaraoke) ?? false;
+    _biliSubtitleEnabled = prefs.getBool(prefsBiliSubtitleEnabled) ?? true;
     await LyriconService.setServiceEnabled(_lyriconEnabled);
     if (!_lyriconEnabled) {
       _lyriconPosTimer?.cancel();
@@ -171,6 +176,25 @@ class LyricsService {
     _loadForSong(_player.currentSong.value);
   }
 
+  /// 取 B 站视频字幕当歌词，成功后写进歌词缓存，下次直接命中本地不再联网。
+  ///
+  /// 用 `overwrite: false` 保存：这条只是「本地什么都没有」时的兜底，
+  /// 不该盖掉用户自己刮削或放进去的歌词。
+  Future<String?> _loadBiliSubtitle(SongEntity song) async {
+    try {
+      final lrc = await BiliSubtitleService.instance.fetchLrc(song.id);
+      if (lrc == null || lrc.trim().isEmpty) return null;
+      await _repo.saveLrcToCache(song.id, lrc);
+      return lrc;
+    } catch (e) {
+      // 没登录 / 该视频没字幕 / 网络不通 —— 都只是「这首没歌词」，不该弹错误。
+      if (kDebugMode) {
+        debugPrint('[Lyrics] B 站字幕获取失败 ${song.title}: $e');
+      }
+      return null;
+    }
+  }
+
   Future<void> _loadForSong(SongEntity? song) async {
     final seq = ++_loadSeq;
     snapshot.value = snapshot.value.copyWith(
@@ -199,8 +223,18 @@ class LyricsService {
 
     try {
       await refreshSettings();
-      final lrc = await _repo.loadLrc(song);
+      var lrc = await _repo.loadLrc(song);
       if (seq != _loadSeq) return;
+
+      // 本地（内嵌标签 / 缓存 / 同名 .lrc）都没有时，B 站曲目再去取一次视频字幕。
+      // 放在这里而不是 LyricsRepository 里，是为了让仓库保持「只读本地」的语义，
+      // 联网获取属于编排层的事。
+      if ((lrc == null || lrc.trim().isEmpty) &&
+          _biliSubtitleEnabled &&
+          BiliMusicService.isBiliSong(song)) {
+        lrc = await _loadBiliSubtitle(song);
+        if (seq != _loadSeq) return;
+      }
 
       if (lrc == null || lrc.trim().isEmpty) {
         snapshot.value = snapshot.value.copyWith(

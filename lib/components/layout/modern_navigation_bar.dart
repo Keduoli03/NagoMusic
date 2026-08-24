@@ -10,7 +10,7 @@ import 'liquid_glass.dart';
 const _primaryNavigationRoutes = <String>[
   AppRoutes.home,
   AppRoutes.songs,
-  AppRoutes.playlists,
+  AppRoutes.bili,
   AppRoutes.profile,
 ];
 
@@ -110,7 +110,7 @@ class ModernNavigationBar extends StatefulWidget {
 
 class _ModernNavigationBarState extends State<ModernNavigationBar>
     with SingleTickerProviderStateMixin {
-  static const List<String> _labels = ['首页', '歌曲', '歌单', '我的'];
+  static const List<String> _labels = ['首页', '歌曲', 'B站', '我的'];
 
   late final AnimationController _slide = AnimationController(
     vsync: this,

@@ -25,6 +25,7 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
   late final _lyriconEnabled = createSignal(false);
   late final _lyriconForceKaraoke = createSignal(false);
   late final _lyriconHideTranslation = createSignal(false);
+  late final _biliSubtitle = createSignal(true);
   late final _loading = createSignal(true);
 
   @override
@@ -42,6 +43,8 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
         prefs.getBool(_prefsLyriconForceKaraoke) ?? false;
     _lyriconHideTranslation.value =
         prefs.getBool(_prefsLyriconHideTranslation) ?? false;
+    _biliSubtitle.value =
+        prefs.getBool(LyricsService.prefsBiliSubtitleEnabled) ?? true;
     await LyricsService.instance.refreshSettings();
     _loading.value = false;
   }
@@ -72,6 +75,14 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
     _updateBool(_prefsLyriconHideTranslation, value);
   }
 
+  void _setBiliSubtitle(bool value) {
+    _biliSubtitle.value = value;
+    _updateBool(LyricsService.prefsBiliSubtitleEnabled, value);
+    // 开关一变就重载当前歌曲：关掉之后不该继续显示刚拉来的字幕，
+    // 打开之后也应该立刻去取一次。
+    LyricsService.instance.reloadCurrentSong();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Watch.builder(
@@ -92,6 +103,18 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
+              AppSettingSection(
+                title: '歌词来源',
+                children: [
+                  AppSettingSwitchTile(
+                    title: 'B站字幕当歌词',
+                    subtitle: '本地没有歌词时，自动取视频字幕（需登录 B 站账号）',
+                    value: _biliSubtitle.value,
+                    onChanged: _setBiliSubtitle,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               AppSettingSection(
                 title: '状态栏歌词',
                 children: [

@@ -12,6 +12,7 @@ import 'db/dao/song_dao.dart';
 import 'lyrics/lyrics_repository.dart';
 import 'artwork_cache_helper.dart';
 import 'audio_proxy_server.dart';
+import 'bili/bili_music_service.dart';
 import 'cache/audio_cache_service.dart';
 import 'metadata/tag_probe_service.dart';
 import 'media_notification_service.dart';
@@ -40,6 +41,7 @@ class PlayerService with WidgetsBindingObserver {
   final WebDavSourceRepository _webdavSourceRepo = WebDavSourceRepository.instance;
   final WebDavEndpointResolver _webdavEndpointResolver =
       WebDavEndpointResolver.instance;
+  final BiliMusicService _biliService = BiliMusicService.instance;
   AudioSession? _audioSession;
 
   ValueNotifier<Duration> get position => _state.position;
@@ -156,6 +158,15 @@ class PlayerService with WidgetsBindingObserver {
             cached.localCoverPath != song.localCoverPath) {
           final updated = song.copyWith(localCoverPath: cached.localCoverPath);
           currentSong.value = updated;
+          // 队列里的那一项也要换掉，否则它会一直是没有封面的旧实例，
+          // 下一次 currentIndexStream 发射时又把 currentSong 打回去。
+          final list = queue.value;
+          final index = list.indexWhere((item) => item.id == song.id);
+          if (index >= 0 && list[index].localCoverPath != updated.localCoverPath) {
+            final next = [...list];
+            next[index] = updated;
+            queue.value = next;
+          }
           _warmupPlaybackSources(
             updated,
             nextSong: _nextSongForIndex(queue.value, currentIndex.value),
@@ -240,8 +251,8 @@ class PlayerService with WidgetsBindingObserver {
         final song = list[idx];
         final previousSongId = currentSong.value?.id;
         final songChanged = previousSongId != song.id;
-        currentSong.value = song;
         if (songChanged) {
+          currentSong.value = song;
           final restoredPosition = _restoreSessionForSong(song)?.position;
           position.value = restoredPosition ?? Duration.zero;
           bufferedPosition.value = Duration.zero;
@@ -249,6 +260,14 @@ class PlayerService with WidgetsBindingObserver {
               ? Duration(milliseconds: song.durationMs!)
               : null;
         }
+        // 还是同一首歌时**不要**重新赋值 currentSong。
+        //
+        // just_audio 在播放/暂停切换时也会重新发射 currentIndexStream，而
+        // 队列里的那个实例往往比 currentSong 更「旧」—— 封面是播放开始后才异步
+        // 下载并回填到 currentSong 的，队列元素没跟着更新。一旦覆盖回去，
+        // ArtworkWidget 看到 localCoverPath 变了会清空重载（露出占位块）、
+        // LyricsService 判定换歌会清空歌词、播放页背景的取色也会重置成主题色，
+        // 紧接着 hydrate 又把它补回来 —— 表现就是暂停时整页闪一下。
         _maybeProbeSong(song);
         _scheduleDeferredProbe(song);
         _hydrateAndSetCurrentSong(song);
@@ -1392,7 +1411,10 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> _warmupSource(SongEntity song) async {
     final rawUri = (song.uri ?? '').trim();
-    if (song.isLocal || !rawUri.startsWith('http')) return;
+    if (!BiliMusicService.isBiliSong(song) &&
+        (song.isLocal || !rawUri.startsWith('http'))) {
+      return;
+    }
     try {
       await _resolvePlayableUri(song);
     } catch (e) {
@@ -1405,6 +1427,7 @@ class PlayerService with WidgetsBindingObserver {
   void _invalidateResolvedSource(SongEntity song) {
     _resolvedRemoteSources.remove(song.id);
     _sourceResolveInflight.remove(song.id);
+    _biliService.invalidate(song.id);
     final sourceId = song.sourceId;
     if (sourceId != null) {
       _webdavEndpointResolver.invalidate(sourceId);
@@ -1502,12 +1525,48 @@ class PlayerService with WidgetsBindingObserver {
     bool forceRefresh = false,
   }) async {
     final storedUri = (song.uri ?? '').trim();
+    // B 站的直链带时效签名，而且解析一次就是一次网络请求 —— 建队列时挨个解析的话，
+    // 一个 57 P 的合集开播前要打 57 次 playurl。这里只把「怎么解析」交给代理，
+    // 真正取流时才解析，缓存键用稳定的 bili:// 占位地址而不是会变的直链。
+    if (BiliMusicService.isBiliSong(song)) {
+      return _registerRemoteSource(
+        song,
+        rawUri: storedUri.isEmpty
+            ? BiliMusicService.placeholderUri(song.id)
+            : storedUri,
+        headers: _headersFromSong(song) ?? await _biliService.headersMap(),
+        forceRefresh: forceRefresh,
+        resolveUri: (fresh) => _biliService
+            .resolveStreamUri(song.id, forceRefresh: fresh)
+            .then((url) => url == null ? null : Uri.parse(url)),
+      );
+    }
     if (song.isLocal || !storedUri.startsWith('http')) {
       return Uri.file(storedUri);
     }
     final rawUri = await _resolveWebdavRawUri(song, storedUri);
 
     final headers = _headersFromSong(song);
+    return _registerRemoteSource(
+      song,
+      rawUri: rawUri,
+      headers: headers,
+      forceRefresh: forceRefresh,
+    );
+  }
+
+  /// 把一条远程地址注册到本地代理，返回 `http://127.0.0.1:.../stream?token=...`。
+  /// just_audio 永远只看到这个回环地址，鉴权头不会离开本进程。
+  ///
+  /// 传了 [resolveUri] 时 [rawUri] 只当作缓存键和去重键用，真正的上游地址由代理
+  /// 在首次取流时调 [resolveUri] 拿。
+  Future<Uri> _registerRemoteSource(
+    SongEntity song, {
+    required String rawUri,
+    required Map<String, String>? headers,
+    required bool forceRefresh,
+    Future<Uri?> Function(bool forceRefresh)? resolveUri,
+  }) async {
     final headersKey = _headersFingerprint(headers);
     if (forceRefresh) {
       _invalidateResolvedSource(song);
@@ -1533,12 +1592,15 @@ class PlayerService with WidgetsBindingObserver {
         headers: headers,
       );
       final proxyUri = await _proxy.registerSource(
-        uri: finalRemoteUri,
+        uri: resolveUri == null ? finalRemoteUri : null,
+        resolveUri: resolveUri,
         headers: {
-          ...?headers,
           'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': '*/*',
+          // 歌曲自带的头放最后：B 站的 Referer/Cookie 必须能覆盖上面的默认值，
+          // 否则 CDN 直接 403。
+          ...?headers,
         },
         cacheFile: cacheFile,
       );
@@ -1804,7 +1866,9 @@ class PlayerService with WidgetsBindingObserver {
     bool forceRefresh = false,
   }) async {
     final rawUri = (song.uri ?? '').trim();
-    if (song.isLocal || !rawUri.startsWith('http')) {
+    // B 站曲目的 uri 在库里通常是空的（直链有时效，不落库），得先走解析。
+    if (!BiliMusicService.isBiliSong(song) &&
+        (song.isLocal || !rawUri.startsWith('http'))) {
       return AudioSource.file(rawUri);
     }
 

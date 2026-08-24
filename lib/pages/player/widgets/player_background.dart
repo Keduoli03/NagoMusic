@@ -146,8 +146,14 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
   static final Map<String, Color> _dominantCache = {};
   static final Map<String, Future<Color?>> _dominantInflight = {};
 
+  /// 上一次成功取到的封面色，跨 State 实例保留。
+  ///
+  /// 没有它的话，只要这个 State 被重建（换播放器样式、页面重进），`_dominantColor`
+  /// 就回到 null，背景会闪一帧品牌色再变回封面色。
+  static Color? _lastResolvedDominant;
+
   String? _lastCoverPath;
-  Color? _dominantColor;
+  Color? _dominantColor = _lastResolvedDominant;
 
   @override
   void initState() {
@@ -182,15 +188,27 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
             final dominant =
                 widget.dominantColor ?? _dominantColor ?? scheme.primary;
             final baseColor = _adjustBackground(dominant, preferLight);
-            if (dynamicEnabled) {
-              return _DynamicGradientBackground(
-                baseColor: baseColor,
-                saturation: saturation,
-                hueShift: hueShift,
-              );
-            }
-            return _FallbackBackground(
-              color: Color.lerp(surface, baseColor, 0.58) ?? surface,
+            // 换歌 / 取色完成时让底色渐变过去，而不是直接跳一下。预览态
+            // （dominantColor 固定）不需要动画，省掉一次无谓的补间。
+            return TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: baseColor),
+              duration: widget.dominantColor != null
+                  ? Duration.zero
+                  : const Duration(milliseconds: 420),
+              curve: Curves.easeOut,
+              builder: (context, animated, _) {
+                final color = animated ?? baseColor;
+                if (dynamicEnabled) {
+                  return _DynamicGradientBackground(
+                    baseColor: color,
+                    saturation: saturation,
+                    hueShift: hueShift,
+                  );
+                }
+                return _FallbackBackground(
+                  color: Color.lerp(surface, color, 0.58) ?? surface,
+                );
+              },
             );
           },
         );
@@ -204,8 +222,30 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
     if (widget.dominantColor != null) return;
     if (_lastCoverPath == coverPath) return;
     _lastCoverPath = coverPath;
-    _dominantColor = null;
-    if (coverPath == null || coverPath.isEmpty) return;
+
+    // 这里**不能**把 _dominantColor 清成 null。
+    //
+    // SongEntity 没有重载 ==，signal 走的是同一性比较，所以探测补标签、回填封面
+    // 这些动作只要重新给 currentSong 赋一个新实例就会走到这里。一旦清空，下一帧
+    // build 里的 `?? scheme.primary` 就会让整页闪一下主题色，等异步取色回来再变
+    // 回封面色 —— 这就是播放/暂停时看到的闪烁。
+    //
+    // 正确做法是留住上一张封面的颜色，等新颜色算出来再换掉。
+    if (coverPath == null || coverPath.isEmpty) {
+      // 真的没有封面（而不是还没算出来），才回落到主题色。
+      _dominantColor = null;
+      return;
+    }
+
+    // 内存缓存是同步的，直接在 build 里读掉，连一帧过渡都不需要。
+    // 原来这里无条件走 addPostFrameCallback，即使命中缓存也要等到下一帧。
+    final cached = _dominantCache[coverPath];
+    if (cached != null) {
+      _dominantColor = cached;
+      _lastResolvedDominant = cached;
+      return;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDominantColor(coverPath);
     });
@@ -215,6 +255,7 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
     final cached = _dominantCache[coverPath];
     if (cached != null) {
       if (!mounted) return;
+      _lastResolvedDominant = cached;
       setState(() => _dominantColor = cached);
       return;
     }
@@ -225,13 +266,17 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
     _dominantInflight.remove(coverPath);
     if (!mounted) return;
     if (_lastCoverPath != coverPath) return;
-    if (color != null) {
-      if (_dominantCache.length >= _dominantCacheLimit) {
-        // Insertion-ordered map: evict the oldest entry to bound memory.
-        _dominantCache.remove(_dominantCache.keys.first);
-      }
-      _dominantCache[coverPath] = color;
+    if (color == null) {
+      // 取色失败（文件被清了、解码不了）就保持现状，不要把已经好好的背景
+      // 打回主题色。
+      return;
     }
+    if (_dominantCache.length >= _dominantCacheLimit) {
+      // Insertion-ordered map: evict the oldest entry to bound memory.
+      _dominantCache.remove(_dominantCache.keys.first);
+    }
+    _dominantCache[coverPath] = color;
+    _lastResolvedDominant = color;
     setState(() => _dominantColor = color);
   }
 

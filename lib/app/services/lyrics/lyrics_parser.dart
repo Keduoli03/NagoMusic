@@ -252,7 +252,7 @@ class LyricsParser {
     final rawLines = lrc
         .split(RegExp(r'\r?\n'))
         .where((e) => e.trim().isNotEmpty);
-    final timeReg = RegExp(r'\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]');
+    final timeReg = RegExp(r'\[(\d{1,4}):(\d{2})(?:\.(\d{1,3}))?\]');
 
     for (final raw in rawLines) {
       if (RegExp(r'^\[(ti|ar|al|by|offset):').hasMatch(raw.toLowerCase())) {
@@ -628,7 +628,7 @@ class LyricsParser {
     final rawLines = lrc
         .split(RegExp(r'\r?\n'))
         .where((e) => e.trim().isNotEmpty);
-    final timeReg = RegExp(r'\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]');
+    final timeReg = RegExp(r'\[(\d{1,4}):(\d{2})(?:\.(\d{1,3}))?\]');
     final seenTimes = <int>{};
 
     for (final raw in rawLines) {

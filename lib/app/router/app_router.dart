@@ -21,6 +21,11 @@ import '../../pages/library/artists_page.dart';
 import '../../pages/library/folders_page.dart';
 import '../../pages/library/playlists_page.dart';
 import '../../pages/search/search_page.dart';
+import '../../pages/bili/bili_page.dart';
+import '../../pages/bili/bili_login_page.dart';
+import '../../pages/bili/bili_search_page.dart';
+import '../../pages/bili/bili_recent_page.dart';
+import '../../pages/bili/bili_profile_page.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/utils/primary_shell_scope.dart';
 import '../../components/layout/modern_navigation_bar.dart';
@@ -47,6 +52,11 @@ class AppRoutes {
   static const folders = '/folders';
   static const search = '/search';
   static const profile = '/profile';
+  static const bili = '/bili';
+  static const biliLogin = '/bili/login';
+  static const biliSearch = '/bili/search';
+  static const biliRecent = '/bili/recent';
+  static const biliProfile = '/bili/profile';
 }
 
 class AppRouter {
@@ -74,6 +84,11 @@ class AppRouter {
     AppRoutes.folders: (_) => const FoldersPage(),
     AppRoutes.search: (_) => const SearchPage(),
     AppRoutes.profile: (_) => const ProfilePage(),
+    AppRoutes.bili: (_) => const BiliPage(),
+    AppRoutes.biliLogin: (_) => const BiliLoginPage(),
+    AppRoutes.biliSearch: (_) => const BiliSearchPage(),
+    AppRoutes.biliRecent: (_) => const BiliRecentPage(),
+    AppRoutes.biliProfile: (_) => const BiliProfilePage(),
   };
 }
 
@@ -94,7 +109,7 @@ class _PrimaryNavigationShellState extends State<_PrimaryNavigationShell> {
     return switch (index) {
       0 => const HomePage(),
       1 => const SongsPage(),
-      2 => const PlaylistsPage(),
+      2 => const BiliPage(),
       3 => const ProfilePage(),
       _ => const SizedBox.shrink(),
     };
