@@ -14,6 +14,7 @@ import 'lyrics/lyrics_repository.dart';
 import 'artwork_cache_helper.dart';
 import 'bili/bili_music_service.dart';
 import 'media_notification_service.dart';
+import 'player/player_sleep_timer.dart';
 import 'stats_service.dart';
 import 'webdav/webdav_endpoint_resolver.dart';
 import 'webdav/webdav_source_repository.dart';
@@ -78,12 +79,15 @@ class PlayerService with WidgetsBindingObserver {
   StreamSubscription<bool>? _shuffleSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _becomingNoisySub;
-  Timer? _sleepTimer;
+  late final PlayerSleepTimer _sleepTimer = PlayerSleepTimer(
+    onExpire: _pausePlayback,
+    sleepUntilSongEnd: _state.sleepUntilSongEnd,
+    sleepTimerDisplayText: _state.sleepTimerDisplayText,
+  );
   Timer? _persistTimer;
   Timer? _backgroundAudioKeepAliveTimer;
   _PlaybackRestoreState? _restoreSession;
   Future<void>? _restorePrepareFuture;
-  DateTime? _sleepEndAt;
   final Map<String, Future<void>> _probeInflight = {};
   final Map<String, int> _durationPersistedMs = {};
   final Map<String, _ResolvedRemoteSource> _resolvedRemoteSources = {};
@@ -797,16 +801,12 @@ class PlayerService with WidgetsBindingObserver {
     _schedulePersistPlaybackState();
   }
 
-  bool get isSleepTimerActive => _sleepTimer != null;
+  bool get isSleepTimerActive => _sleepTimer.isActive;
 
-  Duration? get sleepRemaining {
-    final end = _sleepEndAt;
-    if (end == null) return null;
-    return end.difference(DateTime.now());
-  }
+  Duration? get sleepRemaining => _sleepTimer.remaining;
 
   void setSleepTimer(Duration duration) {
-    _scheduleSleepTimer(duration, untilSongEnd: false);
+    _sleepTimer.start(duration, untilSongEnd: false);
   }
 
   void setSleepTimerToSongEnd() {
@@ -821,51 +821,11 @@ class PlayerService with WidgetsBindingObserver {
       _player.pause();
       return;
     }
-    _scheduleSleepTimer(remaining, untilSongEnd: true);
+    _sleepTimer.start(remaining, untilSongEnd: true);
   }
 
   void cancelSleepTimer() {
-    _sleepTimer?.cancel();
-    _sleepTimer = null;
-    _sleepEndAt = null;
-    sleepUntilSongEnd.value = false;
-    sleepTimerDisplayText.value = null;
-  }
-
-  void _scheduleSleepTimer(Duration duration, {required bool untilSongEnd}) {
-    cancelSleepTimer();
-    sleepUntilSongEnd.value = untilSongEnd;
-    _sleepEndAt = DateTime.now().add(duration);
-    _updateSleepTimerText();
-    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      final end = _sleepEndAt;
-      if (end == null) return;
-      final remaining = end.difference(DateTime.now());
-      if (remaining <= Duration.zero) {
-        cancelSleepTimer();
-        await _pausePlayback();
-        return;
-      }
-      _updateSleepTimerText();
-    });
-  }
-
-  void _updateSleepTimerText() {
-    final end = _sleepEndAt;
-    if (end == null) {
-      sleepTimerDisplayText.value = null;
-      return;
-    }
-    final remaining = end.difference(DateTime.now());
-    if (remaining <= Duration.zero) {
-      sleepTimerDisplayText.value = null;
-      return;
-    }
-    final totalMinutes = remaining.inMinutes;
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    sleepTimerDisplayText.value =
-        '$hours:${minutes.toString().padLeft(2, '0')}';
+    _sleepTimer.cancel();
   }
 
   Future<void> clearQueue() async {
