@@ -44,7 +44,10 @@ measure() {
   echo "fontSize=$(count 'fontSize:\s*[0-9]')"
   echo "edge_insets=$(count 'EdgeInsets\.(all|symmetric|only|fromLTRB)\(')"
   echo "sized_box_numeric=$(count 'SizedBox\((height|width):\s*[0-9]')"
-  echo "raw_radius=$(count 'BorderRadius\.circular\(')"
+  # 用 AppRadii 的写法不算违规 —— 否则 `BorderRadius.circular(AppRadii.card)`
+  # 这种完全合规的代码也会被记一笔，逼着人写成 `BorderRadius.all(Radius.circular(...))`
+  # 来绕开门禁。指标不该反过来扭曲代码。
+  echo "raw_radius=$(count 'BorderRadius\.circular\((?!AppRadii\.)')"
   echo "hardcoded_color=$(count 'Color\(0x')"
   echo "colors_white_black=$(count 'Colors\.(white|black|grey)')"
   echo "raw_appbar=$(count 'appBar:\s*AppBar\(')"

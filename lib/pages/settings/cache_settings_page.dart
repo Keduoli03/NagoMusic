@@ -1,17 +1,33 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
-import '../../app/services/cache/audio_cache_service.dart';
-import '../../app/state/settings_state.dart';
-import '../../components/index.dart';
-import '../../app/utils/format_utils.dart';
 
+import '../../app/services/haptic_service.dart';
+import '../../app/services/storage/device_storage_service.dart';
+import '../../app/services/storage/storage_sections.dart';
+import '../../app/services/storage/storage_usage_service.dart';
+import '../../app/state/settings_state.dart';
+import '../../app/theme/tokens.dart';
+import '../../app/utils/format_utils.dart';
+import '../../components/index.dart';
+
+/// 设置 → 存储与缓存：看清楚 App 占了多少、按类清理。
+///
+/// 存储类别本身来自 [_sections]（[appStorageSections]），这个页面只负责展示和
+/// 触发清理，加/改一类存储去改 `storage_sections.dart`，不用动这里。
+///
+/// 顶部「本 App / 其他 App / 剩余可用」构成条依赖 [DeviceStorageService] 的原生
+/// 桥，拿不到设备容量（桌面端/模拟器/iOS 未接桥）时退回「按类别构成」。
 class CacheSettingsPage extends StatefulWidget {
-  const CacheSettingsPage({super.key});
+  const CacheSettingsPage({super.key, this.debugUsage, this.debugDevice});
+
+  /// 测试注入：给定后跳过真实统计（测试环境没有 path_provider 平台实现，
+  /// 拿不到任何真实数字，靠它才能把有数据的样子渲染出来）。
+  @visibleForTesting
+  final StorageUsage? debugUsage;
+
+  @visibleForTesting
+  final DeviceStorage? debugDevice;
 
   @override
   State<CacheSettingsPage> createState() => _CacheSettingsPageState();
@@ -19,10 +35,13 @@ class CacheSettingsPage extends StatefulWidget {
 
 class _CacheSettingsPageState extends State<CacheSettingsPage>
     with SignalsMixin {
-  late final _audioCacheSize = createSignal(0);
-  late final _artworkCacheSize = createSignal(0);
-  late final _lyricsCacheSize = createSignal(0);
-  late final _loading = createSignal(true);
+  late final List<StorageSection> _sections = appStorageSections();
+
+  late final _usage = createSignal<StorageUsage?>(null);
+  late final _device = createSignal<DeviceStorage?>(null);
+
+  /// 正在清理的类别 key（清理期间该卡片显示转圈、按钮不可点）。
+  late final _clearing = createSignal<String?>(null);
 
   @override
   void initState() {
@@ -31,7 +50,55 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
     SongDownloadSettings.ensureLoaded();
     LibraryRefreshSettings.ensureLoaded();
     WebDavPlaybackSettings.ensureLoaded();
-    _loadCacheSizes();
+    _measure();
+  }
+
+  Future<void> _measure() async {
+    if (widget.debugUsage != null) {
+      _usage.value = widget.debugUsage;
+      _device.value = widget.debugDevice;
+      return;
+    }
+    final results = await Future.wait([
+      StorageUsageService.measure(_sections),
+      DeviceStorageService.capacity(),
+    ]);
+    if (!mounted) return;
+    _usage.value = results[0] as StorageUsage;
+    _device.value = results[1] as DeviceStorage?;
+  }
+
+  Future<void> _clear(StorageSection section) async {
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: section.confirmTitle,
+      content: section.confirmMessage,
+      confirmText: '清理',
+      isDestructive: section.destructive,
+      icon: Icons.delete_outline,
+    );
+    if (confirmed != true || !mounted) return;
+
+    _clearing.value = section.key;
+    final before = _usage.value?.of(section.key) ?? 0;
+    try {
+      await section.clear();
+    } catch (_) {
+      if (!mounted) return;
+      _clearing.value = null;
+      AppToast.show(context, '清理失败', type: ToastType.error);
+      return;
+    }
+    // 先把数字刷新再收掉转圈：否则会有一瞬间显示"已清理但数字还是旧的"
+    await _measure();
+    if (!mounted) return;
+    _clearing.value = null;
+    Haptics.tap();
+    AppToast.show(
+      context,
+      '已释放 ${formatFileSize(before, fractionDigits: 2, placeholder: '0 B')}',
+      type: ToastType.success,
+    );
   }
 
   Future<void> _pickDownloadDirectory() async {
@@ -50,138 +117,6 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
     AppToast.show(context, '已恢复为系统下载目录');
   }
 
-  Future<void> _loadCacheSizes() async {
-    _loading.value = true;
-    final audioSize = await AudioCacheService.instance.getCacheSize();
-    final artworkSize = await _getArtworkCacheSize();
-    final lyricsSize = await _getLyricsCacheSize();
-    if (!mounted) return;
-    _audioCacheSize.value = audioSize;
-    _artworkCacheSize.value = artworkSize;
-    _lyricsCacheSize.value = lyricsSize;
-    _loading.value = false;
-  }
-
-  Future<int> _getArtworkCacheSize() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final cacheDir = Directory(p.join(dir.path, 'artwork_cache'));
-    return _dirSize(cacheDir);
-  }
-
-  Future<int> _getLyricsCacheSize() async {
-    final dir = await getApplicationSupportDirectory();
-    final cacheDir = Directory(p.join(dir.path, 'lyrics'));
-    return _dirSize(cacheDir);
-  }
-
-  Future<int> _dirSize(Directory dir) async {
-    if (!await dir.exists()) return 0;
-    int total = 0;
-    try {
-      await for (final f in dir.list(recursive: true, followLinks: false)) {
-        if (f is File) {
-          total += await f.length();
-        }
-      }
-    } catch (_) {}
-    return total;
-  }
-
-  Future<void> _clearAudioCache() async {
-    final confirmed = await AppDialog.showConfirm(
-      context,
-      title: '清除音频缓存',
-      content: '确定要清除音频缓存吗？这将需要重新下载音频文件。',
-    );
-    if (confirmed != true) return;
-
-    _loading.value = true;
-    await AudioCacheService.instance.clearCache();
-    if (!mounted) return;
-    await _loadCacheSizes();
-    if (!mounted) return;
-    AppToast.show(context, '音频缓存已清除');
-  }
-
-  Future<void> _clearArtworkCache() async {
-    final confirmed = await AppDialog.showConfirm(
-      context,
-      title: '清除封面缓存',
-      content: '确定要清除封面缓存吗？这将需要重新生成封面缩略图。',
-    );
-    if (confirmed != true) return;
-
-    _loading.value = true;
-    final dir = await getApplicationDocumentsDirectory();
-    final cacheDir = Directory(p.join(dir.path, 'artwork_cache'));
-    if (await cacheDir.exists()) {
-      try {
-        await cacheDir.delete(recursive: true);
-        await cacheDir.create(recursive: true);
-      } catch (_) {}
-    }
-    if (!mounted) return;
-    await _loadCacheSizes();
-    if (!mounted) return;
-    AppToast.show(context, '封面缓存已清除');
-  }
-
-  Future<void> _clearLyricsCache() async {
-    final confirmed = await AppDialog.showConfirm(
-      context,
-      title: '清除歌词缓存',
-      content: '确定要清除歌词缓存吗？本地歌词会在需要时重新读取。',
-    );
-    if (confirmed != true) return;
-
-    _loading.value = true;
-    final dir = await getApplicationSupportDirectory();
-    final cacheDir = Directory(p.join(dir.path, 'lyrics'));
-    if (await cacheDir.exists()) {
-      try {
-        await cacheDir.delete(recursive: true);
-        await cacheDir.create(recursive: true);
-      } catch (_) {}
-    }
-    if (!mounted) return;
-    await _loadCacheSizes();
-    if (!mounted) return;
-    AppToast.show(context, '歌词缓存已清除');
-  }
-
-  Future<void> _clearAllCaches() async {
-    final confirmed = await AppDialog.showConfirm(
-      context,
-      title: '清除缓存',
-      content: '确定要清除音频、封面和歌词缓存吗？',
-    );
-    if (confirmed != true) return;
-
-    _loading.value = true;
-    await AudioCacheService.instance.clearCache();
-    if (!mounted) return;
-    final docDir = await getApplicationDocumentsDirectory();
-    final artworkDir = Directory(p.join(docDir.path, 'artwork_cache'));
-    if (await artworkDir.exists()) {
-      try {
-        await artworkDir.delete(recursive: true);
-        await artworkDir.create(recursive: true);
-      } catch (_) {}
-    }
-    final supportDir = await getApplicationSupportDirectory();
-    final lyricsDir = Directory(p.join(supportDir.path, 'lyrics'));
-    if (await lyricsDir.exists()) {
-      try {
-        await lyricsDir.delete(recursive: true);
-        await lyricsDir.create(recursive: true);
-      } catch (_) {}
-    }
-
-    await _loadCacheSizes();
-    if (!mounted) return;
-    AppToast.show(context, '缓存已清除');
-  }
-
   String _limitLabel(int gb) {
     if (gb <= 0) return '无限制';
     return '$gb GB';
@@ -190,6 +125,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
   @override
   Widget build(BuildContext context) {
     final bottomPadding = AppPageScaffold.scrollableBottomPadding(context);
+    final c = AppColors.of(context);
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
       appBar: const AppTopBar(
@@ -199,8 +135,25 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
       ),
       body: Watch.builder(
         builder: (context) => ListView(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            bottomPadding,
+          ),
           children: [
+            _summary(context, c),
+            AppSpacing.gapLg,
+            for (final section in _sections) ...[
+              _sectionCard(context, c, section),
+              AppSpacing.gapMd,
+            ],
+            AppSpacing.gapSm,
+            Text(
+              '清理只删除本机缓存文件，不影响你的曲库数据、已下载歌曲与云端内容。',
+              style: AppTypography.caption.on(c.muted),
+            ),
+            AppSpacing.gapLg,
             AppSettingSection(
               title: '缓存管理',
               children: [
@@ -223,39 +176,9 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                     );
                   },
                 ),
-                AppSettingTile(
-                  title: '音频缓存',
-                  subtitle: _loading.value
-                      ? '计算中...'
-                      : '占用空间: ${formatFileSize(_audioCacheSize.value, fractionDigits: 2, placeholder: '0 B')}',
-                  trailing: Icon(Icons.music_note_outlined),
-                  onTap: _loading.value ? null : _clearAudioCache,
-                ),
-                AppSettingTile(
-                  title: '封面缓存',
-                  subtitle: _loading.value
-                      ? '计算中...'
-                      : '占用空间: ${formatFileSize(_artworkCacheSize.value, fractionDigits: 2, placeholder: '0 B')}',
-                  trailing: const Icon(Icons.image_outlined),
-                  onTap: _loading.value ? null : _clearArtworkCache,
-                ),
-                AppSettingTile(
-                  title: '歌词缓存',
-                  subtitle: _loading.value
-                      ? '计算中...'
-                      : '占用空间: ${formatFileSize(_lyricsCacheSize.value, fractionDigits: 2, placeholder: '0 B')}',
-                  trailing: const Icon(Icons.description_outlined),
-                  onTap: _loading.value ? null : _clearLyricsCache,
-                ),
-                AppSettingTile(
-                  title: '清空全部缓存',
-                  subtitle: '清除音频、封面与歌词缓存',
-                  trailing: const Icon(Icons.delete_forever_outlined),
-                  onTap: _loading.value ? null : _clearAllCaches,
-                ),
               ],
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapLg,
             AppSettingSection(
               title: '云端播放',
               children: [
@@ -309,7 +232,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapLg,
             AppSettingSection(
               title: '下载设置',
               children: [
@@ -358,7 +281,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapLg,
             AppSettingSection(
               title: '启动刷新',
               children: [
@@ -398,6 +321,296 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 顶部总览。
+  ///
+  /// 拿得到设备容量时画「本 App / 其他 App / 剩余可用」构成条；拿不到就退回
+  /// 「本 App 内部按类别构成」，两种都不会出现空条。
+  Widget _summary(BuildContext context, AppColors c) {
+    final usage = _usage.value;
+    final device = _device.value;
+    final scheme = Theme.of(context).colorScheme;
+    final total = usage?.total ?? 0;
+    return SurfaceCard(
+      padding: AppSpacing.card,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (device != null) ...[
+            _deviceBar(context, c, device, total),
+            AppSpacing.gapMd,
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              children: [
+                _legendDot(c, scheme.primary, '本应用已用'),
+                _legendDot(c, _otherAppsTint(c), '其他 App 已用'),
+                _legendDot(c, _freeTint(c), '手机剩余可用'),
+              ],
+            ),
+            AppSpacing.gapXl,
+          ],
+          Text('本应用已用空间', style: AppTypography.caption.on(c.muted)),
+          AppSpacing.gapXs,
+          if (usage == null)
+            Row(
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                AppSpacing.wGapSm,
+                Text('计算中…', style: AppTypography.title.on(c.muted)),
+              ],
+            )
+          else ...[
+            Text(
+              formatFileSize(total, fractionDigits: 2, placeholder: '0 B'),
+              style: AppTypography.display.on(c.text),
+            ),
+            if (device != null) ...[
+              AppSpacing.gapXs,
+              Text(
+                '占手机 ${device.percentOf(total)}% 存储空间',
+                style: AppTypography.caption.on(c.muted),
+              ),
+            ],
+          ],
+          if (device == null) ...[
+            AppSpacing.gapLg,
+            _categoryBar(c, usage),
+            AppSpacing.gapMd,
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (var i = 0; i < _sections.length; i++)
+                  _legendDot(
+                    c,
+                    _shadeOf(scheme, c, i),
+                    '${_sections[i].title} '
+                    '${formatFileSize(usage?.of(_sections[i].key), fractionDigits: 2, placeholder: '0 B')}',
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 「本 App / 其他 App / 剩余可用」三段条。
+  ///
+  /// 本 App 那段用的是各类之和，**这是可清理部分，不等于 App 的全部占用**
+  /// （安装包体积、偏好设置这些都没算，两个平台也都没有免权限拿自身总占用的 API）。
+  /// 差额会落进"其他 App"段里 —— 顶部条是给用户一个体量感，不是审计报表。
+  Widget _deviceBar(
+    BuildContext context,
+    AppColors c,
+    DeviceStorage device,
+    int mine,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final mineClamped = mine.clamp(0, device.used);
+    final others = device.used - mineClamped;
+    return ClipRRect(
+      borderRadius: AppRadii.rPill,
+      child: SizedBox(
+        height: AppSpacing.md,
+        child: Row(
+          // 必须 stretch：Row 默认 center，而 ColoredBox 没有 child 自身高度算作 0，
+          // 三段会各自宽度正确但高度为 0 —— 表现就是"整条压根没渲染出来"。
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (mineClamped > 0)
+              Expanded(
+                flex: _flex(mineClamped, device.total),
+                child: ColoredBox(color: scheme.primary),
+              ),
+            if (others > 0)
+              Expanded(
+                flex: _flex(others, device.total),
+                child: ColoredBox(color: _otherAppsTint(c)),
+              ),
+            if (device.free > 0)
+              Expanded(
+                flex: _flex(device.free, device.total),
+                child: ColoredBox(color: _freeTint(c)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 千分比当 flex 用。
+  ///
+  /// 下限刻意给到 15‰ 而不是 1‰：512G 的手机上 App 占 1G 就是 2‰，按真实比例画出来
+  /// 只有一两个物理像素，肉眼看就是"这条根本没画"。宁可让最小的那段略微失真，
+  /// 也要让它看得见——这条的作用是"我在这台手机上占多大分量"，不是精确读数。
+  static int _flex(int part, int total) =>
+      total <= 0 ? 1 : (part * 1000 ~/ total).clamp(15, 1000);
+
+  /// 其他 App 已用：中性灰，比强调色弱但必须清晰可辨。
+  Color _otherAppsTint(AppColors c) => c.muted.withValues(alpha: 0.5);
+
+  /// 剩余可用：条的"空槽"。
+  /// **不能用 `c.line`**（很浅的描边色）——画在白卡片上几乎隐形，
+  /// 手机剩余空间多的时候整条看着就像没渲染出来。
+  Color _freeTint(AppColors c) => c.muted.withValues(alpha: 0.16);
+
+  /// 降级条按顺序取强调色的同色阶。
+  /// **不用多种彩色**：强调色只给品牌标识，多彩分类条既违规也没多少信息量。
+  Color _shadeOf(ColorScheme scheme, AppColors c, int index) => switch (index) {
+    0 => scheme.primary,
+    1 => scheme.primary.withValues(alpha: 0.6),
+    2 => scheme.primary.withValues(alpha: 0.35),
+    _ => c.muted.withValues(alpha: 0.35),
+  };
+
+  /// 降级用的类别构成条。总量为 0（或还没算完）时画一条空槽，不留空白跳动。
+  Widget _categoryBar(AppColors c, StorageUsage? usage) {
+    final total = usage?.total ?? 0;
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: AppRadii.rPill,
+      child: SizedBox(
+        height: AppSpacing.sm,
+        child: total <= 0
+            ? ColoredBox(color: _freeTint(c))
+            : Row(
+                // 同 _deviceBar：不 stretch 的话 ColoredBox 高度为 0，条不可见
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < _sections.length; i++)
+                    if (usage!.of(_sections[i].key) > 0)
+                      Expanded(
+                        flex: usage.of(_sections[i].key),
+                        child: ColoredBox(color: _shadeOf(scheme, c, i)),
+                      ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _legendDot(AppColors c, Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: AppSpacing.sm,
+          height: AppSpacing.sm,
+          decoration: BoxDecoration(color: color, borderRadius: AppRadii.rPill),
+        ),
+        AppSpacing.wGapXs,
+        Text(label, style: AppTypography.caption.on(c.muted)),
+      ],
+    );
+  }
+
+  Widget _sectionCard(
+    BuildContext context,
+    AppColors c,
+    StorageSection section,
+  ) {
+    final usage = _usage.value;
+    final bytes = usage?.of(section.key) ?? 0;
+    final busy = _clearing.value == section.key;
+    final canClear =
+        section.clearable &&
+        usage != null &&
+        bytes > 0 &&
+        _clearing.value == null;
+
+    return SurfaceCard(
+      padding: AppSpacing.card,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 层级：标题一行（按钮跟它对齐）→ 占用大小 → 灰色说明。
+          // 大小紧跟标题（gapXs），不要拉开——中间空一截会让人以为是两块无关信息。
+          Row(
+            children: [
+              Icon(section.icon, size: 20, color: c.text),
+              AppSpacing.wGapSm,
+              Expanded(
+                child: Text(
+                  section.title,
+                  style: AppTypography.title.on(c.text),
+                ),
+              ),
+              if (section.clearable) ...[
+                AppSpacing.wGapSm,
+                _clearButton(
+                  context,
+                  c,
+                  section,
+                  busy: busy,
+                  enabled: canClear,
+                ),
+              ],
+            ],
+          ),
+          AppSpacing.gapXs,
+          if (usage == null)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Text(
+              formatFileSize(bytes, fractionDigits: 2, placeholder: '0 B'),
+              style: AppTypography.section.on(c.text),
+            ),
+          AppSpacing.gapSm,
+          Text(section.description, style: AppTypography.caption.on(c.muted)),
+        ],
+      ),
+    );
+  }
+
+  /// 清理按钮：可点时强调色实心 + 反色字（主 CTA），不可点时浅灰底 + muted 字。
+  Widget _clearButton(
+    BuildContext context,
+    AppColors c,
+    StorageSection section, {
+    required bool busy,
+    required bool enabled,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = enabled && !busy;
+    return GestureDetector(
+      onTap: active ? () => _clear(section) : null,
+      child: Container(
+        height: AppSpacing.xl + AppSpacing.sm,
+        padding: AppSpacing.page,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? scheme.primary : c.muted.withValues(alpha: 0.12),
+          borderRadius: AppRadii.rPill,
+        ),
+        child: busy
+            // 实心底上的转圈必须是反色，用 muted 会糊成一团
+            ? SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: scheme.onPrimary,
+                ),
+              )
+            : Text(
+                '清理',
+                style: AppTypography.body.strong.on(
+                  active ? scheme.onPrimary : c.muted,
+                ),
+              ),
       ),
     );
   }

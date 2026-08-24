@@ -1,5 +1,6 @@
 package com.lanke.nagomusic
 
+import android.app.usage.StorageStatsManager
 import android.content.ContentValues
 import android.app.Notification
 import android.app.NotificationChannel
@@ -9,6 +10,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Environment
 import android.os.Build
+import android.os.StatFs
+import android.os.storage.StorageManager
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -25,6 +28,7 @@ class MainActivity : AudioServiceActivity() {
     private val lyriconChannelName = "com.lanke.nagomusic/lyricon"
     private val downloadsChannelName = "com.lanke.nagomusic/downloads"
     private val artworkChannelName = "com.lanke.nagomusic/native_artwork"
+    private val deviceStorageChannelName = "app/device_storage"
     private val notificationId = 10010
     private val notificationChannelId = "meizu_lyric_channel"
     private var flagShowTicker: Int? = null
@@ -157,6 +161,40 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            deviceStorageChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "capacity" -> result.success(deviceStorageCapacity())
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    /**
+     * 总容量优先走 StorageStatsManager：它返回的是厂商标称容量（128G/256G…），
+     * 跟系统设置里显示的一致。StatFs 拿到的是 data 分区可用大小，会比标称少一大截
+     * （系统分区、预留空间都不算），显示出来用户会觉得"我手机明明是 256G"。
+     *
+     * 两个 API 都不需要任何权限——要权限的是按包名查用量的 queryStatsForPackage，
+     * 这里用不到。
+     */
+    private fun deviceStorageCapacity(): Map<String, Long> {
+        val stat = StatFs(filesDir.absolutePath)
+        val free = stat.availableBytes
+        var total = stat.totalBytes
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val stats = getSystemService(StorageStatsManager::class.java)
+                val nominal = stats.getTotalBytes(StorageManager.UUID_DEFAULT)
+                if (nominal > total) total = nominal
+            } catch (e: Exception) {
+                // 部分 ROM 上会抛（IO/未挂载），退回 StatFs 的数字即可
+            }
+        }
+        return mapOf("total" to total, "free" to free)
     }
 
     private fun loadAudioThumbnail(path: String, size: Int): ByteArray? {
