@@ -92,4 +92,34 @@ void main() {
       );
     });
   });
+
+  group('BiliMusicService 封面缓存', () {
+    test('重新生成分 P 时保留已有本地封面路径', () {
+      const id = 'bili::BV1ab411c7dD-123';
+      const incoming = SongEntity(
+        id: id,
+        title: 'P1',
+        artist: 'UP',
+        uri: 'bili://BV1ab411c7dD/123',
+        isLocal: false,
+        sourceId: BiliMusicService.sourceId,
+      );
+      const stored = SongEntity(
+        id: id,
+        title: 'P1',
+        artist: 'UP',
+        uri: 'bili://BV1ab411c7dD/123',
+        isLocal: false,
+        sourceId: BiliMusicService.sourceId,
+        localCoverPath: '/cache/bili_covers/BV1ab411c7dD.jpg',
+      );
+
+      final merged = BiliMusicService.preserveCachedCovers(
+        [incoming],
+        [stored],
+      );
+
+      expect(merged.single.localCoverPath, stored.localCoverPath);
+    });
+  });
 }

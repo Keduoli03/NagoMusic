@@ -135,7 +135,34 @@ class BiliMusicService {
   /// 写进 songs 表。只有真正被播放 / 被收藏的曲目才落库，搜索结果不落。
   Future<void> persist(List<SongEntity> songs) async {
     if (songs.isEmpty) return;
-    await _songDao.upsertSongs(songs);
+    // 从视频详情重新生成分 P 时，SongEntity 的封面路径是 null；而 SongDao 的
+    // replace 写入会把已缓存的路径抹掉。先合并旧记录，避免最近播放在重新开始
+    // 一个合集时集体退回占位封面，等待封面任务再逐个补回。
+    final existing = await _songDao.fetchByIds(
+      songs.map((song) => song.id).toSet().toList(growable: false),
+    );
+    await _songDao.upsertSongs(preserveCachedCovers(songs, existing));
+  }
+
+  /// [SongDao] 使用 replace 写入，因此没有新封面时必须显式带回旧路径。
+  ///
+  /// 保持成纯函数，既让播放链路可复用，也能防止之后其他入口重新引入同样的
+  /// “先清空、后异步补封面”闪烁问题。
+  static List<SongEntity> preserveCachedCovers(
+    List<SongEntity> incoming,
+    Iterable<SongEntity> existing,
+  ) {
+    final oldById = {for (final song in existing) song.id: song};
+    return incoming
+        .map((song) {
+          final newCover = (song.localCoverPath ?? '').trim();
+          if (newCover.isNotEmpty) return song;
+          final oldCover = (oldById[song.id]?.localCoverPath ?? '').trim();
+          return oldCover.isEmpty
+              ? song
+              : song.copyWith(localCoverPath: oldCover);
+        })
+        .toList(growable: false);
   }
 
   /// 最近播放过的 B 站曲目，最近的在前。
