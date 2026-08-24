@@ -1,5 +1,3 @@
-import 'package:nagomusic/app/theme/app_icons.dart';
-
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -7,17 +5,23 @@ import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
+import '../../../app/services/song_download_service.dart';
 import '../../../app/services/lyrics/lyrics_service.dart';
 import '../../../app/services/player_service.dart';
 import '../../../app/state/settings_state.dart';
 import '../../../app/state/song_state.dart';
+import '../../../app/theme/app_icons.dart';
+import '../../../components/common/app_list_tile.dart';
 import '../../../components/common/artwork_widget.dart';
 import '../../../components/common/app_switch.dart';
 import '../../../components/common/labeled_slider.dart';
 import '../../../components/common/playing_bars.dart';
+import '../../../components/common/sheet_panels.dart';
 import '../../../components/feedback/app_toast.dart';
 import 'player_background.dart';
 import '../../../app/utils/format_utils.dart';
+import '../../library/playlist_picker_sheet.dart';
+import '../../songs/song_detail_sheet.dart';
 import '../../songs/show_song_detail_sheet.dart';
 
 class PlayerBottomPanel extends StatelessWidget {
@@ -45,9 +49,9 @@ class PlayerBottomPanel extends StatelessWidget {
           _MiniLyricsPreview(onTap: onTapLyrics, stylePreset: stylePreset),
         _PlayerSeekBar(player: player, stylePreset: stylePreset),
         const SizedBox(height: 20),
-        _PlayerControls(player: player, stylePreset: stylePreset),
+        _PlayerControls(player: player),
         const SizedBox(height: 30),
-        _BottomActions(player: player, stylePreset: stylePreset),
+        _BottomActions(player: player),
         SizedBox(height: bottomSpacing),
       ],
     );
@@ -371,19 +375,13 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> with SignalsMixin {
 
 class _PlayerControls extends StatelessWidget {
   final PlayerService player;
-  final PlayerStylePreset stylePreset;
 
-  const _PlayerControls({required this.player, required this.stylePreset});
+  const _PlayerControls({required this.player});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final iconColor = scheme.primary.withValues(alpha: 0.86);
-    final buttonBg = scheme.primaryContainer.withValues(alpha: 0.92);
-    final mainButtonSize = switch (stylePreset) {
-      PlayerStylePreset.poster => 72.0,
-      PlayerStylePreset.classic => 64.0,
-    };
+    final iconColor = scheme.onSurface;
     return Watch.builder(
       builder: (context) {
         final playing = player.isPlayingSignal.value;
@@ -392,28 +390,22 @@ class _PlayerControls extends StatelessWidget {
           children: [
             IconButton(
               iconSize: 48,
-              icon: Icon(AppIcons.skipPrevious, color: iconColor),
+              icon: Icon(AppIconsFilled.skipPrevious, color: iconColor),
               onPressed: player.previous,
             ),
             const SizedBox(width: 20),
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: buttonBg,
+            IconButton(
+              iconSize: 56,
+              icon: Icon(
+                playing ? AppIconsFilled.pause : AppIconsFilled.play,
+                color: iconColor,
               ),
-              child: IconButton(
-                iconSize: mainButtonSize,
-                icon: Icon(
-                  playing ? AppIcons.pause : AppIcons.play,
-                  color: scheme.onPrimaryContainer,
-                ),
-                onPressed: player.togglePlayPause,
-              ),
+              onPressed: player.togglePlayPause,
             ),
             const SizedBox(width: 20),
             IconButton(
               iconSize: 48,
-              icon: Icon(AppIcons.skipNext, color: iconColor),
+              icon: Icon(AppIconsFilled.skipNext, color: iconColor),
               onPressed: player.next,
             ),
           ],
@@ -425,14 +417,13 @@ class _PlayerControls extends StatelessWidget {
 
 class _BottomActions extends StatelessWidget {
   final PlayerService player;
-  final PlayerStylePreset stylePreset;
 
-  const _BottomActions({required this.player, required this.stylePreset});
+  const _BottomActions({required this.player});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final iconColor = scheme.onSurfaceVariant.withValues(alpha: 0.85);
+    final iconColor = scheme.onSurface;
     return Watch.builder(
       builder: (context) {
         final mode = player.playbackModeSignal.value;
@@ -447,67 +438,90 @@ class _BottomActions extends StatelessWidget {
             PlayerBottomActionSettings.showPlaybackMode,
             PlayerBottomActionSettings.showSleepTimer,
             PlayerBottomActionSettings.showPlaylist,
+            PlayerBottomActionSettings.showAddToPlaylist,
+            PlayerBottomActionSettings.showSaveToLocal,
+            PlayerBottomActionSettings.showSongInfo,
             PlayerBottomActionSettings.showMore,
             PlayerBottomActionSettings.actionOrder,
           ]),
           builder: (context, _) {
-            final actions = <Widget>[];
+            final actions = <_PlayerBottomAction>[];
             final order = PlayerBottomActionSettings.actionOrder.value;
             for (final key in order) {
               switch (key) {
-                case 'playback_mode':
+                case PlayerBottomActionSettings.playbackModeKey:
                   if (PlayerBottomActionSettings.showPlaybackMode.value) {
                     actions.add(
-                      IconButton(
-                        icon: Icon(icon, color: iconColor),
+                      _PlayerBottomAction(
+                        title: '播放模式',
+                        icon: icon,
                         onPressed: player.cyclePlaybackMode,
                       ),
                     );
                   }
                   break;
-                case 'sleep_timer':
+                case PlayerBottomActionSettings.sleepTimerKey:
                   if (PlayerBottomActionSettings.showSleepTimer.value) {
                     actions.add(
-                      Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          IconButton(
-                            icon: Icon(AppIcons.alarm, color: iconColor),
-                            onPressed: () => _showSleepTimerSheet(context),
-                          ),
-                          if (text != null)
-                            Positioned(
-                              bottom: -8,
-                              child: Text(
-                                text,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: iconColor.withValues(alpha: 0.8),
-                                ),
-                              ),
-                            ),
-                        ],
+                      _PlayerBottomAction(
+                        title: '定时停止',
+                        icon: AppIcons.alarm,
+                        badge: text,
+                        onPressed: () => _showSleepTimerSheet(context),
                       ),
                     );
                   }
                   break;
-                case 'playlist':
+                case PlayerBottomActionSettings.playlistKey:
                   if (PlayerBottomActionSettings.showPlaylist.value) {
                     actions.add(
-                      IconButton(
-                        icon: Icon(AppIcons.list, color: iconColor),
+                      _PlayerBottomAction(
+                        title: '播放队列',
+                        icon: AppIcons.list,
                         onPressed: () => _showPlaylistSheet(context),
                       ),
                     );
                   }
                   break;
-                default:
+                case PlayerBottomActionSettings.addToPlaylistKey:
+                  if (PlayerBottomActionSettings.showAddToPlaylist.value) {
+                    actions.add(
+                      _PlayerBottomAction(
+                        title: '添加到歌单',
+                        icon: AppIcons.addPhotos,
+                        onPressed: () => _addToPlaylist(context),
+                      ),
+                    );
+                  }
+                  break;
+                case PlayerBottomActionSettings.saveToLocalKey:
+                  if (PlayerBottomActionSettings.showSaveToLocal.value) {
+                    actions.add(
+                      _PlayerBottomAction(
+                        title: '保存到本地',
+                        icon: AppIcons.download,
+                        onPressed: () => _saveToLocal(context),
+                      ),
+                    );
+                  }
+                  break;
+                case PlayerBottomActionSettings.songInfoKey:
+                  if (PlayerBottomActionSettings.showSongInfo.value) {
+                    actions.add(
+                      _PlayerBottomAction(
+                        title: '歌曲信息',
+                        icon: AppIcons.info,
+                        onPressed: () => _showSongInfo(context),
+                      ),
+                    );
+                  }
+                  break;
+                case PlayerBottomActionSettings.moreKey:
                   if (PlayerBottomActionSettings.showMore.value) {
                     actions.add(
-                      IconButton(
-                        icon: Icon(AppIcons.moreHorizontal, color: iconColor),
+                      _PlayerBottomAction(
+                        title: '更多',
+                        icon: AppIcons.moreHorizontal,
                         onPressed: () => _showSongDetailSheet(context),
                       ),
                     );
@@ -520,9 +534,31 @@ class _BottomActions extends StatelessWidget {
             }
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: actions,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final slots = (constraints.maxWidth / 52)
+                      .floor()
+                      .clamp(1, 6)
+                      .toInt();
+                  final useOverflow = actions.length > slots;
+                  final visibleCount = useOverflow ? slots - 1 : actions.length;
+                  final visible = actions.take(visibleCount).toList();
+                  final overflow = actions.skip(visibleCount).toList();
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final action in visible)
+                        action.buildButton(iconColor),
+                      if (useOverflow)
+                        IconButton(
+                          tooltip: '更多操作',
+                          icon: Icon(AppIcons.moreHorizontal, color: iconColor),
+                          onPressed: () =>
+                              _showOverflowSheet(context, overflow),
+                        ),
+                    ],
+                  );
+                },
               ),
             );
           },
@@ -551,6 +587,112 @@ class _BottomActions extends StatelessWidget {
       return;
     }
     showSongDetailSheet(context, song: song, enablePlayerAppearanceEntry: true);
+  }
+
+  Future<void> _addToPlaylist(BuildContext context) async {
+    final song = player.currentSong.value;
+    if (song == null) {
+      AppToast.show(context, '暂无歌曲');
+      return;
+    }
+    await showAddToPlaylistDialog(context, songIds: [song.id]);
+  }
+
+  Future<void> _saveToLocal(BuildContext context) async {
+    final song = player.currentSong.value;
+    if (song == null) {
+      AppToast.show(context, '暂无歌曲');
+      return;
+    }
+    final result = await SongDownloadService.instance.saveToLocal(song);
+    if (!context.mounted) return;
+    AppToast.show(
+      context,
+      result.message,
+      type: result.success ? ToastType.success : ToastType.error,
+    );
+  }
+
+  void _showSongInfo(BuildContext context) {
+    final song = player.currentSong.value;
+    if (song == null) {
+      AppToast.show(context, '暂无歌曲');
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => SongInfoSheet(song: song),
+    );
+  }
+
+  void _showOverflowSheet(
+    BuildContext context,
+    List<_PlayerBottomAction> actions,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => AppSheetPanel(
+        title: '更多操作',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final action in actions)
+              AppListTile(
+                leading: Icon(action.icon),
+                title: action.title,
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  action.onPressed();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerBottomAction {
+  final String title;
+  final IconData icon;
+  final String? badge;
+  final VoidCallback onPressed;
+
+  const _PlayerBottomAction({
+    required this.title,
+    required this.icon,
+    required this.onPressed,
+    this.badge,
+  });
+
+  Widget buildButton(Color color) {
+    final button = IconButton(
+      tooltip: title,
+      icon: Icon(icon, color: color),
+      onPressed: onPressed,
+    );
+    if (badge == null) return button;
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        button,
+        Positioned(
+          bottom: -8,
+          child: Text(
+            badge!,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
