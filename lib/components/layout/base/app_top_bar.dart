@@ -21,6 +21,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final Color? foregroundColor;
   final double elevation;
   final double? height;
+  final double? leadingWidth;
+  final double? titleSpacing;
   final PreferredSizeWidget? bottom;
 
   /// 底部 0.5px hairline。透明顶栏下默认不画（内容会从它下面滚过去）。
@@ -38,6 +40,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.foregroundColor,
     this.elevation = 0,
     this.height,
+    this.leadingWidth,
+    this.titleSpacing,
     this.bottom,
     this.showDivider = false,
   });
@@ -101,9 +105,11 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 )
               : null),
       leading: leading,
+      leadingWidth: leadingWidth,
       actions: actions,
       centerTitle: centerTitle ?? false,
-      titleSpacing: leading == null && !showBackButton ? 20 : null,
+      titleSpacing:
+          titleSpacing ?? (leading == null && !showBackButton ? 20 : null),
       automaticallyImplyLeading: showBackButton,
       backgroundColor: backgroundColor ?? Colors.transparent,
       foregroundColor: fg,

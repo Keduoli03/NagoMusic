@@ -98,7 +98,9 @@ class BiliPlayback {
       builder: (sheetContext) => BiliPartPickerDraggableSheet(
         detail: detail,
         initiallyFavorite: collection != null,
-        onToggleFavorite: () => _toggleCollection(sheetContext, detail),
+        onToggleFavorite: collection == null
+            ? () => _toggleCollection(sheetContext, detail)
+            : null,
         resumePartIndex: resumeIndex,
         resumePosition: resumePosition,
         onResume: resumeIndex < 0
@@ -229,14 +231,18 @@ class BiliPlayback {
 class BiliVideoTile extends StatelessWidget {
   final BiliVideo video;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final String? subtitle;
+  final int subtitleMaxLines;
   final Widget? trailing;
 
   const BiliVideoTile({
     super.key,
     required this.video,
     required this.onTap,
+    this.onLongPress,
     this.subtitle,
+    this.subtitleMaxLines = 1,
     this.trailing,
   });
 
@@ -252,6 +258,7 @@ class BiliVideoTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.card),
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
@@ -281,7 +288,7 @@ class BiliVideoTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             subtitle ?? video.author,
-                            maxLines: 1,
+                            maxLines: subtitleMaxLines,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 12, color: c.muted),
                           ),
@@ -467,8 +474,11 @@ class BiliPartPickerSheet extends StatelessWidget {
     final muted = AppColors.of(context).muted;
     final videoTitle = detail.video.title;
     final parts = detail.parts;
+    final canResume =
+        onResume != null &&
+        resumePartIndex >= 0 &&
+        resumePartIndex < parts.length;
     return AppSheetPanel(
-      title: '选择分 P',
       expand: true,
       // AppSheetPanel 的外壳是 DecoratedBox 不是 Material，直接放 ListTile 会
       // 断言「涟漪不可见」。补一层透明 Material 让水波有地方画。
@@ -478,68 +488,73 @@ class BiliPartPickerSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: AppSpacing.page.copyWith(bottom: AppSpacing.xs),
-              child: Text(
-                videoTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: muted),
+              padding: AppSpacing.page.copyWith(
+                top: AppSpacing.sm,
+                bottom: AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '选择分 P · ${parts.length} 个',
+                          style: AppTypography.section,
+                        ),
+                        AppSpacing.gapXs,
+                        Text(
+                          '$videoTitle · ${detail.video.author}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption.on(muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (onToggleFavorite != null && !isFavorite) ...[
+                    AppSpacing.wGapSm,
+                    IconButton(
+                      tooltip: '收藏整个视频',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        favoriteBusy ? AppIcons.hourglass : AppIcons.star,
+                        color: muted,
+                      ),
+                      onPressed: favoriteBusy ? null : onToggleFavorite,
+                    ),
+                  ],
+                ],
               ),
             ),
             Padding(
               padding: AppSpacing.page.copyWith(bottom: AppSpacing.sm),
               child: Row(
                 children: [
-                  Icon(AppIcons.person, size: 16, color: muted),
-                  AppSpacing.wGapXs,
+                  if (canResume) ...[
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: onResume,
+                        icon: const Icon(AppIcons.history),
+                        label: Text(
+                          '继续 P${parts[resumePartIndex].index} · '
+                          '${formatBiliDuration(resumePosition.inSeconds)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    AppSpacing.wGapSm,
+                  ],
                   Expanded(
-                    child: Text(
-                      detail.video.author,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.caption.on(muted),
+                    child: OutlinedButton.icon(
+                      onPressed: onPlayAll,
+                      icon: const Icon(AppIcons.playlist),
+                      label: const Text('播放全部'),
                     ),
                   ),
-                  if (onToggleFavorite != null)
-                    IconButton(
-                      tooltip: isFavorite ? '取消收藏' : '收藏整个视频',
-                      visualDensity: VisualDensity.compact,
-                      icon: Icon(
-                        favoriteBusy
-                            ? AppIcons.hourglass
-                            : isFavorite
-                            ? AppIconsFilled.star
-                            : AppIcons.star,
-                        color: isFavorite ? AppColors.of(context).star : muted,
-                      ),
-                      onPressed: favoriteBusy ? null : onToggleFavorite,
-                    ),
                 ],
               ),
-            ),
-            if (onResume != null &&
-                resumePartIndex >= 0 &&
-                resumePartIndex < parts.length) ...[
-              ListTile(
-                leading: const Icon(AppIcons.history),
-                title: Text(
-                  '继续播放 · P${parts[resumePartIndex].index}',
-                  style: AppTypography.bodyLg,
-                ),
-                subtitle: Text(
-                  '${BiliMusicService.partLabel(videoTitle, parts[resumePartIndex])} · '
-                  '从 ${formatBiliDuration(resumePosition.inSeconds)} 继续',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: onResume,
-              ),
-              const Divider(height: 1),
-            ],
-            ListTile(
-              leading: const Icon(AppIcons.playlist),
-              title: Text('播放全部 ${parts.length} 个分 P'),
-              onTap: onPlayAll,
             ),
             const Divider(height: 1),
             Expanded(
@@ -554,6 +569,7 @@ class BiliPartPickerSheet extends StatelessWidget {
                   // 索引就成了「P3　P3」，所以那种情况不要 leading。
                   final redundant = label == 'P${part.index}';
                   return ListTile(
+                    key: ValueKey(part.cid),
                     dense: true,
                     leading: redundant
                         ? null

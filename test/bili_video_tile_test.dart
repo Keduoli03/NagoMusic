@@ -56,6 +56,56 @@ void main() {
     expect(tapped, isTrue);
   });
 
+  testWidgets('收藏元数据可以分两行完整展示', (tester) async {
+    const video = BiliVideo(
+      bvid: 'BV1',
+      aid: 1,
+      title: '有声小说《三体》第一部纯享版',
+      author: '垂钓的渔夫',
+      cover: '',
+    );
+    const subtitle = '垂钓的渔夫 · 57 个分 P\n上次播放到 P3 0:05';
+    await tester.pumpWidget(
+      _host(
+        BiliVideoTile(
+          video: video,
+          subtitle: subtitle,
+          subtitleMaxLines: 2,
+          onTap: () {},
+        ),
+      ),
+    );
+
+    final metadata = tester.widget<Text>(find.text(subtitle));
+    expect(metadata.maxLines, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('长按收藏行触发管理操作而不播放', (tester) async {
+    var played = false;
+    var managed = false;
+    const video = BiliVideo(
+      bvid: 'BV1',
+      aid: 1,
+      title: '标题',
+      author: 'UP',
+      cover: '',
+    );
+    await tester.pumpWidget(
+      _host(
+        BiliVideoTile(
+          video: video,
+          onTap: () => played = true,
+          onLongPress: () => managed = true,
+        ),
+      ),
+    );
+
+    await tester.longPress(find.text('标题'));
+    expect(managed, isTrue);
+    expect(played, isFalse);
+  });
+
   testWidgets('点击收藏按钮不会误触发视频播放', (tester) async {
     var played = false;
     var favorited = false;

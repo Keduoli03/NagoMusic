@@ -350,16 +350,16 @@ class _BiliPageState extends State<BiliPage> {
           valueListenable: _collections.collections,
           builder: (context, collections, _) {
             if (_loadingCollections) {
-              return const SizedBox(
-                height: BiliCollectionPosterCard.height,
-                child: Center(child: CircularProgressIndicator()),
+              return SizedBox(
+                height: BiliCollectionPosterCard.heightFor(context),
+                child: const Center(child: CircularProgressIndicator()),
               );
             }
             if (collections.isEmpty) {
               return _emptyPanel('还没有收藏视频，右上角搜索后点收藏即可添加');
             }
             return SizedBox(
-              height: BiliCollectionPosterCard.height,
+              height: BiliCollectionPosterCard.heightFor(context),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),

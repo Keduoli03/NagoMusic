@@ -5,10 +5,16 @@ import '../../../app/theme/tokens.dart';
 
 /// 首页「每日推荐」同规格的 B 站收藏海报。
 class BiliCollectionPosterCard extends StatelessWidget {
-  static const double width = 120;
-  static const double _coverSize = 120;
-  static const double _footerHeight = 38;
-  static const double height = _coverSize + _footerHeight;
+  static const double width = 176;
+  static const double _coverHeight = 99;
+  static const double _footerHeight = 76;
+  static const double height = _coverHeight + _footerHeight;
+
+  static double heightFor(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final extraScale = (scale - 1).clamp(0, 2);
+    return height + AppSpacing.xxl * 2 * extraScale;
+  }
 
   final BiliVideoCollection collection;
   final VoidCallback onTap;
@@ -22,12 +28,13 @@ class BiliCollectionPosterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final video = collection.video;
-    final scheme = Theme.of(context).colorScheme;
+    final colors = AppColors.of(context);
     final overlayText = AppColors.dark.text;
-    final footerColor = Color.alphaBlend(
-      scheme.primary.withValues(alpha: 0.18),
-      AppColors.dark.surface,
-    );
+    final footerHeight = heightFor(context) - _coverHeight;
+    final partLabel = collection.detail.parts.length == 1
+        ? '单 P'
+        : '${collection.detail.parts.length} 个分 P';
+    final author = video.author.isEmpty ? '哔哩哔哩' : video.author;
 
     return Semantics(
       button: true,
@@ -35,88 +42,73 @@ class BiliCollectionPosterCard extends StatelessWidget {
       child: SizedBox(
         width: width,
         child: Material(
-          color: Colors.transparent,
+          color: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppRadii.rCard,
+            side: BorderSide(color: colors.line),
+          ),
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             borderRadius: AppRadii.rCard,
-            child: ClipRRect(
-              borderRadius: AppRadii.rCard,
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: _coverSize,
-                    height: _coverSize,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _buildCover(context),
-                        DecoratedBox(
+            child: Column(
+              children: [
+                SizedBox(
+                  width: width,
+                  height: _coverHeight,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildCover(context),
+                      Positioned(
+                        right: AppSpacing.sm,
+                        bottom: AppSpacing.sm,
+                        child: DecoratedBox(
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                AppColors.dark.bg.withValues(alpha: 0.68),
-                                AppColors.dark.bg.withValues(alpha: 0),
-                                AppColors.dark.bg.withValues(alpha: 0.18),
-                              ],
-                              stops: const [0, 0.48, 1],
+                            color: AppColors.dark.bg.withValues(alpha: 0.62),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Padding(
+                            padding: AppSpacing.cardTight,
+                            child: Icon(
+                              AppIcons.play,
+                              color: overlayText,
+                              size: AppSpacing.lg,
                             ),
                           ),
                         ),
-                        Positioned(
-                          left: AppSpacing.sm,
-                          top: AppSpacing.sm,
-                          right: AppSpacing.sm,
-                          child: Row(
-                            children: [
-                              Icon(
-                                AppIcons.bookmark,
-                                color: overlayText,
-                                size: AppSpacing.lg,
-                              ),
-                              AppSpacing.wGapXs,
-                              Expanded(
-                                child: Text(
-                                  video.author.isEmpty ? '哔哩哔哩' : video.author,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTypography.meta.strong.on(
-                                    overlayText,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          right: AppSpacing.sm,
-                          bottom: AppSpacing.sm,
-                          child: Icon(
-                            AppIcons.play,
-                            color: overlayText,
-                            size: AppSpacing.xl,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Container(
-                    width: width,
-                    height: _footerHeight,
-                    padding: AppSpacing.cardTight.copyWith(top: 0, bottom: 0),
-                    color: footerColor,
-                    alignment: Alignment.center,
-                    child: Text(
-                      video.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: AppTypography.micro.strong.on(overlayText),
-                    ),
+                ),
+                Container(
+                  width: width,
+                  height: footerHeight,
+                  padding: AppSpacing.cardTight.copyWith(
+                    top: AppSpacing.sm,
+                    bottom: AppSpacing.sm,
                   ),
-                ],
-              ),
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        video.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyLg.on(colors.text),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '$author · $partLabel',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.caption.on(colors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),

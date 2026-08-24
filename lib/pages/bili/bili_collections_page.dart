@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/theme/app_colors.dart';
-import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../../components/index.dart';
@@ -32,9 +31,17 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
   }
 
   Future<void> _remove(BiliVideoCollection collection) async {
+    final confirmed = await AppDialog.showConfirm(
+      context,
+      title: '取消收藏',
+      content: '确定不再收藏「${collection.video.title}」吗？',
+      confirmText: '取消收藏',
+      isDestructive: true,
+    );
+    if (confirmed != true || !mounted) return;
     await _collections.remove(collection.video.bvid);
     if (!mounted) return;
-    AppToast.show(context, '已取消收藏「${collection.video.title}」');
+    AppToast.show(context, '已取消收藏');
   }
 
   String _subtitle(BiliVideoCollection collection) {
@@ -48,7 +55,7 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
     final progress = position.isEmpty
         ? 'P${part.index}'
         : 'P${part.index} $position';
-    return '${collection.video.author} · $countLabel · 上次 $progress';
+    return '${collection.video.author} · $countLabel\n上次播放到 $progress';
   }
 
   @override
@@ -58,6 +65,8 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
       extendBodyBehindAppBar: true,
       appBar: const AppTopBar(
         title: '收藏的视频',
+        leadingWidth: AppSpacing.xl * 2,
+        titleSpacing: AppSpacing.xs,
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -88,13 +97,10 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
                     return BiliVideoTile(
                       video: collection.video,
                       subtitle: _subtitle(collection),
+                      subtitleMaxLines: 2,
                       onTap: () =>
                           BiliPlayback.openCollection(context, collection),
-                      trailing: IconButton(
-                        tooltip: '取消视频收藏',
-                        icon: const Icon(AppIcons.bookmark),
-                        onPressed: () => _remove(collection),
-                      ),
+                      onLongPress: () => _remove(collection),
                     );
                   },
                 );

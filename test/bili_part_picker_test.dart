@@ -57,7 +57,8 @@ void main() {
     );
     // 溢出会以 FlutterError 的形式记录在 takeException 里。
     expect(tester.takeException(), isNull);
-    expect(find.text('播放全部 57 个分 P'), findsOneWidget);
+    expect(find.text('选择分 P · 57 个'), findsOneWidget);
+    expect(find.text('播放全部'), findsOneWidget);
   });
 
   testWidgets('分 P 面板初始为七成高度并可上拉展开到全屏', (tester) async {
@@ -88,17 +89,36 @@ void main() {
     expect(expandedHeight, closeTo(600, 1));
   });
 
-  testWidgets('作者行右侧星标可收藏和取消整个视频', (tester) async {
-    var favorite = true;
+  testWidgets('已收藏合集不重复显示收藏按钮', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: BiliPartPickerDraggableSheet(
             detail: _audiobook(10),
-            initiallyFavorite: favorite,
+            initiallyFavorite: true,
+            onToggleFavorite: () async => false,
+            onPlayAll: () {},
+            onPlayPart: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('读客熊猫君'), findsOneWidget);
+    expect(find.byTooltip('收藏整个视频'), findsNothing);
+    expect(find.byIcon(AppIconsFilled.star), findsNothing);
+  });
+
+  testWidgets('未收藏视频仍可从分 P 面板收藏', (tester) async {
+    var favorite = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BiliPartPickerDraggableSheet(
+            detail: _audiobook(10),
             onToggleFavorite: () async {
-              favorite = !favorite;
-              return favorite;
+              favorite = true;
+              return true;
             },
             onPlayAll: () {},
             onPlayPart: (_) {},
@@ -107,14 +127,11 @@ void main() {
       ),
     );
 
-    expect(find.text('读客熊猫君'), findsOneWidget);
-    expect(find.byIcon(AppIconsFilled.star), findsOneWidget);
-    await tester.tap(find.byTooltip('取消收藏'));
+    await tester.tap(find.byTooltip('收藏整个视频'));
     await tester.pump();
 
-    expect(favorite, isFalse);
-    expect(find.byIcon(AppIcons.star), findsOneWidget);
-    expect(find.byTooltip('收藏整个视频'), findsOneWidget);
+    expect(favorite, isTrue);
+    expect(find.byTooltip('收藏整个视频'), findsNothing);
   });
 
   testWidgets('分 P 名与视频标题相同时退回 P1/P2 而不是刷屏', (tester) async {
@@ -128,7 +145,7 @@ void main() {
       ),
     );
     // 标题只在顶部那行出现一次，列表里是 P1/P2…，而且每行只出现一次（不是「P3 P3」）。
-    expect(find.text('有声小说《三体》（读客熊猫君） 第一部 纯享版 高音质'), findsOneWidget);
+    expect(find.textContaining('有声小说《三体》（读客熊猫君） 第一部 纯享版 高音质'), findsOneWidget);
     expect(find.text('P1'), findsOneWidget);
   });
 
@@ -191,10 +208,28 @@ void main() {
       ),
     );
 
-    expect(find.text('继续播放 · P3'), findsOneWidget);
-    expect(find.textContaining('从 4:21 继续'), findsOneWidget);
-    await tester.tap(find.text('继续播放 · P3'));
+    expect(find.text('继续 P3 · 4:21'), findsOneWidget);
+    await tester.tap(find.text('继续 P3 · 4:21'));
     expect(resumed, isTrue);
+  });
+
+  testWidgets('分 P 列表在紧凑头部后立即开始', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        BiliPartPickerSheet(
+          detail: _audiobook(57),
+          resumePartIndex: 2,
+          resumePosition: const Duration(seconds: 5),
+          onResume: () {},
+          onPlayAll: () {},
+          onPlayPart: (_) {},
+        ),
+      ),
+    );
+
+    final panelTop = tester.getTopLeft(find.byType(AppSheetPanel)).dy;
+    final listTop = tester.getTopLeft(find.byType(ListView)).dy;
+    expect(listTop - panelTop, lessThan(150));
   });
 
   group('时长格式', () {
