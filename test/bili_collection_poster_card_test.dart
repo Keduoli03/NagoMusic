@@ -48,7 +48,12 @@ void main() {
 
     expect(find.text('适合通勤的爵士合集'), findsOneWidget);
     expect(find.text('测试 UP · 单 P'), findsOneWidget);
-    expect(tester.getSize(find.byType(BiliCollectionPosterCard)).width, 176);
+    expect(tester.getSize(find.byType(BiliCollectionPosterCard)).width, 160);
+
+    final title = tester.widget<Text>(find.text('适合通勤的爵士合集'));
+    final metadata = tester.widget<Text>(find.text('测试 UP · 单 P'));
+    expect(title.style?.fontSize, 13);
+    expect(metadata.style?.fontSize, 11);
     expect(
       find.byWidgetPredicate(
         (widget) =>

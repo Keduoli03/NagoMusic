@@ -5,9 +5,9 @@ import '../../../app/theme/tokens.dart';
 
 /// 首页「每日推荐」同规格的 B 站收藏海报。
 class BiliCollectionPosterCard extends StatelessWidget {
-  static const double width = 176;
-  static const double _coverHeight = 99;
-  static const double _footerHeight = 76;
+  static const double width = 160;
+  static const double _coverHeight = 90;
+  static const double _footerHeight = 64;
   static const double height = _coverHeight + _footerHeight;
 
   static double heightFor(BuildContext context) {
@@ -42,43 +42,44 @@ class BiliCollectionPosterCard extends StatelessWidget {
       child: SizedBox(
         width: width,
         child: Material(
-          color: colors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadii.rCard,
-            side: BorderSide(color: colors.line),
-          ),
-          clipBehavior: Clip.antiAlias,
+          type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
             borderRadius: AppRadii.rCard,
             child: Column(
               children: [
-                SizedBox(
-                  width: width,
-                  height: _coverHeight,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _buildCover(context),
-                      Positioned(
-                        right: AppSpacing.sm,
-                        bottom: AppSpacing.sm,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: AppColors.dark.bg.withValues(alpha: 0.62),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Padding(
-                            padding: AppSpacing.cardTight,
-                            child: Icon(
-                              AppIcons.play,
-                              color: overlayText,
-                              size: AppSpacing.lg,
+                ClipRRect(
+                  borderRadius: AppRadii.rCard,
+                  child: SizedBox(
+                    width: width,
+                    height: _coverHeight,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildCover(context),
+                        Positioned(
+                          right: AppSpacing.sm,
+                          bottom: AppSpacing.sm,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: AppColors.dark.bg.withValues(alpha: 0.62),
+                              shape: BoxShape.circle,
+                            ),
+                            child: SizedBox(
+                              width: AppSpacing.xxl,
+                              height: AppSpacing.xxl,
+                              child: Center(
+                                child: Icon(
+                                  AppIcons.play,
+                                  color: overlayText,
+                                  size: AppSpacing.lg,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 Container(
@@ -86,7 +87,9 @@ class BiliCollectionPosterCard extends StatelessWidget {
                   height: footerHeight,
                   padding: AppSpacing.cardTight.copyWith(
                     top: AppSpacing.sm,
-                    bottom: AppSpacing.sm,
+                    right: AppSpacing.xs,
+                    bottom: AppSpacing.xs,
+                    left: AppSpacing.xs,
                   ),
                   alignment: Alignment.centerLeft,
                   child: Column(
@@ -96,14 +99,14 @@ class BiliCollectionPosterCard extends StatelessWidget {
                         video.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyLg.on(colors.text),
+                        style: AppTypography.meta.strong.on(colors.text),
                       ),
                       const Spacer(),
                       Text(
                         '$author · $partLabel',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.caption.on(colors.muted),
+                        style: AppTypography.micro.on(colors.muted),
                       ),
                     ],
                   ),
