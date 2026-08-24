@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../app/services/bili/bili_collection_service.dart';
 import '../../../app/theme/tokens.dart';
+import 'bili_collection_playback_indicator.dart';
+import 'bili_cover_image.dart';
 
 /// 首页「每日推荐」同规格的 B 站收藏海报。
 class BiliCollectionPosterCard extends StatelessWidget {
@@ -56,7 +58,7 @@ class BiliCollectionPosterCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        _buildCover(context),
+                        BiliCoverImage(video: video),
                         Positioned(
                           right: AppSpacing.sm,
                           bottom: AppSpacing.sm,
@@ -69,10 +71,10 @@ class BiliCollectionPosterCard extends StatelessWidget {
                               width: AppSpacing.xxl,
                               height: AppSpacing.xxl,
                               child: Center(
-                                child: Icon(
-                                  AppIcons.play,
+                                child: BiliCollectionPlaybackIndicator(
+                                  bvid: video.bvid,
                                   color: overlayText,
-                                  size: AppSpacing.lg,
+                                  iconSize: AppSpacing.lg,
                                 ),
                               ),
                             ),
@@ -116,25 +118,6 @@ class BiliCollectionPosterCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildCover(BuildContext context) {
-    final video = collection.video;
-    final placeholder = ColoredBox(color: AppColors.of(context).mediaBg);
-    if (video.cover.isEmpty) return placeholder;
-    return Image.network(
-      video.cover,
-      fit: BoxFit.cover,
-      excludeFromSemantics: true,
-      headers: const {
-        'Referer': 'https://www.bilibili.com',
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/122.0.0.0 Safari/537.36',
-      },
-      errorBuilder: (context, error, stackTrace) => placeholder,
     );
   }
 }

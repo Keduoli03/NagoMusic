@@ -368,6 +368,7 @@ class _BiliPageState extends State<BiliPage> {
                 itemBuilder: (context, index) {
                   final collection = collections[index];
                   return BiliCollectionPosterCard(
+                    key: ValueKey(collection.video.bvid),
                     collection: collection,
                     onTap: () =>
                         BiliPlayback.openCollection(context, collection),

@@ -49,6 +49,7 @@ class BiliMusicService {
       validateStatus: (status) => status != null && status < 400,
     ),
   );
+  final Map<String, Future<String?>> _coverRequests = {};
 
   static bool isBiliSong(SongEntity song) =>
       song.sourceId == sourceId || song.id.startsWith(_idPrefix);
@@ -190,29 +191,53 @@ class BiliMusicService {
 
   /// 下载封面到本地并回填 `localCoverPath`。失败就返回原对象，不影响播放。
   Future<SongEntity> cacheCover(SongEntity song, String coverUrl) async {
-    if (coverUrl.isEmpty) return song;
     final parsed = parseSongId(song.id);
     if (parsed == null) return song;
+    final path = await cacheVideoCover(parsed.$1, coverUrl);
+    return path == null ? song : song.copyWith(localCoverPath: path);
+  }
+
+  /// 将一个视频的封面缓存到本地，并返回可直接给 [Image.file] 使用的路径。
+  ///
+  /// 收藏卡片会随播放进度刷新；把同一 BV 的下载请求合并，既避免重复请求，也
+  /// 让网络图片短暂失败时仍能稳定显示已缓存的封面。
+  Future<String?> cacheVideoCover(String bvid, String coverUrl) {
+    final normalizedBvid = bvid.trim();
+    final normalizedUrl = coverUrl.trim();
+    if (normalizedBvid.isEmpty || normalizedUrl.isEmpty) {
+      return Future<String?>.value();
+    }
+
+    final existing = _coverRequests[normalizedBvid];
+    if (existing != null) return existing;
+
+    final request = _cacheVideoCover(normalizedBvid, normalizedUrl);
+    _coverRequests[normalizedBvid] = request;
+    request.whenComplete(() => _coverRequests.remove(normalizedBvid));
+    return request;
+  }
+
+  Future<String?> _cacheVideoCover(String bvid, String coverUrl) async {
     try {
       final dir = await _coverDir();
-      final file = File(p.join(dir.path, '${parsed.$1}.jpg'));
-      if (!await file.exists()) {
-        final response = await _dio.get<List<int>>(
-          coverUrl,
-          options: Options(
-            headers: {
-              'User-Agent': BiliApi.userAgent,
-              'Referer': BiliApi.referer,
-            },
-          ),
-        );
-        final bytes = response.data;
-        if (bytes == null || bytes.isEmpty) return song;
-        await file.writeAsBytes(bytes, flush: true);
-      }
-      return song.copyWith(localCoverPath: file.path);
+      final file = File(p.join(dir.path, '$bvid.jpg'));
+      if (await file.exists() && await file.length() > 0) return file.path;
+
+      final response = await _dio.get<List<int>>(
+        coverUrl,
+        options: Options(
+          headers: {
+            'User-Agent': BiliApi.userAgent,
+            'Referer': BiliApi.referer,
+          },
+        ),
+      );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) return null;
+      await file.writeAsBytes(bytes, flush: true);
+      return file.path;
     } catch (_) {
-      return song;
+      return null;
     }
   }
 

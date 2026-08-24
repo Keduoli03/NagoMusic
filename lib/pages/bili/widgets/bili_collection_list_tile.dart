@@ -4,6 +4,7 @@ import '../../../app/services/bili/bili_collection_service.dart';
 import '../../../app/services/bili/bili_music_service.dart';
 import '../../../app/theme/tokens.dart';
 import '../bili_playback.dart';
+import 'bili_cover_image.dart';
 
 /// 仿 B 站历史记录的信息结构：封面进度 + 标题 + 当前分 P + UP 主。
 class BiliCollectionListTile extends StatelessWidget {
@@ -122,9 +123,7 @@ class BiliCollectionListTile extends StatelessWidget {
   }
 
   Widget _buildCover(BuildContext context) {
-    final colors = AppColors.of(context);
     final video = collection.video;
-    final placeholder = ColoredBox(color: colors.mediaBg);
 
     return ClipRRect(
       borderRadius: AppRadii.rCard,
@@ -134,22 +133,7 @@ class BiliCollectionListTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (video.cover.isEmpty)
-              placeholder
-            else
-              Image.network(
-                video.cover,
-                fit: BoxFit.cover,
-                excludeFromSemantics: true,
-                headers: const {
-                  'Referer': 'https://www.bilibili.com',
-                  'User-Agent':
-                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                      'AppleWebKit/537.36 (KHTML, like Gecko) '
-                      'Chrome/122.0.0.0 Safari/537.36',
-                },
-                errorBuilder: (context, error, stackTrace) => placeholder,
-              ),
+            BiliCoverImage(video: video),
             Positioned(
               right: AppSpacing.xs,
               bottom: AppSpacing.xs,
