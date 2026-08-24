@@ -182,6 +182,9 @@ void main() {
         'playlist',
         'playback_mode',
         'sleep_timer',
+        'add_to_playlist',
+        'save_to_local',
+        'song_info',
       ]);
     });
   });
