@@ -57,13 +57,19 @@ class AppPageScaffoldState extends State<AppPageScaffold>
     with SingleTickerProviderStateMixin {
   static const Duration _drawerDuration = Duration(milliseconds: 240);
 
-  late final AnimationController _drawerController = AnimationController(
-    vsync: this,
-    duration: _drawerDuration,
-  );
+  late final AnimationController _drawerController;
   bool _draggingDrawer = false;
 
   bool get _hasDrawer => widget.drawer != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _drawerController = AnimationController(
+      vsync: this,
+      duration: _drawerDuration,
+    );
+  }
 
   void openDrawer() {
     if (!_hasDrawer) return;

@@ -169,7 +169,7 @@ class _BiliLoginPageState extends State<BiliLoginPage> {
               ),
               const SizedBox(height: 12),
               Text(
-                '登录后才能同步收藏夹，大会员还能拿到 Hi-Res 音源。',
+                '登录后可以查看收藏夹，大会员还能拿到 Hi-Res 音源。',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,

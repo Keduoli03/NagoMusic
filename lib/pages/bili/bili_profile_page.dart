@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/router/app_router.dart';
-import '../../app/services/bili/bili_playlist_sync.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
@@ -22,7 +21,6 @@ class BiliProfilePage extends StatefulWidget {
 
 class _BiliProfilePageState extends State<BiliProfilePage> {
   final BiliApi _api = BiliApi.instance;
-  final BiliPlaylistSync _sync = BiliPlaylistSync.instance;
 
   BiliAccount _account = const BiliAccount();
   List<BiliFavFolder> _folders = const [];
@@ -60,7 +58,7 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
       _folderError = '';
     });
     try {
-      final folders = await _sync.folders();
+      final folders = await _api.favFolders();
       if (!mounted) return;
       setState(() {
         _folders = folders;
@@ -111,7 +109,7 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
     final confirmed = await AppDialog.showConfirm(
       context,
       title: '退出登录',
-      content: '退出后将无法同步收藏夹，已同步的歌单会保留。',
+      content: '退出后将无法查看账号中的 B 站收藏夹，本地视频收藏不受影响。',
       confirmText: '退出',
       isDestructive: true,
     );
@@ -214,7 +212,7 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
                 const SizedBox(height: 4),
                 Text(
                   !_account.isLoggedIn
-                      ? '登录后可同步收藏夹、获取高音质与字幕'
+                      ? '登录后可查看收藏夹、获取高音质与字幕'
                       : _account.isVip
                       ? '大会员 · UID ${_account.mid}'
                       : 'UID ${_account.mid}',

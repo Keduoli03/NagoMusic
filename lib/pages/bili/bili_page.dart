@@ -1,13 +1,11 @@
-import 'dart:async';
-
 import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
 
 import '../../app/router/app_router.dart';
+import '../../app/router/app_page_route.dart';
 import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/services/bili/bili_music_service.dart';
-import '../../app/services/bili/bili_playlist_sync.dart';
 import '../../app/services/player_service.dart';
 
 import '../../app/state/song_state.dart';
@@ -15,6 +13,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../components/index.dart';
+import 'bili_fav_folder_page.dart';
 import 'bili_profile_page.dart';
 import 'bili_recent_page.dart';
 
@@ -31,7 +30,6 @@ class BiliPage extends StatefulWidget {
 
 class _BiliPageState extends State<BiliPage> {
   final BiliApi _api = BiliApi.instance;
-  final BiliPlaylistSync _sync = BiliPlaylistSync.instance;
   final BiliMusicService _music = BiliMusicService.instance;
   final BiliCollectionService _collections = BiliCollectionService.instance;
   final PlayerService _player = PlayerService.instance;
@@ -74,6 +72,7 @@ class _BiliPageState extends State<BiliPage> {
     final stored = await BiliCookieRepository.instance.load();
     if (mounted) setState(() => _account = stored);
     if (!stored.isLoggedIn) return;
+    await _loadFolders();
     try {
       final refreshed = await _api.refreshAccount();
       if (mounted) setState(() => _account = refreshed);
@@ -83,7 +82,7 @@ class _BiliPageState extends State<BiliPage> {
   }
 
   Future<void> _loadRecent() async {
-    final songs = await _music.recentlyPlayed(limit: 8);
+    final songs = await _music.recentlyPlayed(limit: 4);
     if (!mounted) return;
     setState(() {
       _recent = songs;
@@ -104,7 +103,7 @@ class _BiliPageState extends State<BiliPage> {
       _folderError = '';
     });
     try {
-      final folders = await _sync.folders();
+      final folders = await _api.favFolders();
       if (!mounted) return;
       setState(() {
         _folders = folders;
@@ -145,95 +144,29 @@ class _BiliPageState extends State<BiliPage> {
   void _openCollections() =>
       Navigator.pushNamed(context, AppRoutes.biliCollections);
 
+  void _openFolder(BiliFavFolder folder) {
+    Navigator.of(
+      context,
+    ).push(buildAppPageRoute((_) => BiliFavFolderPage(folder: folder)));
+  }
+
   /// 进个人主页。回来时如果账号变了（登录/退出）就重新拉一遍。
   Future<void> _openProfile() async {
     final changed = await Navigator.pushNamed(context, AppRoutes.biliProfile);
     if (!mounted) return;
-    await _loadAccount();
-    // 收藏夹的显示筛选可能被改过，无论账号是否变化都要重读。
-    await _loadVisibleFolders();
     if (changed == true) {
       setState(() {
         _folders = const [];
         _folderError = '';
       });
-      _loadFolders();
     }
+    await _loadAccount();
+    // 收藏夹的显示筛选可能被改过，无论账号是否变化都要重读。
+    await _loadVisibleFolders();
   }
 
   Future<void> _playRecent(int index) async {
     await _player.playQueue(_recent, index);
-  }
-
-  Future<void> _syncFolder(BiliFavFolder folder) async {
-    final progress = ValueNotifier<BiliSyncProgress>(
-      BiliSyncProgress(processed: 0, total: folder.mediaCount, label: '准备中…'),
-    );
-    var cancelled = false;
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('同步「${folder.title}」'),
-          content: ValueListenableBuilder<BiliSyncProgress>(
-            valueListenable: progress,
-            builder: (context, value, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                LinearProgressIndicator(
-                  value: value.total == 0
-                      ? null
-                      : value.processed / value.total,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '${value.processed}/${value.total}  ${value.label}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                cancelled = true;
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('取消'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      final count = await _sync.syncFolder(
-        folder,
-        onProgress: (value) => progress.value = value,
-        isCancelled: () => cancelled,
-      );
-      if (!mounted) return;
-      if (!cancelled) Navigator.of(context, rootNavigator: true).pop();
-      AppToast.show(
-        context,
-        cancelled
-            ? '已取消同步'
-            : '已同步 $count 首到「${BiliPlaylistSync.playlistPrefix}${folder.title}」',
-        type: ToastType.success,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      if (!cancelled) Navigator.of(context, rootNavigator: true).pop();
-      AppToast.show(context, '同步失败：$e', type: ToastType.error);
-    } finally {
-      // 弹窗退场动画期间 ValueListenableBuilder 还挂在这个 notifier 上，
-      // 立刻 dispose 会在动画中途炸掉，等它退完再释放。
-      Future<void>.delayed(const Duration(milliseconds: 500), progress.dispose);
-    }
   }
 
   // -------------------------------------------------------------------- UI
@@ -361,7 +294,7 @@ class _BiliPageState extends State<BiliPage> {
         ),
         const SizedBox(height: 10),
         if (!_account.isLoggedIn)
-          _emptyPanel('登录后可以把 B 站收藏夹同步成本地歌单', action: ('登录', _login))
+          _emptyPanel('登录后可以直接查看 B 站收藏夹', action: ('登录', _login))
         else if (_loadingFolders)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 28),
@@ -383,8 +316,8 @@ class _BiliPageState extends State<BiliPage> {
                   title: folder.title,
                   subtitle: '${folder.mediaCount} 个视频',
                   leading: _folderIcon(),
-                  trailing: const Icon(Icons.sync_rounded),
-                  onTap: () => _syncFolder(folder),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _openFolder(folder),
                 ),
             ],
           ),
