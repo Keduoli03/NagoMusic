@@ -141,7 +141,7 @@ class BiliPlayback {
       final wasFavorite = collections.contains(detail.video.bvid);
       if (wasFavorite) {
         await collections.remove(detail.video.bvid);
-        if (context.mounted) AppToast.show(context, '已取消视频收藏');
+        if (context.mounted) AppToast.show(context, '已取消收藏');
         return false;
       }
       await collections.add(detail);

@@ -57,7 +57,7 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
       appBar: const AppTopBar(
-        title: '视频收藏',
+        title: '收藏的视频',
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -71,7 +71,7 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
                     child: Padding(
                       padding: AppSpacing.card,
                       child: Text(
-                        '还没有收藏视频合集\n在 B 站搜索结果中点击收藏按钮即可添加',
+                        '还没有收藏的视频\n在 B 站搜索结果中点击收藏按钮即可添加',
                         textAlign: TextAlign.center,
                         style: AppTypography.body.on(
                           AppColors.of(context).muted,

@@ -110,7 +110,7 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
     final confirmed = await AppDialog.showConfirm(
       context,
       title: '退出登录',
-      content: '退出后将无法查看账号中的 B 站收藏夹，本地视频收藏不受影响。',
+      content: '退出后将无法查看账号中的 B 站收藏夹，NagoMusic 内收藏的视频不受影响。',
       confirmText: '退出',
       isDestructive: true,
     );

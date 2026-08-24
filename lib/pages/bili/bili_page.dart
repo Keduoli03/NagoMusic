@@ -15,13 +15,15 @@ import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../components/index.dart';
 import 'bili_fav_folder_page.dart';
+import 'bili_playback.dart';
 import 'bili_profile_page.dart';
 import 'bili_recent_page.dart';
+import 'widgets/bili_collection_poster_card.dart';
 
 /// 底部导航第 3 项「B站」。
 ///
 /// 版式对齐首页：透明顶栏 + 单层 ListView + 16px 页边距 + 28px 分节间距。
-/// 主体是「最近播放」（只看 B 站来源的曲目），搜索收进右上角，账号放左上角。
+/// 主体依次是本地收藏、B站收藏夹和最近播放，搜索收进右上角，账号放左上角。
 class BiliPage extends StatefulWidget {
   const BiliPage({super.key});
 
@@ -38,6 +40,7 @@ class _BiliPageState extends State<BiliPage> {
   BiliAccount _account = const BiliAccount();
   List<SongEntity> _recent = const [];
   bool _loadingRecent = true;
+  bool _loadingCollections = true;
   EffectCleanup? _songSub;
 
   List<BiliFavFolder> _folders = const [];
@@ -51,7 +54,7 @@ class _BiliPageState extends State<BiliPage> {
     _loadAccount();
     _loadRecent();
     _loadVisibleFolders();
-    _collections.ensureLoaded();
+    _loadCollections();
     // 播到新的一首就刷新最近播放，否则播完回到这一页看到的还是旧列表。
     _songSub = _player.currentSongSignal.subscribe(_handleSongChanged);
   }
@@ -89,6 +92,11 @@ class _BiliPageState extends State<BiliPage> {
       _recent = songs;
       _loadingRecent = false;
     });
+  }
+
+  Future<void> _loadCollections() async {
+    await _collections.ensureLoaded();
+    if (mounted) setState(() => _loadingCollections = false);
   }
 
   Future<void> _loadVisibleFolders() async {
@@ -206,11 +214,11 @@ class _BiliPageState extends State<BiliPage> {
             child: ListView(
               padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
               children: [
-                _buildRecentSection(),
-                const SizedBox(height: 28),
                 _buildCollectionsSection(),
                 AppSpacing.gapXl,
-                _buildFavoritesSection(),
+                _buildFoldersSection(),
+                AppSpacing.gapXl,
+                _buildRecentSection(),
               ],
             ),
           ),
@@ -276,12 +284,12 @@ class _BiliPageState extends State<BiliPage> {
     );
   }
 
-  Widget _buildFavoritesSection() {
+  Widget _buildFoldersSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeader(
-          '收藏夹',
+          'B站收藏夹',
           trailing: !_account.isLoggedIn
               ? null
               : SoftIconButton(
@@ -330,26 +338,44 @@ class _BiliPageState extends State<BiliPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeader('视频收藏'),
-        AppSpacing.gapSm,
+        _sectionHeader(
+          '最近收藏',
+          trailing: TextButton(
+            onPressed: _openCollections,
+            child: const Text('查看全部'),
+          ),
+        ),
+        AppSpacing.gapMd,
         ValueListenableBuilder<List<BiliVideoCollection>>(
           valueListenable: _collections.collections,
-          builder: (context, collections, _) => AppSettingSection(
-            children: [
-              AppSettingTile(
-                title: '我的视频合集',
-                subtitle: collections.isEmpty
-                    ? '收藏搜索到的完整视频，保留分 P 播放进度'
-                    : '${collections.length} 个视频合集，点击查看或继续播放',
-                leading: Icon(
-                  AppIcons.video,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                trailing: const Icon(AppIcons.chevronRight),
-                onTap: _openCollections,
+          builder: (context, collections, _) {
+            if (_loadingCollections) {
+              return const SizedBox(
+                height: BiliCollectionPosterCard.height,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (collections.isEmpty) {
+              return _emptyPanel('还没有收藏视频，右上角搜索后点收藏即可添加');
+            }
+            return SizedBox(
+              height: BiliCollectionPosterCard.height,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: collections.length,
+                separatorBuilder: (context, index) => AppSpacing.wGapSm,
+                itemBuilder: (context, index) {
+                  final collection = collections[index];
+                  return BiliCollectionPosterCard(
+                    collection: collection,
+                    onTap: () =>
+                        BiliPlayback.openCollection(context, collection),
+                  );
+                },
               ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
