@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
-import 'bili_cookie_repository.dart';
-import 'bili_models.dart';
+import 'cookie_repository.dart';
+import 'models.dart';
 
 /// B 站 Web 接口封装。
 ///
@@ -113,7 +113,9 @@ class BiliApi {
   Future<String> _ensureMixinKey() async {
     final cached = _mixinKey;
     final at = _mixinKeyAt;
-    if (cached != null && at != null && DateTime.now().difference(at).inHours < 6) {
+    if (cached != null &&
+        at != null &&
+        DateTime.now().difference(at).inHours < 6) {
       return cached;
     }
     final response = await _get('https://api.bilibili.com/x/web-interface/nav');
@@ -540,12 +542,7 @@ class BiliApi {
     for (var page = 1; page <= maxPages; page++) {
       final response = await _get(
         'https://api.bilibili.com/x/v3/fav/resource/list',
-        query: {
-          'media_id': mediaId,
-          'pn': page,
-          'ps': 20,
-          'platform': 'web',
-        },
+        query: {'media_id': mediaId, 'pn': page, 'ps': 20, 'platform': 'web'},
       );
       final data = _unwrap(response);
       final medias = data['medias'];

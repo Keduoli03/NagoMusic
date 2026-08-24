@@ -1,7 +1,6 @@
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 
-import '../../app/services/bili/bili_api.dart';
-import '../../app/services/bili/bili_models.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../components/index.dart';
@@ -107,7 +106,10 @@ class _BiliSearchPageState extends State<BiliSearchPage> {
         ),
         filled: true,
         fillColor: c.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.panel),
           borderSide: BorderSide(color: c.line, width: 0.5),

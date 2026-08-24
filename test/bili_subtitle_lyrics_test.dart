@@ -1,10 +1,13 @@
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/services/bili/bili_models.dart';
-import 'package:nagomusic/app/services/bili/bili_subtitle_service.dart';
 import 'package:nagomusic/app/services/lyrics/lyrics_parser.dart';
 
 /// B 站字幕转出来的 LRC 必须能被 App 自己的解析器吃下去 —— 这两边是分开写的，
 /// 只测转换不测解析的话，格式对不上也发现不了。
+///
+/// 纯转换格式（不涉及 app 侧 LyricsParser）的断言已经搬进
+/// packages/bili_api/test/bili_subtitle_lyrics_test.dart；这里只留「跨包」的
+/// round-trip 断言，因为 bili_api 包不能反过来依赖 app。
 void main() {
   test('字幕转出的 LRC 能被 LyricsParser 解析回逐句时间轴', () {
     final lrc = BiliSubtitleService.toLrc(const [

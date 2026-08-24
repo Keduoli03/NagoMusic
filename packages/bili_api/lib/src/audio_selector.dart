@@ -1,4 +1,4 @@
-import 'bili_models.dart';
+import 'models.dart';
 
 /// 从 playurl 返回的一堆音频流里挑一路来播。
 ///

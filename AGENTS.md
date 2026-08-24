@@ -119,6 +119,16 @@ Machine-readable output (CI/debug tooling):
 flutter test --reporter expanded
 ```
 
+**`flutter test` alone is no longer sufficient.** `packages/bili_api` is a
+separate local package (path dependency) with its own `test/`; the root
+`flutter test` runner does not recurse into it. Use `tool/test_all.sh` to run
+the root suite and every local package's suite in one go, failing if any of
+them fails:
+
+```bash
+bash tool/test_all.sh
+```
+
 ## 6) CI/Release Notes
 
 - Workflow file: `.github/workflows/build-release.yml`.

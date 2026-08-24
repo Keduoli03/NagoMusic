@@ -1,6 +1,6 @@
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/services/bili/bili_models.dart';
 import 'package:nagomusic/pages/bili/bili_playback.dart';
 
 Widget _host(Widget child) => MaterialApp(
@@ -17,9 +17,7 @@ void main() {
       cover: '',
       durationSec: 49865,
     );
-    await tester.pumpWidget(
-      _host(BiliVideoTile(video: video, onTap: () {})),
-    );
+    await tester.pumpWidget(_host(BiliVideoTile(video: video, onTap: () {})));
 
     final title = tester.widget<Text>(find.text(video.title));
     expect(title.maxLines, 2);
@@ -35,9 +33,7 @@ void main() {
       cover: '',
       durationSec: 49865,
     );
-    await tester.pumpWidget(
-      _host(BiliVideoTile(video: video, onTap: () {})),
-    );
+    await tester.pumpWidget(_host(BiliVideoTile(video: video, onTap: () {})));
     // 改之前这里是 831:05。
     expect(find.text('13:51:05'), findsOneWidget);
   });

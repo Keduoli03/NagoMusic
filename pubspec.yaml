@@ -46,6 +46,8 @@ dependencies:
   photo_manager: ^3.2.0
   flutter_lyric:
     path: plugins/flutter_lyric
+  bili_api:
+    path: packages/bili_api
   webdav_client: ^1.2.2
   sqflite: ^2.4.2
   path: ^1.9.1

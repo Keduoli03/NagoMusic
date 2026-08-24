@@ -1,11 +1,9 @@
 import 'dart:async';
 
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../app/services/bili/bili_api.dart';
-import '../../app/services/bili/bili_cookie_repository.dart';
-import '../../app/services/bili/bili_models.dart';
 import '../../components/index.dart';
 
 /// B 站扫码登录。
@@ -60,10 +58,7 @@ class _BiliLoginPageState extends State<BiliLoginPage> {
         _loading = false;
         _hint = '请使用哔哩哔哩客户端扫码';
       });
-      _pollTimer = Timer.periodic(
-        const Duration(seconds: 2),
-        (_) => _poll(),
-      );
+      _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -151,15 +146,11 @@ class _BiliLoginPageState extends State<BiliLoginPage> {
                             // 失效时压暗二维码，视觉上告诉用户「别扫了」。
                             eyeStyle: QrEyeStyle(
                               eyeShape: QrEyeShape.square,
-                              color: _expired
-                                  ? Colors.black26
-                                  : Colors.black,
+                              color: _expired ? Colors.black26 : Colors.black,
                             ),
                             dataModuleStyle: QrDataModuleStyle(
                               dataModuleShape: QrDataModuleShape.square,
-                              color: _expired
-                                  ? Colors.black26
-                                  : Colors.black,
+                              color: _expired ? Colors.black26 : Colors.black,
                             ),
                           ),
                           if (_expired)

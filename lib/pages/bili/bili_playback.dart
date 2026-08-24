@@ -1,9 +1,8 @@
 import 'dart:async';
 
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 
-import '../../app/services/bili/bili_api.dart';
-import '../../app/services/bili/bili_models.dart';
 import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';

@@ -1,6 +1,6 @@
-import 'bili_api.dart';
-import 'bili_models.dart';
-import 'bili_music_service.dart';
+import 'api.dart';
+import 'models.dart';
+import 'song_id.dart';
 
 /// 把 B 站的视频字幕转成 LRC，当作歌词用。
 ///
@@ -65,7 +65,7 @@ class BiliSubtitleService {
 
   /// 给一首 B 站曲目取字幕并转成 LRC。没有可用字幕时返回 null。
   Future<String?> fetchLrc(String songId) async {
-    final parsed = BiliMusicService.parseSongId(songId);
+    final parsed = BiliSongId.parseSongId(songId);
     if (parsed == null) return null;
     final tracks = await _api.subtitleTracks(bvid: parsed.$1, cid: parsed.$2);
     final best = pickBest(tracks);
@@ -77,7 +77,7 @@ class BiliSubtitleService {
 
   /// 列出可选轨道，供「手动选字幕」的 UI 用。
   Future<List<BiliSubtitleTrack>> tracksFor(String songId) async {
-    final parsed = BiliMusicService.parseSongId(songId);
+    final parsed = BiliSongId.parseSongId(songId);
     if (parsed == null) return const [];
     return _api.subtitleTracks(bvid: parsed.$1, cid: parsed.$2);
   }

@@ -65,6 +65,13 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.2.3"
+  bili_api:
+    dependency: "direct main"
+    description:
+      path: "packages/bili_api"
+      relative: true
+    source: path
+    version: "0.1.0"
   boolean_selector:
     dependency: transitive
     description:

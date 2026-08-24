@@ -1,12 +1,9 @@
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/router/app_router.dart';
-import '../../app/services/bili/bili_api.dart';
-import '../../app/services/bili/bili_cookie_repository.dart';
-import '../../app/services/bili/bili_models.dart';
 import '../../app/services/bili/bili_playlist_sync.dart';
-import '../../app/services/bili/bili_prefs.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
@@ -261,7 +258,11 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
       return AppSettingSection(
         title: '收藏夹显示',
         children: [
-          AppSettingTile(title: '还没有收藏夹', subtitle: '点击刷新', onTap: _loadFolders),
+          AppSettingTile(
+            title: '还没有收藏夹',
+            subtitle: '点击刷新',
+            onTap: _loadFolders,
+          ),
         ],
       );
     }

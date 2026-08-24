@@ -1,15 +1,12 @@
 import 'dart:async';
 
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
 
 import '../../app/router/app_router.dart';
-import '../../app/services/bili/bili_api.dart';
-import '../../app/services/bili/bili_cookie_repository.dart';
-import '../../app/services/bili/bili_models.dart';
 import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/bili/bili_playlist_sync.dart';
-import '../../app/services/bili/bili_prefs.dart';
 import '../../app/services/player_service.dart';
 
 import '../../app/state/song_state.dart';
@@ -119,10 +116,7 @@ class _BiliPageState extends State<BiliPage> {
   }
 
   Future<void> _refreshAll() async {
-    await Future.wait([
-      _loadRecent(),
-      if (_account.isLoggedIn) _loadFolders(),
-    ]);
+    await Future.wait([_loadRecent(), if (_account.isLoggedIn) _loadFolders()]);
   }
 
   // ------------------------------------------------------------------ 动作
@@ -138,7 +132,6 @@ class _BiliPageState extends State<BiliPage> {
       _loadFolders();
     }
   }
-
 
   void _openSearch() => Navigator.pushNamed(context, AppRoutes.biliSearch);
 
@@ -183,7 +176,9 @@ class _BiliPageState extends State<BiliPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LinearProgressIndicator(
-                  value: value.total == 0 ? null : value.processed / value.total,
+                  value: value.total == 0
+                      ? null
+                      : value.processed / value.total,
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -431,4 +426,3 @@ class _BiliPageState extends State<BiliPage> {
     );
   }
 }
-

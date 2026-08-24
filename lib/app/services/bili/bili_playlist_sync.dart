@@ -1,9 +1,9 @@
 import 'dart:async';
 
+import 'package:bili_api/bili_api.dart';
+
 import '../../state/song_state.dart';
 import '../playlists_service.dart';
-import 'bili_api.dart';
-import 'bili_models.dart';
 import 'bili_music_service.dart';
 
 /// 同步进度回调用的快照。

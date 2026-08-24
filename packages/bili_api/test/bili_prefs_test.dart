@@ -1,5 +1,5 @@
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/services/bili/bili_prefs.dart';
 
 class _Folder {
   final int id;

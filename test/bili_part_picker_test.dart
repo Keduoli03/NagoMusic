@@ -1,6 +1,6 @@
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/services/bili/bili_models.dart';
 import 'package:nagomusic/pages/bili/bili_playback.dart';
 
 /// 造一个「每个分 P 的名字都等于视频标题」的有声书合集 —— 这正是当初撑爆布局的形状。
@@ -69,10 +69,7 @@ void main() {
       ),
     );
     // 标题只在顶部那行出现一次，列表里是 P1/P2…，而且每行只出现一次（不是「P3 P3」）。
-    expect(
-      find.text('有声小说《三体》（读客熊猫君） 第一部 纯享版 高音质'),
-      findsOneWidget,
-    );
+    expect(find.text('有声小说《三体》（读客熊猫君） 第一部 纯享版 高音质'), findsOneWidget);
     expect(find.text('P1'), findsOneWidget);
   });
 
@@ -134,4 +131,3 @@ void main() {
     });
   });
 }
-

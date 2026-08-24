@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bili_api/bili_api.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_lyric/core/lyric_controller.dart';
 import 'package:flutter_lyric/core/lyric_model.dart' as fl;
@@ -9,7 +10,6 @@ import 'package:signals/signals.dart';
 import '../player_service.dart';
 import '../../state/song_state.dart';
 import '../bili/bili_music_service.dart';
-import '../bili/bili_subtitle_service.dart';
 import 'lyrics_parser.dart';
 import 'lyrics_repository.dart';
 import 'lyricon_service.dart';

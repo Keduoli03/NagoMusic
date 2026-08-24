@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bili_api/bili_api.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -9,9 +10,6 @@ import 'package:path_provider/path_provider.dart';
 import '../../state/song_state.dart';
 import '../db/dao/song_dao.dart';
 import '../stats_service.dart';
-import 'bili_api.dart';
-import 'bili_audio_selector.dart';
-import 'bili_models.dart';
 
 /// 把 B 站视频接到本地曲库上。
 ///
@@ -47,31 +45,17 @@ class BiliMusicService {
   static bool isBiliSong(SongEntity song) =>
       song.sourceId == sourceId || song.id.startsWith(_idPrefix);
 
-  static String buildSongId(String bvid, int cid) => '$_idPrefix$bvid-$cid';
+  // id 编解码本身已经搬进 [BiliSongId]（那边要给同样搬进包里的
+  // BiliSubtitleService 用，不能再依赖这里）。这几个 static 保留原名原签名
+  // 原样转发，是为了让本类内部的 ~8 处调用和外部（lib/pages/bili/*、
+  // lyrics_service.dart、test/bili_test.dart）都不用改。
+  static String buildSongId(String bvid, int cid) =>
+      BiliSongId.buildSongId(bvid, cid);
 
-  /// 曲目 `uri` 里存的占位地址，例如 `bili://BV1xx411c7mD/123456`。
-  ///
-  /// 不能把真的直链存进去：它带时效签名，几十分钟就失效。但 `uri` 又不能为空 ——
-  /// [PlayerService.playQueue] 会把 `uri` 为空的歌全部滤掉，队列直接变空、点了没反应。
-  /// 占位地址同时充当音频缓存的键，它稳定，所以缓存不会因为换了直链就失效。
-  static String placeholderUri(String songId) {
-    final parsed = parseSongId(songId);
-    if (parsed == null) return 'bili://$songId';
-    return 'bili://${parsed.$1}/${parsed.$2}';
-  }
+  static String placeholderUri(String songId) =>
+      BiliSongId.placeholderUri(songId);
 
-  /// `bili::BV1xx411c7mD-123456` → `('BV1xx411c7mD', 123456)`。
-  /// 解不出来返回 null（例如 id 格式被别的迁移改过）。
-  static (String, int)? parseSongId(String id) {
-    if (!id.startsWith(_idPrefix)) return null;
-    final body = id.substring(_idPrefix.length);
-    final dash = body.lastIndexOf('-');
-    if (dash <= 0) return null;
-    final bvid = body.substring(0, dash);
-    final cid = int.tryParse(body.substring(dash + 1));
-    if (bvid.isEmpty || cid == null) return null;
-    return (bvid, cid);
-  }
+  static (String, int)? parseSongId(String id) => BiliSongId.parseSongId(id);
 
   // ------------------------------------------------------------ 视频 → 曲目
 
@@ -84,15 +68,8 @@ class BiliMusicService {
     return songsFromDetail(detail);
   }
 
-  /// 分 P 的显示名。
-  ///
-  /// 很多合集（有声书、课程）每个分 P 的 `part` 字段就是视频标题本身，直接拿来用
-  /// 会得到一整列一模一样的长标题 —— 这种情况退回 `P1 / P2`。
-  static String partLabel(String videoTitle, BiliPart part) {
-    final raw = part.title.trim();
-    if (raw.isEmpty || raw == videoTitle.trim()) return 'P${part.index}';
-    return raw;
-  }
+  static String partLabel(String videoTitle, BiliPart part) =>
+      BiliSongId.partLabel(videoTitle, part);
 
   List<SongEntity> songsFromDetail(BiliVideoDetail detail) {
     final video = detail.video;

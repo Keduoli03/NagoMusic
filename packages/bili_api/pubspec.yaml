@@ -1,0 +1,19 @@
+name: bili_api
+description: 哔哩哔哩 Web 接口封装：搜索 / 分P / playurl / 收藏夹 / 扫码登录 / 字幕。
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  crypto: ^3.0.6
+  dio: ^5.4.0
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
