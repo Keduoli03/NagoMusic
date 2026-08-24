@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:path/path.dart' as p;
 
-import '../cache/audio_cache_service.dart';
+import '../audio_cache_service.dart';
 import 'tag_probe_result.dart';
 
 /// Abstract handler for audio format probing strategies.

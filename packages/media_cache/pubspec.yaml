@@ -1,0 +1,22 @@
+name: media_cache
+description: 音频/元数据本地缓存与代理服务：磁盘缓存、range 转发代理、标签探测（ID3/Vorbis/WAV）。
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  audio_metadata_reader: ^1.4.2
+  dio: ^5.4.0
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  shelf: ^1.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  path_provider_platform_interface: ^2.1.2

@@ -7,14 +7,13 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../cache/audio_cache_service.dart';
-
+import '../audio_cache_service.dart';
+import '../cache_key.dart';
 import '../http_utils.dart';
 import 'ogg_vorbis_comment.dart';
 import 'probe_handlers.dart';
 import 'tag_probe_result.dart';
 import 'wav_id3_metadata.dart';
-import '../../utils/cache_key.dart';
 
 int? estimateAudioBitrate({required int? fileSize, required int? durationMs}) {
   final bytes = fileSize ?? 0;

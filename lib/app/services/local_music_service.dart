@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:media_cache/media_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,7 +11,6 @@ import '../state/song_state.dart';
 import 'artwork_cache_helper.dart';
 import 'db/dao/song_dao.dart';
 import 'lyrics/lyrics_repository.dart';
-import 'metadata/tag_probe_service.dart';
 import '../services/scan_types.dart';
 
 class LocalSourceSettings {

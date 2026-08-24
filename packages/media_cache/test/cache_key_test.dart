@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/utils/cache_key.dart';
+import 'package:media_cache/media_cache.dart';
 
 /// 这些期望值等同于重构前各服务内联实现的输出。
 /// 若因改动算法而失败，说明磁盘上已有缓存会全部失效——不要直接改期望值。

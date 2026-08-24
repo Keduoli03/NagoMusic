@@ -1,48 +1,52 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:nagomusic/app/services/cache/audio_cache_service.dart';
 import 'package:nagomusic/app/state/settings_cache_state.dart';
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    AppCacheSettings.onLimitChanged = null;
+  });
 
-  // The limit must reach AudioCacheService even if a caller invokes the setter
-  // before ensureLoaded() — otherwise eviction silently runs with a stale cap.
+  // The limit must reach the bound callback even if a caller invokes the
+  // setter before ensureLoaded() — otherwise eviction silently runs with a
+  // stale cap.
   test(
-    'setter pushes the limit to AudioCacheService without ensureLoaded',
+    'setter pushes the limit to onLimitChanged without ensureLoaded',
     () async {
+      var got = -1;
+      AppCacheSettings.onLimitChanged = (bytes) => got = bytes;
+
       await AppCacheSettings.setAudioCacheLimitGb(3);
 
       expect(AppCacheSettings.audioCacheLimitGb.value, 3);
-      expect(
-        AudioCacheService.instance.debugMaxCacheBytes,
-        3 * 1024 * 1024 * 1024,
-      );
+      expect(got, 3 * 1024 * 1024 * 1024);
     },
   );
 
   test('limit clamps to 0..5 and 0 means unlimited-off', () async {
+    var got = -1;
+    AppCacheSettings.onLimitChanged = (bytes) => got = bytes;
+
     await AppCacheSettings.setAudioCacheLimitGb(99);
     expect(AppCacheSettings.audioCacheLimitGb.value, 5);
 
     await AppCacheSettings.setAudioCacheLimitGb(0);
     expect(AppCacheSettings.audioCacheLimitGb.value, 0);
-    expect(AudioCacheService.instance.debugMaxCacheBytes, 0);
+    expect(got, 0);
   });
 
-  test('ensureLoaded applies the stored limit to the service', () async {
+  test('ensureLoaded applies the stored limit to the bound callback', () async {
     SharedPreferences.setMockInitialValues({'audio_cache_limit_gb': 2});
-    AudioCacheService.instance.setMaxCacheBytes(0);
+    var got = -1;
+    AppCacheSettings.onLimitChanged = (bytes) => got = bytes;
     // PrefGroup caches its load future, so drop it or this depends on
     // whichever test happened to call ensureLoaded first.
     AppCacheSettings.debugResetLoaded();
 
     await AppCacheSettings.ensureLoaded();
     expect(AppCacheSettings.audioCacheLimitGb.value, 2);
-    expect(
-      AudioCacheService.instance.debugMaxCacheBytes,
-      2 * 1024 * 1024 * 1024,
-    );
+    expect(got, 2 * 1024 * 1024 * 1024);
   });
 }

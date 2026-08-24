@@ -2,7 +2,8 @@
 # 跑全部测试：根项目 + 各本地包。
 #
 # 背景：bili_api 从 lib/app/services/bili/ 拆成了 packages/bili_api 独立包
-# 之后，它的 test/ 不再被根目录的 `flutter test` 收进去（Flutter 的 test
+# （media_cache 同理，从 lib/app/services/ 下的缓存/代理/标签探测代码拆出）
+# 之后，它们的 test/ 不再被根目录的 `flutter test` 收进去（Flutter 的 test
 # runner 只扫自己 pubspec 所在目录下的 test/，不会递归进 path 依赖）。
 # 光跑根 `flutter test` 看到全绿，其实是包里的用例根本没跑，是假绿。
 #
@@ -31,6 +32,7 @@ run() {
 
 run "根项目" "."
 run "packages/bili_api" "packages/bili_api"
+run "packages/media_cache" "packages/media_cache"
 
 if (( fail )); then
   echo "有测试套件失败，见上面的输出。"

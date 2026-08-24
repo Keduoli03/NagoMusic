@@ -550,6 +550,13 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.13.0"
+  media_cache:
+    dependency: "direct main"
+    description:
+      path: "packages/media_cache"
+      relative: true
+    source: path
+    version: "0.1.0"
   meta:
     dependency: transitive
     description:

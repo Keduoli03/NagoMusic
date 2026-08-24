@@ -7,8 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../http_utils.dart';
-import '../../utils/cache_key.dart';
+import 'cache_key.dart';
+import 'http_utils.dart';
 
 class AudioCacheService {
   static final AudioCacheService instance = AudioCacheService._internal();

@@ -5,11 +5,10 @@ import 'dart:io';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:media_cache/media_cache.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import 'native_audio_thumbnail_service.dart';
-import 'http_utils.dart';
-import 'metadata/ogg_vorbis_comment.dart';
 
 class ArtworkService {
   ArtworkService._();

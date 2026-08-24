@@ -5,16 +5,14 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:media_cache/media_cache.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/artwork_cache_helper.dart';
-import '../../app/services/cache/audio_cache_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../app/services/playlists_service.dart';
-import '../../app/services/metadata/tag_probe_service.dart';
-import '../../app/services/metadata/tag_probe_result.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/song_download_service.dart';
 import '../../app/state/settings_state.dart';

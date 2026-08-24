@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/services/metadata/tag_probe_service.dart';
+import 'package:media_cache/media_cache.dart';
 
 void main() {
   test('estimates average bitrate when a parser does not provide one', () {

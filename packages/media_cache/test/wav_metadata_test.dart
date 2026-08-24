@@ -3,8 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nagomusic/app/services/metadata/tag_probe_service.dart';
-import 'package:nagomusic/app/services/metadata/wav_id3_metadata.dart';
+import 'package:media_cache/media_cache.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 void main() {

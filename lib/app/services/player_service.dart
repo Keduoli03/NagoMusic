@@ -5,16 +5,14 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:media_cache/media_cache.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
 import 'db/dao/song_dao.dart';
 import 'lyrics/lyrics_repository.dart';
 import 'artwork_cache_helper.dart';
-import 'audio_proxy_server.dart';
 import 'bili/bili_music_service.dart';
-import 'cache/audio_cache_service.dart';
-import 'metadata/tag_probe_service.dart';
 import 'media_notification_service.dart';
 import 'stats_service.dart';
 import 'webdav/webdav_endpoint_resolver.dart';

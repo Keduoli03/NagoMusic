@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:media_cache/media_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
@@ -11,8 +12,6 @@ import '../../utils/webdav_song_id.dart';
 import '../artwork_cache_helper.dart';
 import '../debug_log_service.dart';
 import '../db/dao/song_dao.dart';
-import '../metadata/tag_probe_service.dart';
-import '../metadata/tag_probe_result.dart';
 import 'webdav_endpoint_resolver.dart';
 import 'webdav_source_repository.dart';
 import '../scan_types.dart';

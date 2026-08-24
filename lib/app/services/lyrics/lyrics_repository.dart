@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:media_cache/media_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../state/song_state.dart';
-import '../metadata/tag_probe_service.dart';
-import '../../utils/cache_key.dart';
 
 class LyricsRepository {
   Future<String?> loadLrc(SongEntity song) async {
