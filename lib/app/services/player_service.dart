@@ -10,13 +10,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
 import 'db/dao/song_dao.dart';
-import 'bili/bili_music_service.dart';
 import 'media_notification_service.dart';
+import 'player/playback_source_resolver.dart';
 import 'player/player_sleep_timer.dart';
 import 'player/song_metadata_persister.dart';
 import 'stats_service.dart';
-import 'webdav/webdav_endpoint_resolver.dart';
-import 'webdav/webdav_source_repository.dart';
 import '../state/settings_state.dart';
 import '../state/song_state.dart';
 export '../state/player_state.dart';
@@ -24,7 +22,6 @@ import '../state/player_state.dart';
 
 class PlayerService with WidgetsBindingObserver {
   static final PlayerService instance = PlayerService._internal();
-  static const Duration _resolvedSourceTtl = Duration(minutes: 10);
   static const Duration _playingPersistInterval = Duration(seconds: 1);
   static const Duration _idlePersistDelay = Duration(milliseconds: 200);
 
@@ -32,13 +29,8 @@ class PlayerService with WidgetsBindingObserver {
 
   final AudioPlayer _player = AudioPlayer();
   final AudioCacheService _audioCache = AudioCacheService.instance;
-  final AudioProxyServer _proxy = AudioProxyServer.instance;
   final SongDao _songDao = SongDao();
   final StatsService _statsService = StatsService.instance;
-  final WebDavSourceRepository _webdavSourceRepo = WebDavSourceRepository.instance;
-  final WebDavEndpointResolver _webdavEndpointResolver =
-      WebDavEndpointResolver.instance;
-  final BiliMusicService _biliService = BiliMusicService.instance;
   AudioSession? _audioSession;
 
   ValueNotifier<Duration> get position => _state.position;
@@ -83,17 +75,16 @@ class PlayerService with WidgetsBindingObserver {
     sleepTimerDisplayText: _state.sleepTimerDisplayText,
   );
   late final SongMetadataPersister _metadataPersister = SongMetadataPersister(
-    resolveRawUri: _resolveWebdavRawUri,
-    headersFor: _headersFromSong,
+    resolveRawUri: _sourceResolver.resolveWebdavRawUri,
+    headersFor: _sourceResolver.headersFromSong,
     onSongPersisted: _handleSongPersisted,
     isCurrentSong: (id) => currentSong.value?.id == id,
   );
+  late final PlaybackSourceResolver _sourceResolver = PlaybackSourceResolver();
   Timer? _persistTimer;
   Timer? _backgroundAudioKeepAliveTimer;
   _PlaybackRestoreState? _restoreSession;
   Future<void>? _restorePrepareFuture;
-  final Map<String, _ResolvedRemoteSource> _resolvedRemoteSources = {};
-  final Map<String, Future<Uri>> _sourceResolveInflight = {};
   bool _restoringState = false;
   bool _isSeeking = false;
   Duration? _seekTarget;
@@ -171,7 +162,7 @@ class PlayerService with WidgetsBindingObserver {
             next[index] = updated;
             queue.value = next;
           }
-          _warmupPlaybackSources(
+          _sourceResolver.warmupPlaybackSources(
             updated,
             nextSong: _nextSongForIndex(queue.value, currentIndex.value),
           );
@@ -275,7 +266,7 @@ class PlayerService with WidgetsBindingObserver {
         _metadataPersister.maybeProbe(song);
         _metadataPersister.scheduleDeferredProbe(song);
         _hydrateAndSetCurrentSong(song);
-        _warmupPlaybackSources(song, nextSong: _nextSongForIndex(list, idx));
+        _sourceResolver.warmupPlaybackSources(song, nextSong: _nextSongForIndex(list, idx));
       } else {
         position.value = Duration.zero;
         bufferedPosition.value = Duration.zero;
@@ -344,7 +335,7 @@ class PlayerService with WidgetsBindingObserver {
 
     Future<bool> setSourcesOnce() async {
       try {
-        final sourceQueue = await _buildPlaybackSourceQueue(playable);
+        final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(playable);
         await _loadPlaybackSourceQueue(sourceQueue, initialIndex: actualIndex);
         return true;
       } catch (e) {
@@ -365,7 +356,7 @@ class PlayerService with WidgetsBindingObserver {
         final current = playable[actualIndex];
         final uri = (current.uri ?? '').trim();
         if (!current.isLocal && uri.startsWith('http')) {
-          final headers = _headersFromSong(current);
+          final headers = _sourceResolver.headersFromSong(current);
           await _audioCache.removeCachedFiles(uri: uri, headers: headers);
           await TagProbeService.instance.removeRemoteProbeCache(
             uri: uri,
@@ -374,7 +365,7 @@ class PlayerService with WidgetsBindingObserver {
         }
 
         try {
-          final sourceQueue = await _buildPlaybackSourceQueue(
+          final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
             playable,
             forceRefreshSongId: current.id,
           );
@@ -446,7 +437,7 @@ class PlayerService with WidgetsBindingObserver {
     final raw = (song.uri ?? '').trim();
     if (song.isLocal || !raw.startsWith('http')) return;
     _debugLog('prefetch upcoming index=$nextIndex song=${song.title}');
-    final headers = _headersFromSong(song);
+    final headers = _sourceResolver.headersFromSong(song);
     final cached = await _audioCache.getCompleteCachedFile(
       uri: raw,
       headers: headers,
@@ -563,7 +554,7 @@ class PlayerService with WidgetsBindingObserver {
 
     _applyLogicalQueue(playable, actualIndex);
 
-    final sourceQueue = await _buildPlaybackSourceQueue(playable);
+    final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(playable);
     try {
       await _loadPlaybackSourceQueue(sourceQueue, initialIndex: actualIndex);
     } catch (e) {
@@ -622,8 +613,8 @@ class PlayerService with WidgetsBindingObserver {
       // Match whatever host was actually in use (may already have been
       // rewritten to an alternate WebDAV address) so cache cleanup targets
       // the right key.
-      final rawUri = await _resolveWebdavRawUri(failedSong, storedUri);
-      final headers = _headersFromSong(failedSong);
+      final rawUri = await _sourceResolver.resolveWebdavRawUri(failedSong, storedUri);
+      final headers = _sourceResolver.headersFromSong(failedSong);
       _debugLog(
         'recover current source index=$failedIndex song=${failedSong.title} error=${error.message}',
       );
@@ -632,14 +623,14 @@ class PlayerService with WidgetsBindingObserver {
         uri: rawUri,
         headers: headers,
       );
-      _invalidateResolvedSource(failedSong);
-      await _resolvePlayableUri(failedSong, forceRefresh: true);
+      _sourceResolver.invalidateResolvedSource(failedSong);
+      await _sourceResolver.resolvePlayableUri(failedSong, forceRefresh: true);
 
       final wasPlaying = isPlaying.value;
       final seekPos = failedIndex == currentIndex.value
           ? position.value
           : Duration.zero;
-      final sourceQueue = await _buildPlaybackSourceQueue(
+      final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
         list,
         forceRefreshSongId: failedSong.id,
       );
@@ -1013,7 +1004,7 @@ class PlayerService with WidgetsBindingObserver {
     _PlaybackRestoreState session,
   ) async {
     try {
-      final sourceQueue = await _buildPlaybackSourceQueue(session.queue);
+      final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(session.queue);
       await _loadPlaybackSourceQueue(
         sourceQueue,
         initialIndex: session.index,
@@ -1127,7 +1118,7 @@ class PlayerService with WidgetsBindingObserver {
         final idx = currentIndex.value;
         if (list.isNotEmpty && idx >= 0 && idx < list.length) {
           final pos = position.value;
-          final sourceQueue = await _buildPlaybackSourceQueue(list);
+          final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(list);
           await _loadPlaybackSourceQueue(
             sourceQueue,
             initialIndex: idx,
@@ -1340,85 +1331,10 @@ class PlayerService with WidgetsBindingObserver {
     await prefs.remove(_prefsSongIdKey);
   }
 
-  Map<String, String>? _headersFromSong(SongEntity song) {
-    final raw = (song.headersJson ?? '').trim();
-    if (raw.isEmpty) return null;
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map) {
-        return decoded.map(
-          (key, value) => MapEntry(key.toString(), value.toString()),
-        );
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
   SongEntity? _nextSongForIndex(List<SongEntity> list, int index) {
     final nextIndex = index + 1;
     if (nextIndex < 0 || nextIndex >= list.length) return null;
     return list[nextIndex];
-  }
-
-  void _warmupPlaybackSources(SongEntity current, {SongEntity? nextSong}) {
-    unawaited(_warmupSource(current));
-    if (nextSong != null) {
-      unawaited(_warmupSource(nextSong));
-    }
-  }
-
-  Future<void> _warmupSource(SongEntity song) async {
-    final rawUri = (song.uri ?? '').trim();
-    if (!BiliMusicService.isBiliSong(song) &&
-        (song.isLocal || !rawUri.startsWith('http'))) {
-      return;
-    }
-    try {
-      await _resolvePlayableUri(song);
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('PlayerService warmup source failed for ${song.title}: $e');
-      }
-    }
-  }
-
-  void _invalidateResolvedSource(SongEntity song) {
-    _resolvedRemoteSources.remove(song.id);
-    _sourceResolveInflight.remove(song.id);
-    _biliService.invalidate(song.id);
-    final sourceId = song.sourceId;
-    if (sourceId != null) {
-      _webdavEndpointResolver.invalidate(sourceId);
-    }
-  }
-
-  /// If [song] belongs to a WebDAV source with multiple addresses (e.g. LAN
-  /// at home, remote-access tunnel while away), rewrites [rawUri]'s host to
-  /// whichever address currently answers. Leaves [rawUri] untouched for
-  /// everything else (single-address sources, Navidrome, local files).
-  Future<String> _resolveWebdavRawUri(SongEntity song, String rawUri) async {
-    final sourceId = song.sourceId;
-    if (sourceId == null || !sourceId.startsWith('webdav')) return rawUri;
-    try {
-      final sources = await _webdavSourceRepo.loadSources();
-      WebDavSource? source;
-      for (final s in sources) {
-        if (s.id == sourceId) {
-          source = s;
-          break;
-        }
-      }
-      if (source == null || source.allEndpoints.length <= 1) return rawUri;
-      final active = await _webdavEndpointResolver.resolveActiveEndpoint(
-        source,
-      );
-      if (active == null) return rawUri;
-      return _webdavEndpointResolver.rewriteHost(rawUri, active).toString();
-    } catch (_) {
-      return rawUri;
-    }
   }
 
   void _applyLogicalQueue(List<SongEntity> songs, int currentQueueIndex) {
@@ -1439,28 +1355,8 @@ class PlayerService with WidgetsBindingObserver {
     _emitSnapshot(force: true);
   }
 
-  Future<_PlaybackSourceQueue> _buildPlaybackSourceQueue(
-    List<SongEntity> songs, {
-    String? forceRefreshSongId,
-  }) async {
-    final sources = <AudioSource>[];
-    for (final song in songs) {
-      sources.add(
-        await _sourceForSong(
-          song,
-          forceRefresh:
-              forceRefreshSongId != null && song.id == forceRefreshSongId,
-        ),
-      );
-    }
-    return _PlaybackSourceQueue(
-      songs: List<SongEntity>.from(songs),
-      sources: sources,
-    );
-  }
-
   Future<void> _loadPlaybackSourceQueue(
-    _PlaybackSourceQueue sourceQueue, {
+    PlaybackSourceQueue sourceQueue, {
     required int initialIndex,
     Duration? initialPosition,
     bool preload = false,
@@ -1471,111 +1367,6 @@ class PlayerService with WidgetsBindingObserver {
       initialPosition: initialPosition,
       preload: preload,
     );
-  }
-
-  String _headersFingerprint(Map<String, String>? headers) {
-    if (headers == null || headers.isEmpty) return '';
-    final pairs = headers.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return pairs.map((e) => '${e.key}=${e.value}').join('&');
-  }
-
-  Future<Uri> _resolvePlayableUri(
-    SongEntity song, {
-    bool forceRefresh = false,
-  }) async {
-    final storedUri = (song.uri ?? '').trim();
-    // B 站的直链带时效签名，而且解析一次就是一次网络请求 —— 建队列时挨个解析的话，
-    // 一个 57 P 的合集开播前要打 57 次 playurl。这里只把「怎么解析」交给代理，
-    // 真正取流时才解析，缓存键用稳定的 bili:// 占位地址而不是会变的直链。
-    if (BiliMusicService.isBiliSong(song)) {
-      return _registerRemoteSource(
-        song,
-        rawUri: storedUri.isEmpty
-            ? BiliMusicService.placeholderUri(song.id)
-            : storedUri,
-        headers: _headersFromSong(song) ?? await _biliService.headersMap(),
-        forceRefresh: forceRefresh,
-        resolveUri: (fresh) => _biliService
-            .resolveStreamUri(song.id, forceRefresh: fresh)
-            .then((url) => url == null ? null : Uri.parse(url)),
-      );
-    }
-    if (song.isLocal || !storedUri.startsWith('http')) {
-      return Uri.file(storedUri);
-    }
-    final rawUri = await _resolveWebdavRawUri(song, storedUri);
-
-    final headers = _headersFromSong(song);
-    return _registerRemoteSource(
-      song,
-      rawUri: rawUri,
-      headers: headers,
-      forceRefresh: forceRefresh,
-    );
-  }
-
-  /// 把一条远程地址注册到本地代理，返回 `http://127.0.0.1:.../stream?token=...`。
-  /// just_audio 永远只看到这个回环地址，鉴权头不会离开本进程。
-  ///
-  /// 传了 [resolveUri] 时 [rawUri] 只当作缓存键和去重键用，真正的上游地址由代理
-  /// 在首次取流时调 [resolveUri] 拿。
-  Future<Uri> _registerRemoteSource(
-    SongEntity song, {
-    required String rawUri,
-    required Map<String, String>? headers,
-    required bool forceRefresh,
-    Future<Uri?> Function(bool forceRefresh)? resolveUri,
-  }) async {
-    final headersKey = _headersFingerprint(headers);
-    if (forceRefresh) {
-      _invalidateResolvedSource(song);
-    }
-
-    final cached = _resolvedRemoteSources[song.id];
-    if (cached != null &&
-        cached.rawUri == rawUri &&
-        cached.headersFingerprint == headersKey &&
-        !cached.isExpired) {
-      return cached.proxyUri;
-    }
-
-    final inflight = _sourceResolveInflight[song.id];
-    if (inflight != null) return inflight;
-
-    final future = () async {
-      final remoteUri = _getSafeUri(rawUri);
-      final finalRemoteUri = remoteUri ?? Uri.parse(rawUri);
-      final uriStr = finalRemoteUri.toString();
-      final cacheFile = await _audioCache.getCacheFile(
-        uri: uriStr,
-        headers: headers,
-      );
-      final proxyUri = await _proxy.registerSource(
-        uri: resolveUri == null ? finalRemoteUri : null,
-        resolveUri: resolveUri,
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': '*/*',
-          // 歌曲自带的头放最后：B 站的 Referer/Cookie 必须能覆盖上面的默认值，
-          // 否则 CDN 直接 403。
-          ...?headers,
-        },
-        cacheFile: cacheFile,
-      );
-      _resolvedRemoteSources[song.id] = _ResolvedRemoteSource(
-        rawUri: rawUri,
-        headersFingerprint: headersKey,
-        proxyUri: proxyUri,
-        resolvedAt: DateTime.now(),
-      );
-      return proxyUri;
-    }();
-
-    _sourceResolveInflight[song.id] = future;
-    future.whenComplete(() => _sourceResolveInflight.remove(song.id));
-    return future;
   }
 
   /// 曲目回写（[SongMetadataPersister] 写完 DB 后）的联动：更新内存里的队列和
@@ -1593,49 +1384,12 @@ class PlayerService with WidgetsBindingObserver {
     final current = currentSong.value;
     if (current != null && current.id == next.id) {
       currentSong.value = next;
-      _warmupPlaybackSources(
+      _sourceResolver.warmupPlaybackSources(
         next,
         nextSong: _nextSongForIndex(queue.value, currentIndex.value),
       );
       _emitSnapshot(force: true);
     }
-  }
-
-  Uri? _getSafeUri(String uriStr) {
-    try {
-      final uri = Uri.parse(uriStr);
-      // Heuristic: If path contains %25 (encoded %), it might be double encoded (e.g. %2520 instead of %20).
-      // We want to decode it so that the resulting Uri uses proper single encoding.
-      if (uri.path.contains('%25')) {
-        try {
-          return Uri.parse(Uri.decodeFull(uriStr));
-        } catch (_) {
-          return uri;
-        }
-      }
-      return uri;
-    } catch (_) {
-      try {
-        return Uri.parse(Uri.encodeFull(uriStr));
-      } catch (_) {
-        return null;
-      }
-    }
-  }
-
-  Future<AudioSource> _sourceForSong(
-    SongEntity song, {
-    bool forceRefresh = false,
-  }) async {
-    final rawUri = (song.uri ?? '').trim();
-    // B 站曲目的 uri 在库里通常是空的（直链有时效，不落库），得先走解析。
-    if (!BiliMusicService.isBiliSong(song) &&
-        (song.isLocal || !rawUri.startsWith('http'))) {
-      return AudioSource.file(rawUri);
-    }
-
-    final local = await _resolvePlayableUri(song, forceRefresh: forceRefresh);
-    return AudioSource.uri(local);
   }
 
   Future<void> dispose() async {
@@ -1656,23 +1410,6 @@ class PlayerService with WidgetsBindingObserver {
     await _setAudioSessionActive(false);
     await _player.dispose();
   }
-}
-
-class _ResolvedRemoteSource {
-  final String rawUri;
-  final String headersFingerprint;
-  final Uri proxyUri;
-  final DateTime resolvedAt;
-
-  const _ResolvedRemoteSource({
-    required this.rawUri,
-    required this.headersFingerprint,
-    required this.proxyUri,
-    required this.resolvedAt,
-  });
-
-  bool get isExpired =>
-      DateTime.now().difference(resolvedAt) > PlayerService._resolvedSourceTtl;
 }
 
 class _PlaybackRestoreState {
@@ -1700,11 +1437,4 @@ class _PlaybackRestoreState {
   SongEntity get currentSong => queue[index];
 
   bool get protectPosition => !seekApplied && position > Duration.zero;
-}
-
-class _PlaybackSourceQueue {
-  final List<SongEntity> songs;
-  final List<AudioSource> sources;
-
-  const _PlaybackSourceQueue({required this.songs, required this.sources});
 }
