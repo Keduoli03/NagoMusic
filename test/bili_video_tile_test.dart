@@ -54,4 +54,33 @@ void main() {
     await tester.tap(find.text('标题'));
     expect(tapped, isTrue);
   });
+
+  testWidgets('点击收藏按钮不会误触发视频播放', (tester) async {
+    var played = false;
+    var favorited = false;
+    const video = BiliVideo(
+      bvid: 'BV1',
+      aid: 1,
+      title: '标题',
+      author: 'UP',
+      cover: '',
+    );
+    await tester.pumpWidget(
+      _host(
+        BiliVideoTile(
+          video: video,
+          onTap: () => played = true,
+          trailing: IconButton(
+            tooltip: '收藏整个视频',
+            icon: const Icon(Icons.bookmark_border_rounded),
+            onPressed: () => favorited = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('收藏整个视频'));
+    expect(favorited, isTrue);
+    expect(played, isFalse);
+  });
 }

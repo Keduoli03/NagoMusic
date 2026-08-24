@@ -1,6 +1,7 @@
 import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../components/index.dart';
@@ -19,6 +20,7 @@ class BiliSearchPage extends StatefulWidget {
 
 class _BiliSearchPageState extends State<BiliSearchPage> {
   final BiliApi _api = BiliApi.instance;
+  final BiliCollectionService _collections = BiliCollectionService.instance;
   final TextEditingController _keyword = TextEditingController();
   final FocusNode _focus = FocusNode();
 
@@ -26,10 +28,12 @@ class _BiliSearchPageState extends State<BiliSearchPage> {
   bool _searching = false;
   String _error = '';
   String _lastKeyword = '';
+  final Set<String> _favoriteBusy = {};
 
   @override
   void initState() {
     super.initState();
+    _collections.ensureLoaded();
     // 进来就聚焦弹键盘：用户点搜索按钮就是为了打字。
     WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
   }
@@ -63,6 +67,34 @@ class _BiliSearchPageState extends State<BiliSearchPage> {
         _searching = false;
         _error = e is BiliApiException ? e.message : '搜索失败：$e';
       });
+    }
+  }
+
+  Future<void> _toggleFavorite(BiliVideo video) async {
+    if (_favoriteBusy.contains(video.bvid)) return;
+    setState(() => _favoriteBusy.add(video.bvid));
+    try {
+      await _collections.ensureLoaded();
+      if (_collections.contains(video.bvid)) {
+        await _collections.remove(video.bvid);
+        if (mounted) AppToast.show(context, '已取消视频收藏');
+        return;
+      }
+      final detail = await _api.videoDetail(video.bvid);
+      await _collections.add(detail);
+      if (mounted) {
+        AppToast.show(
+          context,
+          '已收藏整个视频，共 ${detail.parts.length} 个分 P',
+          type: ToastType.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, '收藏失败：$e', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _favoriteBusy.remove(video.bvid));
     }
   }
 
@@ -134,16 +166,35 @@ class _BiliSearchPageState extends State<BiliSearchPage> {
         _lastKeyword.isEmpty ? '输入关键词，搜索 B 站上的音频' : '没有搜到「$_lastKeyword」相关内容',
       );
     }
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(8, 0, 8, bottomPadding),
-      itemCount: _results.length,
-      itemBuilder: (context, index) {
-        final video = _results[index];
-        return BiliVideoTile(
-          video: video,
-          onTap: () => BiliPlayback.openVideo(context, video),
-        );
-      },
+    return ValueListenableBuilder<List<BiliVideoCollection>>(
+      valueListenable: _collections.collections,
+      builder: (context, collections, _) => ListView.builder(
+        padding: EdgeInsets.fromLTRB(8, 0, 8, bottomPadding),
+        itemCount: _results.length,
+        itemBuilder: (context, index) {
+          final video = _results[index];
+          final favorite = collections.any(
+            (item) => item.video.bvid == video.bvid,
+          );
+          final busy = _favoriteBusy.contains(video.bvid);
+          return BiliVideoTile(
+            video: video,
+            onTap: () => BiliPlayback.openVideo(context, video),
+            trailing: IconButton(
+              tooltip: favorite ? '取消视频收藏' : '收藏整个视频',
+              icon: Icon(
+                busy
+                    ? Icons.hourglass_top_rounded
+                    : favorite
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                color: favorite ? Theme.of(context).colorScheme.primary : null,
+              ),
+              onPressed: busy ? null : () => _toggleFavorite(video),
+            ),
+          );
+        },
+      ),
     );
   }
 

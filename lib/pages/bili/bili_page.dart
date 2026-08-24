@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
 
 import '../../app/router/app_router.dart';
+import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/bili/bili_playlist_sync.dart';
 import '../../app/services/player_service.dart';
@@ -12,6 +13,7 @@ import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
+import '../../app/theme/app_spacing.dart';
 import '../../components/index.dart';
 import 'bili_profile_page.dart';
 import 'bili_recent_page.dart';
@@ -31,6 +33,7 @@ class _BiliPageState extends State<BiliPage> {
   final BiliApi _api = BiliApi.instance;
   final BiliPlaylistSync _sync = BiliPlaylistSync.instance;
   final BiliMusicService _music = BiliMusicService.instance;
+  final BiliCollectionService _collections = BiliCollectionService.instance;
   final PlayerService _player = PlayerService.instance;
 
   BiliAccount _account = const BiliAccount();
@@ -49,6 +52,7 @@ class _BiliPageState extends State<BiliPage> {
     _loadAccount();
     _loadRecent();
     _loadVisibleFolders();
+    _collections.ensureLoaded();
     // 播到新的一首就刷新最近播放，否则播完回到这一页看到的还是旧列表。
     _songSub = _player.currentSongSignal.subscribe(_handleSongChanged);
   }
@@ -137,6 +141,9 @@ class _BiliPageState extends State<BiliPage> {
 
   void _openRecentHistory() =>
       Navigator.pushNamed(context, AppRoutes.biliRecent);
+
+  void _openCollections() =>
+      Navigator.pushNamed(context, AppRoutes.biliCollections);
 
   /// 进个人主页。回来时如果账号变了（登录/退出）就重新拉一遍。
   Future<void> _openProfile() async {
@@ -267,6 +274,8 @@ class _BiliPageState extends State<BiliPage> {
               children: [
                 _buildRecentSection(),
                 const SizedBox(height: 28),
+                _buildCollectionsSection(),
+                AppSpacing.gapXl,
                 _buildFavoritesSection(),
               ],
             ),
@@ -379,6 +388,35 @@ class _BiliPageState extends State<BiliPage> {
                 ),
             ],
           ),
+      ],
+    );
+  }
+
+  Widget _buildCollectionsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('视频收藏'),
+        AppSpacing.gapSm,
+        ValueListenableBuilder<List<BiliVideoCollection>>(
+          valueListenable: _collections.collections,
+          builder: (context, collections, _) => AppSettingSection(
+            children: [
+              AppSettingTile(
+                title: '我的视频合集',
+                subtitle: collections.isEmpty
+                    ? '收藏搜索到的完整视频，保留分 P 播放进度'
+                    : '${collections.length} 个视频合集，点击查看或继续播放',
+                leading: Icon(
+                  Icons.video_library_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _openCollections,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

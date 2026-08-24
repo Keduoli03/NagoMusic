@@ -117,6 +117,27 @@ void main() {
     expect(tapped, 2);
   });
 
+  testWidgets('有合集进度时显示继续播放入口并触发回调', (tester) async {
+    var resumed = false;
+    await tester.pumpWidget(
+      _host(
+        BiliPartPickerSheet(
+          detail: _audiobook(10),
+          resumePartIndex: 2,
+          resumePosition: const Duration(minutes: 4, seconds: 21),
+          onResume: () => resumed = true,
+          onPlayAll: () {},
+          onPlayPart: (_) {},
+        ),
+      ),
+    );
+
+    expect(find.text('继续播放 · P3'), findsOneWidget);
+    expect(find.textContaining('从 4:21 继续'), findsOneWidget);
+    await tester.tap(find.text('继续播放 · P3'));
+    expect(resumed, isTrue);
+  });
+
   group('时长格式', () {
     test('不足一小时用 分:秒', () {
       expect(formatBiliDuration(0), '');

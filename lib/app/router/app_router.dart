@@ -26,6 +26,7 @@ import '../../pages/bili/bili_login_page.dart';
 import '../../pages/bili/bili_search_page.dart';
 import '../../pages/bili/bili_recent_page.dart';
 import '../../pages/bili/bili_profile_page.dart';
+import '../../pages/bili/bili_collections_page.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/utils/primary_shell_scope.dart';
 import '../../components/layout/modern_navigation_bar.dart';
@@ -57,6 +58,7 @@ class AppRoutes {
   static const biliSearch = '/bili/search';
   static const biliRecent = '/bili/recent';
   static const biliProfile = '/bili/profile';
+  static const biliCollections = '/bili/collections';
 }
 
 class AppRouter {
@@ -89,6 +91,7 @@ class AppRouter {
     AppRoutes.biliSearch: (_) => const BiliSearchPage(),
     AppRoutes.biliRecent: (_) => const BiliRecentPage(),
     AppRoutes.biliProfile: (_) => const BiliProfilePage(),
+    AppRoutes.biliCollections: (_) => const BiliCollectionsPage(),
   };
 }
 

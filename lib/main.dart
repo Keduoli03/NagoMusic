@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
 import 'app/services/debug_log_service.dart';
+import 'app/services/bili/bili_collection_service.dart';
 import 'app/services/haptic_service.dart';
 import 'app/startup/library_warmup_service.dart';
 import 'app/state/settings_state.dart';
@@ -47,6 +48,7 @@ Future<void> main() async {
   //   - fetchAllCached() populates SongDao's static cache; every library
   //     page hits this the moment it initialises.
   SharedPreferences.getInstance();
+  BiliCollectionService.instance.ensureLoaded();
   SongDao().fetchAllCached();
   // Pre-compute Albums/Artists groupings in the background so opening those
   // library pages from the drawer / "我的" is instant instead of triggering a

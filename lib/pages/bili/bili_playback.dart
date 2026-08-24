@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
+import '../../app/theme/app_typography.dart';
 import '../../components/index.dart';
 
 /// 时长文本。
@@ -35,7 +37,6 @@ class BiliPlayback {
 
   /// 点一条视频：单 P 直接播，多 P 弹分 P 列表。
   static Future<void> openVideo(BuildContext context, BiliVideo video) async {
-    final music = BiliMusicService.instance;
     final closeProgress = _showProgress(context, '正在解析…');
     BiliVideoDetail detail;
     try {
@@ -49,14 +50,41 @@ class BiliPlayback {
     }
     closeProgress();
     if (!context.mounted) return;
+    final collections = BiliCollectionService.instance;
+    await collections.ensureLoaded();
+    if (!context.mounted) return;
+    await _openDetail(context, detail, collections.find(video.bvid));
+  }
+
+  /// 打开本地保存的视频合集，不需要再搜索或重新请求视频详情。
+  static Future<void> openCollection(
+    BuildContext context,
+    BiliVideoCollection collection,
+  ) {
+    return _openDetail(context, collection.detail, collection);
+  }
+
+  static Future<void> _openDetail(
+    BuildContext context,
+    BiliVideoDetail detail,
+    BiliVideoCollection? collection,
+  ) async {
+    final music = BiliMusicService.instance;
 
     final songs = music.songsFromDetail(detail);
     if (songs.isEmpty) {
       AppToast.show(context, '这个视频没有可播放的音频', type: ToastType.error);
       return;
     }
+    final resumeIndex = collection?.resumeIndex ?? -1;
+    final resumePosition = collection?.resumePosition ?? Duration.zero;
     if (songs.length == 1) {
-      await playSongs(songs, 0, video.cover);
+      await playSongs(
+        songs,
+        0,
+        detail.video.cover,
+        initialPosition: resumeIndex == 0 ? resumePosition : Duration.zero,
+      );
       return;
     }
 
@@ -71,13 +99,33 @@ class BiliPlayback {
       ),
       builder: (sheetContext) => BiliPartPickerSheet(
         detail: detail,
+        resumePartIndex: resumeIndex,
+        resumePosition: resumePosition,
+        onResume: resumeIndex < 0
+            ? null
+            : () {
+                Navigator.pop(sheetContext);
+                playSongs(
+                  songs,
+                  resumeIndex,
+                  detail.video.cover,
+                  initialPosition: resumePosition,
+                );
+              },
         onPlayAll: () {
           Navigator.pop(sheetContext);
-          playSongs(songs, 0, video.cover);
+          playSongs(songs, 0, detail.video.cover);
         },
         onPlayPart: (index) {
           Navigator.pop(sheetContext);
-          playSongs(songs, index, video.cover);
+          playSongs(
+            songs,
+            index,
+            detail.video.cover,
+            initialPosition: index == resumeIndex
+                ? resumePosition
+                : Duration.zero,
+          );
         },
       ),
     );
@@ -86,13 +134,17 @@ class BiliPlayback {
   static Future<void> playSongs(
     List<SongEntity> songs,
     int index,
-    String coverUrl,
-  ) async {
+    String coverUrl, {
+    Duration initialPosition = Duration.zero,
+  }) async {
     final music = BiliMusicService.instance;
     // 封面下载不阻塞播放：先落库开播，封面回来了再补一次。
     await music.persist(songs);
     unawaited(_cacheCovers(songs, coverUrl));
     await PlayerService.instance.playQueue(songs, index);
+    if (initialPosition > Duration.zero) {
+      await PlayerService.instance.seek(initialPosition);
+    }
   }
 
   static Future<void> _cacheCovers(
@@ -147,8 +199,16 @@ class BiliPlayback {
 class BiliVideoTile extends StatelessWidget {
   final BiliVideo video;
   final VoidCallback onTap;
+  final String? subtitle;
+  final Widget? trailing;
 
-  const BiliVideoTile({super.key, required this.video, required this.onTap});
+  const BiliVideoTile({
+    super.key,
+    required this.video,
+    required this.onTap,
+    this.subtitle,
+    this.trailing,
+  });
 
   static const double _coverWidth = 104;
   static const double _coverHeight = 65;
@@ -194,7 +254,7 @@ class BiliVideoTile extends StatelessWidget {
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
-                            video.author,
+                            subtitle ?? video.author,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 12, color: c.muted),
@@ -205,6 +265,7 @@ class BiliVideoTile extends StatelessWidget {
                   ],
                 ),
               ),
+              ?trailing,
             ],
           ),
         ),
@@ -281,12 +342,18 @@ class BiliPartPickerSheet extends StatelessWidget {
   final BiliVideoDetail detail;
   final VoidCallback onPlayAll;
   final ValueChanged<int> onPlayPart;
+  final int resumePartIndex;
+  final Duration resumePosition;
+  final VoidCallback? onResume;
 
   const BiliPartPickerSheet({
     super.key,
     required this.detail,
     required this.onPlayAll,
     required this.onPlayPart,
+    this.resumePartIndex = -1,
+    this.resumePosition = Duration.zero,
+    this.onResume,
   });
 
   @override
@@ -313,6 +380,25 @@ class BiliPartPickerSheet extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: muted),
               ),
             ),
+            if (onResume != null &&
+                resumePartIndex >= 0 &&
+                resumePartIndex < parts.length) ...[
+              ListTile(
+                leading: const Icon(Icons.history_rounded),
+                title: Text(
+                  '继续播放 · P${parts[resumePartIndex].index}',
+                  style: AppTypography.bodyLg,
+                ),
+                subtitle: Text(
+                  '${BiliMusicService.partLabel(videoTitle, parts[resumePartIndex])} · '
+                  '从 ${formatBiliDuration(resumePosition.inSeconds)} 继续',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: onResume,
+              ),
+              const Divider(height: 1),
+            ],
             ListTile(
               leading: const Icon(Icons.playlist_play_rounded),
               title: Text('播放全部 ${parts.length} 个分 P'),
