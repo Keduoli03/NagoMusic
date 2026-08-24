@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../../components/index.dart';
@@ -91,7 +92,7 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
                           BiliPlayback.openCollection(context, collection),
                       trailing: IconButton(
                         tooltip: '取消视频收藏',
-                        icon: const Icon(Icons.bookmark_remove_rounded),
+                        icon: const Icon(AppIcons.bookmark),
                         onPressed: () => _remove(collection),
                       ),
                     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_colors.dart';
 import 'app_switch.dart';
 import 'labeled_slider.dart';
@@ -199,7 +200,7 @@ class AppSettingNavTile extends StatelessWidget {
             Text(value!, style: TextStyle(fontSize: 14, color: c.muted)),
           const Padding(
             padding: EdgeInsets.only(left: 4),
-            child: Icon(Icons.chevron_right_rounded),
+            child: Icon(AppIcons.chevronRight),
           ),
         ],
       ),

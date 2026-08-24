@@ -4,6 +4,7 @@ import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../app/theme/app_icons.dart';
 import '../../components/index.dart';
 
 /// B 站扫码登录。
@@ -130,11 +131,7 @@ class _BiliLoginPageState extends State<BiliLoginPage> {
                 child: _loading
                     ? const CircularProgressIndicator(strokeWidth: 2)
                     : content == null
-                    ? Icon(
-                        Icons.error_outline_rounded,
-                        size: 48,
-                        color: scheme.error,
-                      )
+                    ? Icon(AppIcons.error, size: 48, color: scheme.error)
                     : Stack(
                         alignment: Alignment.center,
                         children: [

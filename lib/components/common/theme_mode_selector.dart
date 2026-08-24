@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_colors.dart';
 
 /// 浅色 / 深色 / 跟随系统 三选一的主题模式选择器。
@@ -31,21 +32,21 @@ class ThemeModeSelector extends StatelessWidget {
       child: Row(
         children: [
           _ThemeModeOption(
-            icon: Icons.phone_android,
+            icon: AppIcons.smartphone,
             mode: ThemeMode.system,
             selected: selected == ThemeMode.system,
             onTap: () => onChanged(ThemeMode.system),
           ),
           const SizedBox(width: 8),
           _ThemeModeOption(
-            icon: Icons.light_mode_outlined,
+            icon: AppIcons.sun,
             mode: ThemeMode.light,
             selected: selected == ThemeMode.light,
             onTap: () => onChanged(ThemeMode.light),
           ),
           const SizedBox(width: 8),
           _ThemeModeOption(
-            icon: Icons.dark_mode_outlined,
+            icon: AppIcons.moon,
             mode: ThemeMode.dark,
             selected: selected == ThemeMode.dark,
             onTap: () => onChanged(ThemeMode.dark),

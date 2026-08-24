@@ -4,6 +4,7 @@ import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_radii.dart';
 import '../../components/index.dart';
 import 'bili_playback.dart';
@@ -52,7 +53,7 @@ class _BiliRecentPageState extends State<BiliRecentPage> {
           if (_songs.isNotEmpty)
             IconButton(
               tooltip: '播放全部',
-              icon: const Icon(Icons.play_arrow_rounded),
+              icon: const Icon(AppIcons.play),
               onPressed: () => _player.playQueue(_songs, 0),
             ),
           const SizedBox(width: 4),

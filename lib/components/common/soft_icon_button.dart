@@ -11,8 +11,8 @@ import '../../app/theme/app_radii.dart';
 /// 这里是方角（[AppRadii.chip]）+ 强调色淡底，尺寸自定，和卡片同一套圆角语言。
 ///
 /// ```dart
-/// SoftIconButton(icon: Icons.play_arrow_rounded, onTap: play)          // 淡底
-/// SoftIconButton(icon: Icons.play_arrow_rounded, onTap: play, filled: true) // 实心
+/// SoftIconButton(icon: AppIcons.play, onTap: play)          // 淡底
+/// SoftIconButton(icon: AppIcons.play, onTap: play, filled: true) // 实心
 /// ```
 class SoftIconButton extends StatelessWidget {
   const SoftIconButton({

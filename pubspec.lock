@@ -717,6 +717,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "7.0.1"
+  phosphoricons_flutter:
+    dependency: "direct main"
+    description:
+      name: phosphoricons_flutter
+      sha256: "34e4a00cc1a4be87c60edfcfcd5de23c005dc69945a5d77e08d33e6d23c0e793"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.0.0"
   photo_manager:
     dependency: "direct main"
     description:

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 
 import '../index.dart';
@@ -38,7 +40,7 @@ class BlockedManagementSheet extends StatelessWidget {
                       ? Text(item, maxLines: 1, overflow: TextOverflow.ellipsis)
                       : null,
                   trailing: IconButton(
-                    icon: const Icon(Icons.undo_rounded),
+                    icon: const Icon(AppIcons.undo),
                     tooltip: '取消屏蔽',
                     onPressed: () => onUnblock(item),
                   ),

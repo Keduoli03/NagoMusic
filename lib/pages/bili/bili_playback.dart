@@ -8,6 +8,7 @@ import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
@@ -275,11 +276,7 @@ class BiliVideoTile extends StatelessWidget {
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        Icon(
-                          Icons.person_outline_rounded,
-                          size: 13,
-                          color: c.muted,
-                        ),
+                        Icon(AppIcons.person, size: 13, color: c.muted),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
@@ -493,7 +490,7 @@ class BiliPartPickerSheet extends StatelessWidget {
               padding: AppSpacing.page.copyWith(bottom: AppSpacing.sm),
               child: Row(
                 children: [
-                  Icon(Icons.person_outline_rounded, size: 16, color: muted),
+                  Icon(AppIcons.person, size: 16, color: muted),
                   AppSpacing.wGapXs,
                   Expanded(
                     child: Text(
@@ -509,10 +506,10 @@ class BiliPartPickerSheet extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       icon: Icon(
                         favoriteBusy
-                            ? Icons.hourglass_top_rounded
+                            ? AppIcons.hourglass
                             : isFavorite
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
+                            ? AppIconsFilled.star
+                            : AppIcons.star,
                         color: isFavorite ? AppColors.of(context).star : muted,
                       ),
                       onPressed: favoriteBusy ? null : onToggleFavorite,
@@ -524,7 +521,7 @@ class BiliPartPickerSheet extends StatelessWidget {
                 resumePartIndex >= 0 &&
                 resumePartIndex < parts.length) ...[
               ListTile(
-                leading: const Icon(Icons.history_rounded),
+                leading: const Icon(AppIcons.history),
                 title: Text(
                   '继续播放 · P${parts[resumePartIndex].index}',
                   style: AppTypography.bodyLg,
@@ -540,7 +537,7 @@ class BiliPartPickerSheet extends StatelessWidget {
               const Divider(height: 1),
             ],
             ListTile(
-              leading: const Icon(Icons.playlist_play_rounded),
+              leading: const Icon(AppIcons.playlist),
               title: Text('播放全部 ${parts.length} 个分 P'),
               onTap: onPlayAll,
             ),

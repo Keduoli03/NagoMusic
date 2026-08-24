@@ -2,6 +2,7 @@ import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nagomusic/components/common/sheet_panels.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:nagomusic/pages/bili/bili_playback.dart';
 
 /// 造一个「每个分 P 的名字都等于视频标题」的有声书合集 —— 这正是当初撑爆布局的形状。
@@ -107,12 +108,12 @@ void main() {
     );
 
     expect(find.text('读客熊猫君'), findsOneWidget);
-    expect(find.byIcon(Icons.star_rounded), findsOneWidget);
+    expect(find.byIcon(AppIconsFilled.star), findsOneWidget);
     await tester.tap(find.byTooltip('取消收藏'));
     await tester.pump();
 
     expect(favorite, isFalse);
-    expect(find.byIcon(Icons.star_border_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.star), findsOneWidget);
     expect(find.byTooltip('收藏整个视频'), findsOneWidget);
   });
 

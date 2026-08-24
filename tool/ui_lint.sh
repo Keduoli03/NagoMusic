@@ -13,9 +13,9 @@
 # 1. ripgrep 在这台机器上不一定在 PATH 上，显式探测并允许 RG=... 覆盖。
 # 2. 基线文件按 LF 读取（见下方 CRLF 处理 + .gitattributes），避免
 #    git-bash 下 CRLF 混进数值导致 `(( cur > base ))` 算术出错。
-# 3. 指标集合按本仓库实际情况取舍：去掉 material_icons（这个 App 到处用
-#    Icons.*，基线几百年不会变，纯噪音）和 raw_avatar（没有对应的公共组件
-#    可对比）；新增 edge_insets / sized_box_numeric 两个高频散值指标。
+# 3. 指标集合按本仓库实际情况取舍：保留 raw_avatar（没有对应的公共组件
+#    可对比），新增 edge_insets / sized_box_numeric 两个高频散值指标，并以
+#    material_icons 管住新代码：新图标必须经 AppIcons 语义层。
 
 set -uo pipefail
 
@@ -40,8 +40,15 @@ count() {
     | awk '{s+=$1} END {print s+0}'
 }
 
+# 图标入口是全局规范，公共组件也不能绕过 AppIcons。
+count_all() {
+  "$RG" -c --pcre2 --no-filename "${@:2}" "$1" "$LIB" "${EXCLUDE[@]}" 2>/dev/null \
+    | awk '{s+=$1} END {print s+0}'
+}
+
 measure() {
   echo "fontSize=$(count 'fontSize:\s*[0-9]')"
+  echo "material_icons=$(count_all '\bIcons\.[a-z]')"
   echo "edge_insets=$(count 'EdgeInsets\.(all|symmetric|only|fromLTRB)\(')"
   echo "sized_box_numeric=$(count 'SizedBox\((height|width):\s*[0-9]')"
   # 用 AppRadii 的写法不算违规 —— 否则 `BorderRadius.circular(AppRadii.card)`

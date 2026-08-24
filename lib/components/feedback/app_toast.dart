@@ -1,65 +1,80 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_motion.dart';
+import '../../app/theme/app_radii.dart';
+import '../../app/theme/app_spacing.dart';
+import '../../app/theme/app_typography.dart';
 
-/// 成功态绿色。[AppColors] 没有 success token，所以这里保留原有的固定绿色。
-const _kToastSuccess = Color(0xFF4CAF50);
-
+/// Toast 的语义只影响触感，外观统一为深色纯文字胶囊。
 enum ToastType { info, success, error }
 
+/// 模板同款的全局轻量提示。
+///
+/// 保留原有 API，业务调用无需迁移；成功与失败只在这里统一提供触感反馈。
 class AppToast {
-  static OverlayEntry? _currentEntry;
+  AppToast._();
+
+  static OverlayEntry? _entry;
   static Timer? _timer;
 
   static void show(
     BuildContext context,
     String message, {
     ToastType type = ToastType.info,
-    Duration duration = const Duration(seconds: 2),
+    Duration duration = const Duration(milliseconds: 2200),
   }) {
-    _removeCurrent();
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    _notify(type);
+    _dismiss();
 
-    final overlay = Overlay.of(context, rootOverlay: true);
-
-    final entry = OverlayEntry(
-      builder: (context) => _ToastWidget(
-        message: message,
-        type: type,
-        duration: duration,
-        onDismiss: _removeCurrent,
-      ),
+    final controllerKey = GlobalKey<_ToastWidgetState>();
+    _entry = OverlayEntry(
+      builder: (_) => _ToastWidget(key: controllerKey, message: message),
     );
-
-    _currentEntry = entry;
-    overlay.insert(entry);
-
-    _timer = Timer(duration + const Duration(milliseconds: 300), () {
-      _removeCurrent();
+    overlay.insert(_entry!);
+    _timer = Timer(duration, () async {
+      await controllerKey.currentState?.hide();
+      _dismiss();
     });
   }
 
-  static void _removeCurrent() {
+  static void _notify(ToastType type) {
+    try {
+      switch (type) {
+        case ToastType.success:
+          HapticFeedback.lightImpact();
+          Future<void>.delayed(
+            const Duration(milliseconds: 90),
+            HapticFeedback.lightImpact,
+          );
+          return;
+        case ToastType.error:
+          HapticFeedback.heavyImpact();
+          return;
+        case ToastType.info:
+          return;
+      }
+    } catch (_) {
+      // 无触感硬件或平台不支持时不影响提示本身。
+    }
+  }
+
+  static void _dismiss() {
     _timer?.cancel();
     _timer = null;
-    _currentEntry?.remove();
-    _currentEntry = null;
+    _entry?.remove();
+    _entry = null;
   }
 }
 
 class _ToastWidget extends StatefulWidget {
-  final String message;
-  final ToastType type;
-  final Duration duration;
-  final VoidCallback onDismiss;
+  const _ToastWidget({super.key, required this.message});
 
-  const _ToastWidget({
-    required this.message,
-    required this.type,
-    required this.duration,
-    required this.onDismiss,
-  });
+  final String message;
 
   @override
   State<_ToastWidget> createState() => _ToastWidgetState();
@@ -67,129 +82,92 @@ class _ToastWidget extends StatefulWidget {
 
 class _ToastWidgetState extends State<_ToastWidget>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacity;
-  late Animation<Offset> _offset;
-  Timer? _hideTimer;
+  static const double _bottomGap = 96;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppMotion.base,
+    reverseDuration: AppMotion.fast,
+  );
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: AppMotion.curve,
+    reverseCurve: Curves.easeIn,
+  );
+  late final Animation<double> _pop = CurvedAnimation(
+    parent: _controller,
+    curve: AppMotion.curveIn,
+    reverseCurve: Curves.easeIn,
+  );
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 0.55),
+    end: Offset.zero,
+  ).animate(_pop);
+  late final Animation<double> _scale = Tween<double>(
+    begin: 0.88,
+    end: 1,
+  ).animate(_pop);
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-      reverseDuration: const Duration(milliseconds: 200),
-    );
-
-    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _offset = Tween<Offset>(
-      begin: const Offset(0, 0.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
-
     _controller.forward();
+  }
 
-    _hideTimer = Timer(widget.duration, () {
-      if (mounted) {
-        _controller.reverse().then((_) => widget.onDismiss());
-      }
-    });
+  Future<void> hide() async {
+    if (mounted) await _controller.reverse();
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _hideTimer?.cancel();
     super.dispose();
-  }
-
-  Color _getIconColor(BuildContext context) {
-    switch (widget.type) {
-      case ToastType.success:
-        return _kToastSuccess;
-      case ToastType.error:
-        return AppColors.of(context).danger;
-      case ToastType.info:
-        return Theme.of(context).colorScheme.primary;
-    }
-  }
-
-  IconData _getIcon() {
-    switch (widget.type) {
-      case ToastType.success:
-        return Icons.check_circle;
-      case ToastType.error:
-        return Icons.error;
-      case ToastType.info:
-        return Icons.info_outline;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = AppColors.of(context);
-    final backgroundColor = colors.surface;
-    final textColor = colors.text;
-    final shadowColor = Colors.black.withAlpha(
-      ((isDark ? 0.3 : 0.1) * 255).round(),
-    );
+    final mediaQuery = MediaQuery.of(context);
+    final keyboard = mediaQuery.viewInsets.bottom;
+    final bottom = keyboard > 0
+        ? keyboard + AppSpacing.lg
+        : mediaQuery.padding.bottom + _bottomGap;
 
-    final safeBottom = MediaQuery.of(context).padding.bottom;
-    final bottomOffset = safeBottom + 24;
-
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      bottom: bottomOffset,
-      left: 24,
-      right: 24,
-      child: Material(
-        color: Colors.transparent,
-        child: Align(
-          alignment: Alignment.bottomCenter,
+    return Positioned(
+      left: AppSpacing.xl,
+      right: AppSpacing.xl,
+      bottom: bottom,
+      child: IgnorePointer(
+        child: FadeTransition(
+          opacity: _fade,
           child: SlideTransition(
-            position: _offset,
-            child: FadeTransition(
-              opacity: _opacity,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 400),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: shadowColor,
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                      spreadRadius: 0,
+            position: _slide,
+            child: ScaleTransition(
+              scale: _scale,
+              child: Center(
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xl,
+                      vertical: AppSpacing.md,
                     ),
-                  ],
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(_getIcon(), size: 20, color: _getIconColor(context)),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        widget.message,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          decoration: TextDecoration.none,
-                          height: 1.2,
+                    decoration: const BoxDecoration(
+                      color: Color(0xE6303030),
+                      borderRadius: AppRadii.rPill,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x1A000000),
+                          blurRadius: 20,
+                          offset: Offset(0, 6),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      ],
                     ),
-                  ],
+                    child: Text(
+                      widget.message,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodyLg.on(Colors.white),
+                    ),
+                  ),
                 ),
               ),
             ),

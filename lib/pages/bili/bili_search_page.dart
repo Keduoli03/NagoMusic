@@ -2,6 +2,7 @@ import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_radii.dart';
 import '../../components/index.dart';
 import 'bili_playback.dart';
@@ -98,10 +99,10 @@ class _BiliSearchPageState extends State<BiliSearchPage> {
       onSubmitted: (_) => _search(),
       decoration: InputDecoration(
         hintText: '搜索 B 站视频音频',
-        prefixIcon: const Icon(Icons.search_rounded),
+        prefixIcon: const Icon(AppIcons.search),
         suffixIcon: IconButton(
           tooltip: '搜索',
-          icon: const Icon(Icons.arrow_forward_rounded),
+          icon: const Icon(AppIcons.arrowRight),
           onPressed: _search,
         ),
         filled: true,

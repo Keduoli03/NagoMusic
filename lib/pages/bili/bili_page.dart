@@ -10,6 +10,7 @@ import '../../app/services/player_service.dart';
 
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../components/index.dart';
@@ -194,7 +195,7 @@ class _BiliPageState extends State<BiliPage> {
             actions: [
               IconButton(
                 tooltip: '搜索',
-                icon: const Icon(Icons.search_rounded),
+                icon: const Icon(AppIcons.search),
                 onPressed: _openSearch,
               ),
               const SizedBox(width: 4),
@@ -284,7 +285,7 @@ class _BiliPageState extends State<BiliPage> {
           trailing: !_account.isLoggedIn
               ? null
               : SoftIconButton(
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refresh,
                   tooltip: '刷新',
                   onTap: _loadFolders,
                   size: 34,
@@ -316,7 +317,7 @@ class _BiliPageState extends State<BiliPage> {
                   title: folder.title,
                   subtitle: '${folder.mediaCount} 个视频',
                   leading: _folderIcon(),
-                  trailing: const Icon(Icons.chevron_right_rounded),
+                  trailing: const Icon(AppIcons.chevronRight),
                   onTap: () => _openFolder(folder),
                 ),
             ],
@@ -341,10 +342,10 @@ class _BiliPageState extends State<BiliPage> {
                     ? '收藏搜索到的完整视频，保留分 P 播放进度'
                     : '${collections.length} 个视频合集，点击查看或继续播放',
                 leading: Icon(
-                  Icons.video_library_rounded,
+                  AppIcons.video,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded),
+                trailing: const Icon(AppIcons.chevronRight),
                 onTap: _openCollections,
               ),
             ],
@@ -364,11 +365,7 @@ class _BiliPageState extends State<BiliPage> {
         color: scheme.primary.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppRadii.chip),
       ),
-      child: Icon(
-        Icons.folder_special_rounded,
-        size: 20,
-        color: scheme.primary,
-      ),
+      child: Icon(AppIcons.folderFavorite, size: 20, color: scheme.primary),
     );
   }
 

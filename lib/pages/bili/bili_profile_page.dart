@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/router/app_router.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_icons.dart';
 import '../../app/theme/app_radii.dart';
 import '../../components/index.dart';
 
@@ -164,7 +165,7 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
                   AppSettingTile(
                     title: '退出登录',
                     leading: Icon(
-                      Icons.logout_rounded,
+                      AppIcons.logOut,
                       color: AppColors.of(context).danger,
                     ),
                     onTap: _logout,
@@ -192,7 +193,7 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
                 ? null
                 : NetworkImage(_account.face),
             child: _account.face.isEmpty
-                ? Icon(Icons.person_rounded, color: scheme.primary)
+                ? Icon(AppIcons.person, color: scheme.primary)
                 : null,
           ),
           const SizedBox(width: 14),
@@ -312,11 +313,7 @@ class BiliAccountChip extends StatelessWidget {
                     ? null
                     : NetworkImage(account.face),
                 child: account.face.isEmpty
-                    ? Icon(
-                        Icons.person_rounded,
-                        size: 18,
-                        color: scheme.primary,
-                      )
+                    ? Icon(AppIcons.person, size: 18, color: scheme.primary)
                     : null,
               ),
               const SizedBox(width: 9),

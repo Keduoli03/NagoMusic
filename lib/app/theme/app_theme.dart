@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_icons.dart';
 import 'app_radii.dart';
 
 /// 全 App 的 ThemeData 构建入口，取代原来的 `buildMiuixMaterialTheme`。
@@ -80,7 +81,7 @@ ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
     // 与模板的 RefinedAppBar 保持一致。
     actionIconTheme: ActionIconThemeData(
       backButtonIconBuilder: (context) =>
-          const Icon(Icons.chevron_left_rounded, size: 28),
+          const Icon(AppIcons.chevronLeft, size: 28),
     ),
     cardTheme: CardThemeData(
       color: c.surface,
