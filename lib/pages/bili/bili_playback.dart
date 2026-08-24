@@ -9,6 +9,7 @@ import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
+import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../../components/index.dart';
 
@@ -95,6 +96,8 @@ class BiliPlayback {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => BiliPartPickerDraggableSheet(
         detail: detail,
+        initiallyFavorite: collection != null,
+        onToggleFavorite: () => _toggleCollection(sheetContext, detail),
         resumePartIndex: resumeIndex,
         resumePosition: resumePosition,
         onResume: resumeIndex < 0
@@ -125,6 +128,36 @@ class BiliPlayback {
         },
       ),
     );
+  }
+
+  static Future<bool?> _toggleCollection(
+    BuildContext context,
+    BiliVideoDetail detail,
+  ) async {
+    final collections = BiliCollectionService.instance;
+    try {
+      await collections.ensureLoaded();
+      final wasFavorite = collections.contains(detail.video.bvid);
+      if (wasFavorite) {
+        await collections.remove(detail.video.bvid);
+        if (context.mounted) AppToast.show(context, '已取消视频收藏');
+        return false;
+      }
+      await collections.add(detail);
+      if (context.mounted) {
+        AppToast.show(
+          context,
+          '已收藏整个视频，共 ${detail.parts.length} 个分 P',
+          type: ToastType.success,
+        );
+      }
+      return true;
+    } catch (e) {
+      if (context.mounted) {
+        AppToast.show(context, '收藏失败：$e', type: ToastType.error);
+      }
+      return null;
+    }
   }
 
   static Future<void> playSongs(
@@ -330,10 +363,12 @@ class BiliVideoTile extends StatelessWidget {
 }
 
 /// 可从初始高度继续上拉到全屏的分 P 面板。
-class BiliPartPickerDraggableSheet extends StatelessWidget {
+class BiliPartPickerDraggableSheet extends StatefulWidget {
   final BiliVideoDetail detail;
   final VoidCallback onPlayAll;
   final ValueChanged<int> onPlayPart;
+  final bool initiallyFavorite;
+  final Future<bool?> Function()? onToggleFavorite;
   final int resumePartIndex;
   final Duration resumePosition;
   final VoidCallback? onResume;
@@ -343,10 +378,34 @@ class BiliPartPickerDraggableSheet extends StatelessWidget {
     required this.detail,
     required this.onPlayAll,
     required this.onPlayPart,
+    this.initiallyFavorite = false,
+    this.onToggleFavorite,
     this.resumePartIndex = -1,
     this.resumePosition = Duration.zero,
     this.onResume,
   });
+
+  @override
+  State<BiliPartPickerDraggableSheet> createState() =>
+      _BiliPartPickerDraggableSheetState();
+}
+
+class _BiliPartPickerDraggableSheetState
+    extends State<BiliPartPickerDraggableSheet> {
+  late bool _favorite = widget.initiallyFavorite;
+  bool _favoriteBusy = false;
+
+  Future<void> _toggleFavorite() async {
+    final callback = widget.onToggleFavorite;
+    if (callback == null || _favoriteBusy) return;
+    setState(() => _favoriteBusy = true);
+    final next = await callback();
+    if (!mounted) return;
+    setState(() {
+      if (next != null) _favorite = next;
+      _favoriteBusy = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -358,12 +417,17 @@ class BiliPartPickerDraggableSheet extends StatelessWidget {
       snap: true,
       snapSizes: const [0.72],
       builder: (context, scrollController) => BiliPartPickerSheet(
-        detail: detail,
-        onPlayAll: onPlayAll,
-        onPlayPart: onPlayPart,
-        resumePartIndex: resumePartIndex,
-        resumePosition: resumePosition,
-        onResume: onResume,
+        detail: widget.detail,
+        onPlayAll: widget.onPlayAll,
+        onPlayPart: widget.onPlayPart,
+        isFavorite: _favorite,
+        favoriteBusy: _favoriteBusy,
+        onToggleFavorite: widget.onToggleFavorite == null
+            ? null
+            : _toggleFavorite,
+        resumePartIndex: widget.resumePartIndex,
+        resumePosition: widget.resumePosition,
+        onResume: widget.onResume,
         scrollController: scrollController,
       ),
     );
@@ -379,6 +443,9 @@ class BiliPartPickerSheet extends StatelessWidget {
   final BiliVideoDetail detail;
   final VoidCallback onPlayAll;
   final ValueChanged<int> onPlayPart;
+  final bool isFavorite;
+  final bool favoriteBusy;
+  final VoidCallback? onToggleFavorite;
   final int resumePartIndex;
   final Duration resumePosition;
   final VoidCallback? onResume;
@@ -389,6 +456,9 @@ class BiliPartPickerSheet extends StatelessWidget {
     required this.detail,
     required this.onPlayAll,
     required this.onPlayPart,
+    this.isFavorite = false,
+    this.favoriteBusy = false,
+    this.onToggleFavorite,
     this.resumePartIndex = -1,
     this.resumePosition = Duration.zero,
     this.onResume,
@@ -411,12 +481,43 @@ class BiliPartPickerSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              padding: AppSpacing.page.copyWith(bottom: AppSpacing.xs),
               child: Text(
                 videoTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: muted),
+              ),
+            ),
+            Padding(
+              padding: AppSpacing.page.copyWith(bottom: AppSpacing.sm),
+              child: Row(
+                children: [
+                  Icon(Icons.person_outline_rounded, size: 16, color: muted),
+                  AppSpacing.wGapXs,
+                  Expanded(
+                    child: Text(
+                      detail.video.author,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.caption.on(muted),
+                    ),
+                  ),
+                  if (onToggleFavorite != null)
+                    IconButton(
+                      tooltip: isFavorite ? '取消收藏' : '收藏整个视频',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        favoriteBusy
+                            ? Icons.hourglass_top_rounded
+                            : isFavorite
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        color: isFavorite ? AppColors.of(context).star : muted,
+                      ),
+                      onPressed: favoriteBusy ? null : onToggleFavorite,
+                    ),
+                ],
               ),
             ),
             if (onResume != null &&

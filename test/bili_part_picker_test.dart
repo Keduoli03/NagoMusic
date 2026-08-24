@@ -87,6 +87,35 @@ void main() {
     expect(expandedHeight, closeTo(600, 1));
   });
 
+  testWidgets('作者行右侧星标可收藏和取消整个视频', (tester) async {
+    var favorite = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BiliPartPickerDraggableSheet(
+            detail: _audiobook(10),
+            initiallyFavorite: favorite,
+            onToggleFavorite: () async {
+              favorite = !favorite;
+              return favorite;
+            },
+            onPlayAll: () {},
+            onPlayPart: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('读客熊猫君'), findsOneWidget);
+    expect(find.byIcon(Icons.star_rounded), findsOneWidget);
+    await tester.tap(find.byTooltip('取消收藏'));
+    await tester.pump();
+
+    expect(favorite, isFalse);
+    expect(find.byIcon(Icons.star_border_rounded), findsOneWidget);
+    expect(find.byTooltip('收藏整个视频'), findsOneWidget);
+  });
+
   testWidgets('分 P 名与视频标题相同时退回 P1/P2 而不是刷屏', (tester) async {
     await tester.pumpWidget(
       _host(
