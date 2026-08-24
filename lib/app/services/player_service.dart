@@ -10,11 +10,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
 import 'db/dao/song_dao.dart';
-import 'lyrics/lyrics_repository.dart';
-import 'artwork_cache_helper.dart';
 import 'bili/bili_music_service.dart';
 import 'media_notification_service.dart';
 import 'player/player_sleep_timer.dart';
+import 'player/song_metadata_persister.dart';
 import 'stats_service.dart';
 import 'webdav/webdav_endpoint_resolver.dart';
 import 'webdav/webdav_source_repository.dart';
@@ -35,7 +34,6 @@ class PlayerService with WidgetsBindingObserver {
   final AudioCacheService _audioCache = AudioCacheService.instance;
   final AudioProxyServer _proxy = AudioProxyServer.instance;
   final SongDao _songDao = SongDao();
-  final LyricsRepository _lyricsRepo = LyricsRepository();
   final StatsService _statsService = StatsService.instance;
   final WebDavSourceRepository _webdavSourceRepo = WebDavSourceRepository.instance;
   final WebDavEndpointResolver _webdavEndpointResolver =
@@ -84,12 +82,16 @@ class PlayerService with WidgetsBindingObserver {
     sleepUntilSongEnd: _state.sleepUntilSongEnd,
     sleepTimerDisplayText: _state.sleepTimerDisplayText,
   );
+  late final SongMetadataPersister _metadataPersister = SongMetadataPersister(
+    resolveRawUri: _resolveWebdavRawUri,
+    headersFor: _headersFromSong,
+    onSongPersisted: _handleSongPersisted,
+    isCurrentSong: (id) => currentSong.value?.id == id,
+  );
   Timer? _persistTimer;
   Timer? _backgroundAudioKeepAliveTimer;
   _PlaybackRestoreState? _restoreSession;
   Future<void>? _restorePrepareFuture;
-  final Map<String, Future<void>> _probeInflight = {};
-  final Map<String, int> _durationPersistedMs = {};
   final Map<String, _ResolvedRemoteSource> _resolvedRemoteSources = {};
   final Map<String, Future<Uri>> _sourceResolveInflight = {};
   bool _restoringState = false;
@@ -225,7 +227,7 @@ class PlayerService with WidgetsBindingObserver {
       final song = currentSong.value;
       final ms = value?.inMilliseconds ?? 0;
       if (song != null && ms > 0) {
-        _maybePersistPlaybackDuration(song, ms);
+        _metadataPersister.persistPlaybackDuration(song, ms);
       }
       _emitSnapshot(force: true);
     });
@@ -270,8 +272,8 @@ class PlayerService with WidgetsBindingObserver {
         // ArtworkWidget 看到 localCoverPath 变了会清空重载（露出占位块）、
         // LyricsService 判定换歌会清空歌词、播放页背景的取色也会重置成主题色，
         // 紧接着 hydrate 又把它补回来 —— 表现就是暂停时整页闪一下。
-        _maybeProbeSong(song);
-        _scheduleDeferredProbe(song);
+        _metadataPersister.maybeProbe(song);
+        _metadataPersister.scheduleDeferredProbe(song);
         _hydrateAndSetCurrentSong(song);
         _warmupPlaybackSources(song, nextSong: _nextSongForIndex(list, idx));
       } else {
@@ -1432,7 +1434,7 @@ class PlayerService with WidgetsBindingObserver {
     final safeIndex = currentQueueIndex.clamp(0, songs.length - 1);
     currentIndex.value = safeIndex;
     currentSong.value = songs[safeIndex];
-    _maybeProbeSong(songs[safeIndex]);
+    _metadataPersister.maybeProbe(songs[safeIndex]);
     _hydrateAndSetCurrentSong(songs[safeIndex]);
     _emitSnapshot(force: true);
   }
@@ -1576,100 +1578,12 @@ class PlayerService with WidgetsBindingObserver {
     return future;
   }
 
-  void _maybeProbeSong(SongEntity song) {
-    unawaited(_maybeProbeSongAsync(song));
-  }
-
-  Future<void> _maybeProbeSongAsync(SongEntity song) async {
-    final hasCover = (song.localCoverPath ?? '').trim().isNotEmpty;
-    final hasDuration = (song.durationMs ?? 0) > 0;
-    final hasLyrics = await _lyricsRepo.hasCachedLrc(song.id);
-    final uri = (song.uri ?? '').trim();
-    final shouldProbe =
-        !song.tagsParsed || !hasCover || !hasDuration || !hasLyrics;
-    if (!shouldProbe) return;
-
-    if (song.isLocal) {
-      if (uri.isEmpty) return;
-      final key =
-          'local:${song.id}:${hasCover ? 1 : 0}:${hasDuration ? 1 : 0}:${song.tagsParsed ? 1 : 0}';
-      if (_probeInflight.containsKey(key)) return;
-      final future = _probeLocalAndPersist(song, uri: uri);
-      _probeInflight[key] = future;
-      future.whenComplete(() => _probeInflight.remove(key));
-      return;
-    }
-
-    if (!uri.startsWith('http')) return;
-
-    final resolvedUri = await _resolveWebdavRawUri(song, uri);
-    final headers = _headersFromSong(song);
-    final key =
-        '${song.id}:${hasCover ? 1 : 0}:${hasDuration ? 1 : 0}:${song.tagsParsed ? 1 : 0}';
-    if (_probeInflight.containsKey(key)) return;
-
-    final future = _probeAndPersist(song, uri: resolvedUri, headers: headers);
-    _probeInflight[key] = future;
-    future.whenComplete(() => _probeInflight.remove(key));
-  }
-
-  void _scheduleDeferredProbe(SongEntity song) {
-    unawaited(_deferredProbe(song));
-  }
-
-  Future<void> _deferredProbe(SongEntity song) async {
-    await Future<void>.delayed(const Duration(seconds: 2));
-    final current = currentSong.value;
-    if (current == null || current.id != song.id) return;
-    _maybeProbeSong(current);
-  }
-
-  void _maybePersistPlaybackDuration(SongEntity song, int durationMs) {
-    final existing = song.durationMs ?? 0;
-    if (existing > 0) return;
-    final prev = _durationPersistedMs[song.id] ?? 0;
-    if (prev == durationMs) return;
-    _durationPersistedMs[song.id] = durationMs;
-    _persistSongUpdate(song, durationMs: durationMs);
-  }
-
-  Future<void> _persistSongUpdate(
-    SongEntity song, {
-    int? durationMs,
-    String? localCoverPath,
-    String? title,
-    String? artist,
-    String? album,
-    int? bitrate,
-    int? sampleRate,
-    int? fileSize,
-    String? format,
-    bool? tagsParsed,
-  }) async {
-    final next = SongEntity(
-      id: song.id,
-      title: title ?? song.title,
-      artist: artist ?? song.artist,
-      album: album ?? song.album,
-      uri: song.uri,
-      isLocal: song.isLocal,
-      headersJson: song.headersJson,
-      durationMs: durationMs ?? song.durationMs,
-      bitrate: bitrate ?? song.bitrate,
-      sampleRate: sampleRate ?? song.sampleRate,
-      fileSize: fileSize ?? song.fileSize,
-      format: format ?? song.format,
-      sourceId: song.sourceId,
-      fileModifiedMs: song.fileModifiedMs,
-      localCoverPath: localCoverPath ?? song.localCoverPath,
-      localAssetId: song.localAssetId,
-      tagsParsed: tagsParsed ?? song.tagsParsed,
-    );
-
-    await _songDao.upsertSongs([next]);
-
+  /// 曲目回写（[SongMetadataPersister] 写完 DB 后）的联动：更新内存里的队列和
+  /// currentSong、预热下一首、发快照。原本在 `_persistSongUpdate` 里，抽出后
+  /// 由持有者这边负责 —— 队列 / currentSong 的归属没变。
+  void _handleSongPersisted(SongEntity next) {
     final list = queue.value;
-    final idx = list.indexWhere((e) => e.id == song.id);
+    final idx = list.indexWhere((e) => e.id == next.id);
     if (idx >= 0) {
       final updatedQueue = [...list];
       updatedQueue[idx] = next;
@@ -1677,7 +1591,7 @@ class PlayerService with WidgetsBindingObserver {
     }
 
     final current = currentSong.value;
-    if (current != null && current.id == song.id) {
+    if (current != null && current.id == next.id) {
       currentSong.value = next;
       _warmupPlaybackSources(
         next,
@@ -1685,116 +1599,6 @@ class PlayerService with WidgetsBindingObserver {
       );
       _emitSnapshot(force: true);
     }
-  }
-
-  Future<void> _probeAndPersist(
-    SongEntity song, {
-    required String uri,
-    Map<String, String>? headers,
-  }) async {
-    final result = await TagProbeService.instance.probeSongDedup(
-      uri: uri,
-      isLocal: false,
-      headers: headers,
-      includeArtwork: true,
-    );
-    if (result == null) return;
-
-    String? coverPath = song.localCoverPath;
-    final artwork = result.artwork;
-    if ((coverPath ?? '').trim().isEmpty &&
-        artwork != null &&
-        artwork.isNotEmpty) {
-      final cached = await ArtworkCacheHelper.cacheCompressedArtwork(
-        bytes: artwork,
-        key: song.id,
-      );
-      if (cached != null && cached.isNotEmpty) {
-        coverPath = cached;
-      }
-    }
-
-    final lyrics = (result.lyrics ?? '').trim();
-    if (lyrics.isNotEmpty) {
-      await _lyricsRepo.saveLrcToCache(song.id, lyrics, overwrite: false);
-    }
-
-    final title = (result.title ?? '').trim().isNotEmpty
-        ? result.title!.trim()
-        : null;
-    final artist = (result.artist ?? '').trim().isNotEmpty
-        ? result.artist!.trim()
-        : null;
-    final album = (result.album ?? '').trim().isNotEmpty
-        ? result.album!.trim()
-        : null;
-    await _persistSongUpdate(
-      song,
-      title: title,
-      artist: artist,
-      album: album,
-      durationMs: result.durationMs,
-      bitrate: result.bitrate,
-      sampleRate: result.sampleRate,
-      fileSize: result.fileSize,
-      format: result.format,
-      localCoverPath: coverPath,
-      tagsParsed: true,
-    );
-  }
-
-  Future<void> _probeLocalAndPersist(
-    SongEntity song, {
-    required String uri,
-  }) async {
-    final result = await TagProbeService.instance.probeSongDedup(
-      uri: uri,
-      isLocal: true,
-      includeArtwork: true,
-    );
-    if (result == null) return;
-
-    String? coverPath = song.localCoverPath;
-    final artwork = result.artwork;
-    if ((coverPath ?? '').trim().isEmpty &&
-        artwork != null &&
-        artwork.isNotEmpty) {
-      final cached = await ArtworkCacheHelper.cacheCompressedArtwork(
-        bytes: artwork,
-        key: song.id,
-      );
-      if (cached != null && cached.isNotEmpty) {
-        coverPath = cached;
-      }
-    }
-
-    final lyrics = (result.lyrics ?? '').trim();
-    if (lyrics.isNotEmpty) {
-      await _lyricsRepo.saveLrcToCache(song.id, lyrics, overwrite: false);
-    }
-
-    final title = (result.title ?? '').trim().isNotEmpty
-        ? result.title!.trim()
-        : null;
-    final artist = (result.artist ?? '').trim().isNotEmpty
-        ? result.artist!.trim()
-        : null;
-    final album = (result.album ?? '').trim().isNotEmpty
-        ? result.album!.trim()
-        : null;
-    await _persistSongUpdate(
-      song,
-      title: title,
-      artist: artist,
-      album: album,
-      durationMs: result.durationMs,
-      bitrate: result.bitrate,
-      sampleRate: result.sampleRate,
-      fileSize: result.fileSize,
-      format: result.format,
-      localCoverPath: coverPath,
-      tagsParsed: true,
-    );
   }
 
   Uri? _getSafeUri(String uriStr) {
