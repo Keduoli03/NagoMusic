@@ -34,6 +34,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
 
   late final _bytes = createSignal<Uint8List?>(null);
   late final _loading = createSignal(false);
+  late final _imageVersion = createSignal(0);
   int _loadGeneration = 0;
 
   @override
@@ -62,7 +63,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
     // 走异步的话这六个都要先闪一帧占位图。
     if (_seedFromCache()) return;
     if (!widget.keepPreviousUntilLoaded) {
-      _bytes.value = null;
+      _setBytes(null);
     }
     _loading.value = false;
     _tryLoad(generation);
@@ -77,7 +78,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
       preferOriginal: widget.preferOriginal,
     );
     if (cached == null || cached.isEmpty) return false;
-    _bytes.value = cached;
+    _setBytes(cached);
     _loading.value = false;
     return true;
   }
@@ -98,11 +99,17 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
     }
     if (!mounted || generation != _loadGeneration) return;
     if (bytes != null && bytes.isNotEmpty) {
-      _bytes.value = bytes;
+      _setBytes(bytes);
     } else if (!widget.keepPreviousUntilLoaded) {
-      _bytes.value = null;
+      _setBytes(null);
     }
     _loading.value = false;
+  }
+
+  void _setBytes(Uint8List? bytes) {
+    if (identical(_bytes.value, bytes)) return;
+    _bytes.value = bytes;
+    _imageVersion.value += 1;
   }
 
   @override
@@ -134,6 +141,7 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
         Widget child;
         final bytes = _bytes.value;
         final isLoading = _loading.value;
+        final imageVersion = _imageVersion.value;
         if (widget.preferOriginal && bytes != null && bytes.isNotEmpty) {
           child = ClipRRect(
             borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -189,7 +197,18 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
           child = placeholder;
         }
 
-        return SizedBox(width: widget.size, height: widget.size, child: child);
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) =>
+                FadeTransition(opacity: animation, child: child),
+            child: KeyedSubtree(key: ValueKey(imageVersion), child: child),
+          ),
+        );
       },
     );
   }

@@ -99,6 +99,18 @@ class ArtworkService {
     required bool preferOriginal,
   }) async {
     final trimmedCover = (localCoverPath ?? '').trim();
+    // 播放页以原图展示封面时，需要把外置封面也纳入同一条字节加载链路。
+    // 这样 [ArtworkWidget.keepPreviousUntilLoaded] 才能在新文件解码完成前保留
+    // 上一首的真实画面；若直接切到 Image.file，新图还没解码的那一帧会露出
+    // 背景色，切歌时就像闪屏一样。
+    if (preferOriginal && trimmedCover.isNotEmpty) {
+      try {
+        final file = File(trimmedCover);
+        if (await file.exists()) return file.readAsBytes();
+      } catch (_) {
+        // 外置封面读失败后继续走内嵌封面的正常兜底。
+      }
+    }
     if (!preferOriginal && trimmedCover.isNotEmpty) {
       final file = File(trimmedCover);
       if (await file.exists()) {
