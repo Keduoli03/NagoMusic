@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 class SourceTileAction {
   final IconData icon;
@@ -54,7 +55,7 @@ class SourceTile extends StatelessWidget {
               onPressed: action.onTap,
             ),
           ),
-          const Icon(Icons.chevron_right),
+          const Icon(AppIcons.chevronRight),
         ],
       ),
       onTap: onTap,

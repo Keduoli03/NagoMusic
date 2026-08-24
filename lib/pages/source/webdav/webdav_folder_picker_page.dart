@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../app/services/webdav/webdav_music_service.dart';
@@ -127,7 +128,7 @@ class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
             children: [
               AppSettingTile(
                 title: _path,
-                leading: const Icon(Icons.location_on_outlined),
+                leading: const Icon(AppIcons.mapPin),
                 trailing: single
                     ? null
                     : Checkbox(
@@ -171,7 +172,7 @@ class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
                 AppSettingTile(
                   title: '点击重试',
                   subtitle: _error,
-                  leading: const Icon(Icons.error_outline),
+                  leading: const Icon(AppIcons.error),
                   onTap: _load,
                 ),
               ],
@@ -183,23 +184,23 @@ class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
                 if (canGoUp)
                   AppSettingTile(
                     title: '..',
-                    leading: const Icon(Icons.drive_folder_upload_outlined),
-                    trailing: const Icon(Icons.chevron_right),
+                    leading: const Icon(AppIcons.folderAdd),
+                    trailing: const Icon(AppIcons.chevronRight),
                     onTap: _goUp,
                   ),
                 if (_dirs.isEmpty)
                   const AppSettingTile(
                     title: '（空）',
-                    leading: Icon(Icons.folder_off_outlined),
+                    leading: Icon(AppIcons.folderOff),
                   )
                 else
                   ..._dirs.map(
                     (d) => AppSettingTile(
                       title: d.name,
                       subtitle: d.path,
-                      leading: const Icon(Icons.folder_outlined),
+                      leading: const Icon(AppIcons.folder),
                       trailing: single
-                          ? const Icon(Icons.chevron_right)
+                          ? const Icon(AppIcons.chevronRight)
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -219,7 +220,7 @@ class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
                                       MaterialTapTargetSize.shrinkWrap,
                                   visualDensity: VisualDensity.compact,
                                 ),
-                                const Icon(Icons.chevron_right),
+                                const Icon(AppIcons.chevronRight),
                               ],
                             ),
                       onTap: () => _enter(d),

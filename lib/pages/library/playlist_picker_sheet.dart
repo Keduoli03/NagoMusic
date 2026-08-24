@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/playlists_service.dart';
@@ -77,7 +78,7 @@ class _PlaylistPickerSheetState extends State<PlaylistPickerSheet>
             : ListView(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.add),
+                    leading: const Icon(AppIcons.add),
                     title: const Text('新建歌单'),
                     onTap: _createAndAdd,
                   ),
@@ -91,9 +92,7 @@ class _PlaylistPickerSheetState extends State<PlaylistPickerSheet>
                     ..._playlists.value.map(
                       (p) => ListTile(
                         leading: Icon(
-                          p.isFavorite
-                              ? Icons.favorite
-                              : Icons.queue_music_rounded,
+                          p.isFavorite ? AppIconsFilled.heart : AppIcons.queue,
                           color: p.isFavorite ? Colors.red : null,
                         ),
                         title: Text(
@@ -162,8 +161,8 @@ Future<bool> showAddToPlaylistDialog(
                     return AppListTile(
                       leading: Icon(
                         playlist.isFavorite
-                            ? Icons.favorite
-                            : Icons.queue_music,
+                            ? AppIconsFilled.heart
+                            : AppIcons.queue,
                         color: playlist.isFavorite
                             ? Colors.red
                             : Theme.of(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/lyrics/lyrics_service.dart';
@@ -649,7 +650,7 @@ class _PosterMetaRow extends StatelessWidget {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints.tightFor(width: 34, height: 34),
           icon: Icon(
-            Icons.menu_rounded,
+            AppIcons.menu,
             color: scheme.onSurface.withValues(alpha: 0.72),
             size: 24,
           ),
@@ -752,7 +753,7 @@ class _PosterFavoriteButtonState extends State<_PosterFavoriteButton> {
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints.tightFor(width: 34, height: 34),
       icon: Icon(
-        _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        _isFavorite ? AppIconsFilled.heart : AppIcons.heart,
         color: _isFavorite
             ? Colors.deepOrangeAccent
             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.72),
@@ -881,13 +882,13 @@ class _PosterControls extends StatelessWidget {
             IconButton(
               iconSize: 30,
               color: iconColor,
-              icon: const Icon(Icons.repeat_rounded),
+              icon: const Icon(AppIcons.repeat),
               onPressed: player.cyclePlaybackMode,
             ),
             IconButton(
               iconSize: 40,
               color: iconColor,
-              icon: const Icon(Icons.skip_previous_rounded),
+              icon: const Icon(AppIcons.skipPrevious),
               onPressed: player.previous,
             ),
             Container(
@@ -900,22 +901,20 @@ class _PosterControls extends StatelessWidget {
               child: IconButton(
                 iconSize: 36,
                 color: scheme.surface,
-                icon: Icon(
-                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                ),
+                icon: Icon(playing ? AppIcons.pause : AppIcons.play),
                 onPressed: player.togglePlayPause,
               ),
             ),
             IconButton(
               iconSize: 40,
               color: iconColor,
-              icon: const Icon(Icons.skip_next_rounded),
+              icon: const Icon(AppIcons.skipNext),
               onPressed: player.next,
             ),
             IconButton(
               iconSize: 30,
               color: iconColor,
-              icon: const Icon(Icons.more_vert_rounded),
+              icon: const Icon(AppIcons.moreVertical),
               onPressed: () => _showPosterSongDetailSheet(context, player),
             ),
           ],

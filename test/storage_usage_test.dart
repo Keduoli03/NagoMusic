@@ -1,13 +1,13 @@
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nagomusic/app/services/storage/storage_usage_service.dart';
 
 StorageSection _section(String key, {bool clearable = true}) => StorageSection(
   key: key,
-  icon: Icons.folder_outlined,
+  icon: AppIcons.folder,
   title: key,
   description: key,
   confirmTitle: key,

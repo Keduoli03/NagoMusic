@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lyric/core/lyric_controller.dart';
 import 'package:flutter_lyric/core/lyric_style.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:flutter_lyric/widgets/lyric_view.dart' as fl;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
@@ -283,17 +284,17 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                                     ButtonSegment(
                                       value: 'left',
                                       label: Text('居左'),
-                                      icon: Icon(Icons.format_align_left),
+                                      icon: Icon(AppIcons.alignLeft),
                                     ),
                                     ButtonSegment(
                                       value: 'center',
                                       label: Text('居中'),
-                                      icon: Icon(Icons.format_align_center),
+                                      icon: Icon(AppIcons.alignCenter),
                                     ),
                                     ButtonSegment(
                                       value: 'right',
                                       label: Text('居右'),
-                                      icon: Icon(Icons.format_align_right),
+                                      icon: Icon(AppIcons.alignRight),
                                     ),
                                   ],
                                   selected: {alignment},
@@ -450,17 +451,17 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                                       ButtonSegment(
                                         value: 'left',
                                         label: Text('居左'),
-                                        icon: Icon(Icons.format_align_left),
+                                        icon: Icon(AppIcons.alignLeft),
                                       ),
                                       ButtonSegment(
                                         value: 'center',
                                         label: Text('居中'),
-                                        icon: Icon(Icons.format_align_center),
+                                        icon: Icon(AppIcons.alignCenter),
                                       ),
                                       ButtonSegment(
                                         value: 'right',
                                         label: Text('居右'),
-                                        icon: Icon(Icons.format_align_right),
+                                        icon: Icon(AppIcons.alignRight),
                                       ),
                                     ],
                                     selected: {miniAlignment},
@@ -716,7 +717,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                                               player.seek(start);
                                             },
                                             child: Icon(
-                                              Icons.play_arrow_rounded,
+                                              AppIcons.play,
                                               size: 32,
                                               color: activeColor,
                                             ),
@@ -816,7 +817,7 @@ class _LyricsColorSettingTile extends StatelessWidget {
             ),
             child: color == null
                 ? Icon(
-                    Icons.auto_awesome,
+                    AppIcons.sparkle,
                     size: 14,
                     color: scheme.onSurfaceVariant,
                   )
@@ -827,7 +828,7 @@ class _LyricsColorSettingTile extends StatelessWidget {
             IconButton(
               tooltip: '恢复默认',
               onPressed: onReset,
-              icon: const Icon(Icons.restart_alt_rounded),
+              icon: const Icon(AppIcons.history),
             ),
           ],
         ],

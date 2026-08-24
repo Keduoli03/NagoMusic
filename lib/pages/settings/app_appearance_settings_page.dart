@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -96,7 +97,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                   subtitle: desc,
                   trailing: level == current
                       ? Icon(
-                          Icons.check_rounded,
+                          AppIcons.check,
                           color: Theme.of(context).colorScheme.primary,
                         )
                       : null,
@@ -122,7 +123,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.image_outlined),
+                leading: const Icon(AppIcons.image),
                 title: const Text('选择图片'),
                 onTap: () async {
                   Navigator.pop(sheetContext);
@@ -130,7 +131,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline_rounded),
+                leading: const Icon(AppIcons.trash),
                 title: const Text('清除背景'),
                 onTap: () async {
                   Navigator.pop(sheetContext);
@@ -235,12 +236,12 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                             segments: const [
                               ButtonSegment(
                                 value: AppNavigationStyle.drawer,
-                                icon: Icon(Icons.menu_open_rounded),
+                                icon: Icon(AppIcons.menu),
                                 label: Text('侧边栏'),
                               ),
                               ButtonSegment(
                                 value: AppNavigationStyle.bottomBar,
-                                icon: Icon(Icons.space_dashboard_outlined),
+                                icon: Icon(AppIcons.grid),
                                 label: Text('底部导航'),
                               ),
                             ],
@@ -400,7 +401,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                                     onTap: () =>
                                         _showThemeColorPickerDialog(context),
                                     child: Icon(
-                                      Icons.palette_outlined,
+                                      AppIcons.palette,
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.primary,
@@ -444,7 +445,7 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                                               ),
                                         ),
                                     child: Icon(
-                                      Icons.refresh_rounded,
+                                      AppIcons.refresh,
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.onSurfaceVariant,

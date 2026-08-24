@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_page_route.dart';
 import '../../app/services/db/dao/song_dao.dart';
@@ -300,8 +301,8 @@ class _RecentPlaybackPageState extends State<RecentPlaybackPage> {
                   alignment: Alignment.center,
                   child: Icon(
                     row.playlist.isFavorite
-                        ? Icons.favorite_rounded
-                        : Icons.queue_music_rounded,
+                        ? AppIconsFilled.heart
+                        : AppIcons.queue,
                     color: theme.colorScheme.primary,
                   ),
                 ),

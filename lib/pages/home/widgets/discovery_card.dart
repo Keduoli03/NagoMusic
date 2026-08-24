@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../../app/state/song_state.dart';
 import '../../../app/theme/app_radii.dart';
@@ -102,7 +103,7 @@ class DiscoveryCard extends StatelessWidget {
                         right: 7,
                         child: Row(
                           children: [
-                            if (icon == Icons.calendar_month_rounded)
+                            if (icon == AppIcons.calendar)
                               const DiscoveryCalendarBadge()
                             else if (icon != null)
                               Icon(icon, color: Colors.white, size: 17),
@@ -139,7 +140,7 @@ class DiscoveryCard extends StatelessWidget {
                                 animating: playing,
                               )
                             : const Icon(
-                                Icons.play_arrow_rounded,
+                                AppIcons.play,
                                 color: Colors.white,
                                 size: 24,
                                 shadows: [

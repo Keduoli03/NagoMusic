@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -213,17 +214,13 @@ class _ArtistsPageState extends State<ArtistsPage>
         return SortSheet(
           title: '艺术家排序',
           options: const [
-            SortOption(key: 'name', label: '名称', icon: Icons.sort_by_alpha),
+            SortOption(key: 'name', label: '名称', icon: AppIcons.sort),
             SortOption(
               key: 'songCount',
               label: '歌曲数',
-              icon: Icons.music_note_outlined,
+              icon: AppIcons.musicNote,
             ),
-            SortOption(
-              key: 'albumCount',
-              label: '专辑数',
-              icon: Icons.album_outlined,
-            ),
+            SortOption(key: 'albumCount', label: '专辑数', icon: AppIcons.album),
           ],
           currentKey: _sortKey.value,
           ascending: _ascending.value,
@@ -321,9 +318,7 @@ class _ArtistsPageState extends State<ArtistsPage>
           title: '艺术家',
           leading: IconButton(
             icon: Icon(
-              useBottomNavigation
-                  ? Icons.arrow_back_rounded
-                  : Icons.menu_rounded,
+              useBottomNavigation ? AppIcons.arrowLeft : AppIcons.menu,
             ),
             onPressed: useBottomNavigation
                 ? () => Navigator.of(context).maybePop()
@@ -377,14 +372,14 @@ class _ArtistsPageState extends State<ArtistsPage>
                               children: [
                                 const SizedBox(width: 16),
                                 Icon(
-                                  Icons.person_off_outlined,
+                                  AppIcons.personOff,
                                   color: theme.colorScheme.error,
                                 ),
                                 const SizedBox(width: 12),
                                 const Expanded(child: Text('已屏蔽的艺术家')),
                                 Text('${_blockedArtists.value.length} 个'),
                                 const SizedBox(width: 8),
-                                const Icon(Icons.chevron_right_rounded),
+                                const Icon(AppIcons.chevronRight),
                                 const SizedBox(width: 12),
                               ],
                             ),
@@ -430,7 +425,7 @@ class _ArtistsPageState extends State<ArtistsPage>
                               children: [
                                 ListTile(
                                   leading: const Icon(
-                                    Icons.person_off_outlined,
+                                    AppIcons.personOff,
                                     color: Colors.red,
                                   ),
                                   title: const Text('屏蔽艺术家'),

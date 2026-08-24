@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../common/app_list_tile.dart';
@@ -52,7 +53,7 @@ class MediaListTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                selected ? Icons.check_circle : Icons.circle_outlined,
+                selected ? AppIcons.checkCircle : AppIcons.circle,
                 size: 20,
                 color: selected
                     ? theme.colorScheme.primary

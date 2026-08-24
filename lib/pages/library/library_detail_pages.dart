@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -316,7 +317,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.shuffle),
+                        icon: const Icon(AppIcons.shuffle),
                         tooltip: '随机播放',
                         visualDensity: VisualDensity.compact,
                         onPressed: songs.isEmpty
@@ -328,7 +329,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                               },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.play_arrow),
+                        icon: const Icon(AppIcons.play),
                         tooltip: '顺序播放',
                         visualDensity: VisualDensity.compact,
                         onPressed: songs.isEmpty
@@ -419,8 +420,8 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                     ),
                     trailing: Icon(
                       _albumsExpanded.value
-                          ? Icons.expand_less
-                          : Icons.expand_more,
+                          ? AppIcons.chevronUp
+                          : AppIcons.chevronDown,
                     ),
                     onTap: () {
                       _albumsExpanded.value = !_albumsExpanded.value;
@@ -541,15 +542,11 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
             SortOption(
               key: 'trackNumber',
               label: '轨道号',
-              icon: Icons.format_list_numbered_rounded,
+              icon: AppIcons.listNumbers,
             ),
-            SortOption(key: 'title', label: '歌曲名称', icon: Icons.sort_by_alpha),
-            SortOption(
-              key: 'artist',
-              label: '歌手名称',
-              icon: Icons.person_outline,
-            ),
-            SortOption(key: 'duration', label: '歌曲时长', icon: Icons.schedule),
+            SortOption(key: 'title', label: '歌曲名称', icon: AppIcons.sort),
+            SortOption(key: 'artist', label: '歌手名称', icon: AppIcons.person),
+            SortOption(key: 'duration', label: '歌曲时长', icon: AppIcons.clock),
           ],
           currentKey: _sortKey.value,
           ascending: _sortAscending.value,
@@ -566,7 +563,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
               return AppSettingSwitchTile(
                 title: '显示专辑封面',
                 subtitle: '关闭时显示歌曲序号',
-                leading: const Icon(Icons.image_outlined),
+                leading: const Icon(AppIcons.image),
                 value: _showCovers.value,
                 onChanged: (value) => _showCovers.value = value,
               );
@@ -590,7 +587,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
           actions: [
             IconButton(
               tooltip: '更多',
-              icon: const Icon(Icons.more_vert_rounded),
+              icon: const Icon(AppIcons.moreVertical),
               onPressed: _showMoreSheet,
             ),
             const SizedBox(width: 8),
@@ -709,7 +706,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.shuffle),
+                        icon: const Icon(AppIcons.shuffle),
                         tooltip: '随机播放',
                         visualDensity: VisualDensity.compact,
                         onPressed: songs.isEmpty
@@ -721,7 +718,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                               },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.play_arrow),
+                        icon: const Icon(AppIcons.play),
                         tooltip: '顺序播放',
                         visualDensity: VisualDensity.compact,
                         onPressed: songs.isEmpty

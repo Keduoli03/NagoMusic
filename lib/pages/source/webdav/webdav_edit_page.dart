@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../../app/router/app_page_route.dart';
 import '../../../app/services/db/dao/song_dao.dart';
@@ -300,7 +301,9 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
                 obscureText: !_showPassword,
                 suffix: IconButton(
                   icon: Icon(
-                    _showPassword ? Icons.visibility : Icons.visibility_off,
+                    _showPassword
+                        ? AppIcons.visibility
+                        : AppIcons.visibilityOff,
                   ),
                   onPressed: _saving
                       ? null
@@ -340,17 +343,15 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
                                     .trim()] ??
                                 false;
                             return Icon(
-                              ok ? Icons.check_circle : Icons.error_outline,
+                              ok ? AppIcons.checkCircle : AppIcons.error,
                               color: ok ? Colors.green : Colors.red,
                               size: 18,
                             );
                           },
                         ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: _saving
-                            ? null
-                            : () => _removeAltEndpoint(i),
+                        icon: const Icon(AppIcons.trash),
+                        onPressed: _saving ? null : () => _removeAltEndpoint(i),
                       ),
                     ],
                   ),
@@ -358,13 +359,13 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
               AppSettingTile(
                 title: '添加备用地址',
                 subtitle: '例如内网穿透/DDNS 地址，需指向同一台服务器',
-                leading: const Icon(Icons.add_link),
+                leading: const Icon(AppIcons.addLink),
                 onTap: _saving ? null : _addAltEndpoint,
               ),
               if (_altEndpointCtrls.isNotEmpty)
                 AppSettingTile(
                   title: _testingAll ? '测试中...' : '测试全部地址',
-                  leading: const Icon(Icons.wifi_tethering),
+                  leading: const Icon(AppIcons.wifi),
                   onTap: _saving || _testingAll ? null : _testAllEndpoints,
                 ),
             ],
@@ -378,17 +379,17 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
                   ...folders.map(
                     (path) => AppSettingTile(
                       title: path,
-                      leading: const Icon(Icons.folder_outlined),
+                      leading: const Icon(AppIcons.folder),
                       trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(AppIcons.trash),
                         onPressed: _saving ? null : () => _removeFolder(path),
                       ),
                     ),
                   ),
                 AppSettingTile(
                   title: '选择文件夹（可多选）',
-                  leading: const Icon(Icons.create_new_folder_outlined),
-                  trailing: const Icon(Icons.chevron_right),
+                  leading: const Icon(AppIcons.folderAdd),
+                  trailing: const Icon(AppIcons.chevronRight),
                   onTap: _saving ? null : _pickFolder,
                 ),
               ],

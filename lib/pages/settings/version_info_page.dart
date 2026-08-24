@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -172,19 +173,19 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
               AppSettingTile(
                 title: '当前版本',
                 subtitle: _version,
-                leading: const Icon(Icons.info_outline_rounded),
+                leading: const Icon(AppIcons.info),
               ),
               AppSettingTile(
                 title: '检查更新',
                 subtitle: _updateSubtitle(),
-                leading: const Icon(Icons.system_update_alt_rounded),
+                leading: const Icon(AppIcons.download),
                 trailing: _checking
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.chevron_right_rounded),
+                    : const Icon(AppIcons.chevronRight),
                 onTap: _checking ? null : _checkUpdate,
               ),
               ValueListenableBuilder<bool>(
@@ -220,13 +221,13 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
               AppSettingTile(
                 title: '清空日志',
                 subtitle: '删除已记录的本地调试日志',
-                leading: const Icon(Icons.delete_outline_rounded),
+                leading: const Icon(AppIcons.trash),
                 onTap: _clearLogs,
               ),
               AppSettingNavTile(
                 title: '导出日志',
                 subtitle: '生成日志文件，便于发送给开发者',
-                leading: const Icon(Icons.download_rounded),
+                leading: const Icon(AppIcons.download),
                 onTap: _exportLogs,
               ),
             ],
@@ -259,7 +260,7 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
                 if (logs.isNotEmpty)
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    icon: const Icon(AppIcons.copy, size: 18),
                     tooltip: '复制全部',
                     onPressed: _copyLogs,
                   ),

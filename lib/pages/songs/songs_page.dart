@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -624,7 +625,7 @@ class _SongsPageState extends State<SongsPage>
                         InkWell(
                           onTap: _removeScrapeOverlay,
                           child: Icon(
-                            Icons.close,
+                            AppIcons.close,
                             color: scheme.onPrimary,
                             size: 20,
                           ),
@@ -817,7 +818,7 @@ class _SongsPageState extends State<SongsPage>
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                   title: Text(item.label),
-                  trailing: isSelected ? const Icon(Icons.check_rounded) : null,
+                  trailing: isSelected ? const Icon(AppIcons.check) : null,
                   onTap: () {
                     _sourceFilter.value = item.value;
                     _rebuildVisibleSongs();
@@ -841,9 +842,7 @@ class _SongsPageState extends State<SongsPage>
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                     title: Text('云端：$label'),
-                    trailing: isSelected
-                        ? const Icon(Icons.check_rounded)
-                        : null,
+                    trailing: isSelected ? const Icon(AppIcons.check) : null,
                     onTap: () {
                       _sourceFilter.value = value;
                       _rebuildVisibleSongs();
@@ -873,36 +872,20 @@ class _SongsPageState extends State<SongsPage>
           padding: EdgeInsets.only(bottom: tabletOverlayInset),
           child: SortSheet(
             options: const [
-              SortOption(
-                key: 'title',
-                label: '歌曲名称',
-                icon: Icons.sort_by_alpha,
-              ),
-              SortOption(
-                key: 'artist',
-                label: '歌手名称',
-                icon: Icons.person_outline,
-              ),
-              SortOption(
-                key: 'album',
-                label: '专辑名称',
-                icon: Icons.album_outlined,
-              ),
+              SortOption(key: 'title', label: '歌曲名称', icon: AppIcons.sort),
+              SortOption(key: 'artist', label: '歌手名称', icon: AppIcons.person),
+              SortOption(key: 'album', label: '专辑名称', icon: AppIcons.album),
               SortOption(
                 key: 'albumTrack',
                 label: '专辑顺序',
-                icon: Icons.format_list_numbered_rounded,
+                icon: AppIcons.listNumbers,
               ),
-              SortOption(key: 'duration', label: '歌曲时长', icon: Icons.schedule),
-              SortOption(
-                key: 'playCount',
-                label: '播放次数',
-                icon: Icons.local_fire_department_outlined,
-              ),
+              SortOption(key: 'duration', label: '歌曲时长', icon: AppIcons.clock),
+              SortOption(key: 'playCount', label: '播放次数', icon: AppIcons.fire),
               SortOption(
                 key: 'fileName',
                 label: '文件名称',
-                icon: Icons.description_outlined,
+                icon: AppIcons.fileText,
               ),
             ],
             currentKey: _sortKey.value,
@@ -1010,16 +993,16 @@ class _SongsPageState extends State<SongsPage>
                 leading: useBottomNavigation
                     ? null
                     : IconButton(
-                        icon: const Icon(Icons.menu_rounded),
+                        icon: const Icon(AppIcons.menu),
                         onPressed: _openDrawer,
                       ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.swap_horiz_rounded),
+                    icon: const Icon(AppIcons.arrowsLeftRight),
                     onPressed: _showSourceSheet,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.search),
+                    icon: const Icon(AppIcons.search),
                     onPressed: _openSearch,
                   ),
                   CompositedTransformTarget(
@@ -1031,7 +1014,7 @@ class _SongsPageState extends State<SongsPage>
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.auto_fix_high_rounded),
+                          : const Icon(AppIcons.magicWand),
                       onPressed: _openBatchScrape,
                     ),
                   ),
@@ -1064,16 +1047,16 @@ class _SongsPageState extends State<SongsPage>
               leading: useBottomNavigation
                   ? null
                   : IconButton(
-                      icon: const Icon(Icons.menu_rounded),
+                      icon: const Icon(AppIcons.menu),
                       onPressed: _openDrawer,
                     ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.swap_horiz_rounded),
+                  icon: const Icon(AppIcons.arrowsLeftRight),
                   onPressed: _showSourceSheet,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.search),
+                  icon: const Icon(AppIcons.search),
                   onPressed: _openSearch,
                 ),
                 CompositedTransformTarget(
@@ -1085,7 +1068,7 @@ class _SongsPageState extends State<SongsPage>
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.auto_fix_high_rounded),
+                        : const Icon(AppIcons.magicWand),
                     onPressed: _openBatchScrape,
                   ),
                 ),
@@ -1260,10 +1243,7 @@ class _SongsPageState extends State<SongsPage>
                                       curve: Curves.easeOut,
                                     );
                                   },
-                                  child: const Icon(
-                                    Icons.my_location,
-                                    size: 18,
-                                  ),
+                                  child: const Icon(AppIcons.locate, size: 18),
                                 ),
                         ),
                 ),
@@ -1273,7 +1253,7 @@ class _SongsPageState extends State<SongsPage>
                     child: MultiSelectBottomBar(
                       actions: [
                         MultiSelectAction(
-                          icon: Icons.queue_play_next,
+                          icon: AppIcons.queue,
                           label: '下一首播放',
                           onTap: selectedCount == 0
                               ? null
@@ -1286,14 +1266,14 @@ class _SongsPageState extends State<SongsPage>
                                 },
                         ),
                         MultiSelectAction(
-                          icon: Icons.playlist_add,
+                          icon: AppIcons.playlist,
                           label: '收藏到歌单',
                           onTap: selectedCount == 0
                               ? null
                               : _openAddToPlaylistSheet,
                         ),
                         MultiSelectAction(
-                          icon: Icons.delete_outline,
+                          icon: AppIcons.trash,
                           label: '移除',
                           isDestructive: true,
                           onTap: selectedCount == 0

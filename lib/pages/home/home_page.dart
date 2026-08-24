@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
@@ -396,7 +397,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                   title: Text(item.label),
-                  trailing: isSelected ? const Icon(Icons.check_rounded) : null,
+                  trailing: isSelected ? const Icon(AppIcons.check) : null,
                   onTap: () {
                     _setFilter(item.value);
                     Navigator.pop(context);
@@ -418,9 +419,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                     title: Text('云端：$label'),
-                    trailing: isSelected
-                        ? const Icon(Icons.check_rounded)
-                        : null,
+                    trailing: isSelected ? const Icon(AppIcons.check) : null,
                     onTap: () {
                       _setFilter(value);
                       Navigator.pop(context);
@@ -492,13 +491,13 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
           leading: useBottomNavigation
               ? null
               : IconButton(
-                  icon: const Icon(Icons.menu_rounded),
+                  icon: const Icon(AppIcons.menu),
                   onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
           actions: [
             IconButton(
               tooltip: '管理音源',
-              icon: const Icon(Icons.tune_rounded),
+              icon: const Icon(AppIcons.sliders),
               onPressed: _showSourceSheet,
             ),
             const SizedBox(width: 4),
@@ -541,7 +540,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                         kind: DiscoveryKind.daily,
                         eyebrow: '每日推荐',
                         title: '今日限定好歌推荐',
-                        icon: Icons.calendar_month_rounded,
+                        icon: AppIcons.calendar,
                         accent: const Color(0xFFEF4444),
                         cover: covers[0],
                         songs: _dailySongs.value,
@@ -559,7 +558,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
                         kind: DiscoveryKind.heart,
                         eyebrow: '心动模式',
                         title: '红心歌曲和相似推荐',
-                        icon: Icons.favorite_rounded,
+                        icon: AppIconsFilled.heart,
                         accent: const Color(0xFF8B7CF6),
                         cover: covers[2],
                         songs: _heartModeSongs.value,

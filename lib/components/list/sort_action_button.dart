@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'media_list_action_button.dart';
 
@@ -10,7 +11,7 @@ class SortActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MediaListActionButton(
-      icon: Icons.sort_rounded,
+      icon: AppIcons.sort,
       tooltip: '排序',
       onTap: onTap,
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -252,18 +253,14 @@ class _AlbumsPageState extends State<AlbumsPage>
         return SortSheet(
           title: '专辑排序',
           options: const [
-            SortOption(key: 'name', label: '名称', icon: Icons.sort_by_alpha),
+            SortOption(key: 'name', label: '名称', icon: AppIcons.sort),
             SortOption(
               key: 'songCount',
               label: '歌曲数',
-              icon: Icons.music_note_outlined,
+              icon: AppIcons.musicNote,
             ),
-            SortOption(key: 'artist', label: '艺术家', icon: Icons.person_outline),
-            SortOption(
-              key: 'year',
-              label: '年份',
-              icon: Icons.calendar_today_outlined,
-            ),
+            SortOption(key: 'artist', label: '艺术家', icon: AppIcons.person),
+            SortOption(key: 'year', label: '年份', icon: AppIcons.calendar),
           ],
           currentKey: _sortMode.value,
           ascending: _ascending.value,
@@ -304,17 +301,17 @@ class _AlbumsPageState extends State<AlbumsPage>
                             ButtonSegment(
                               value: 2,
                               label: Text('二列'),
-                              icon: Icon(Icons.grid_view_rounded),
+                              icon: Icon(AppIcons.grid),
                             ),
                             ButtonSegment(
                               value: 3,
                               label: Text('三列'),
-                              icon: Icon(Icons.grid_view_rounded),
+                              icon: Icon(AppIcons.grid),
                             ),
                             ButtonSegment(
                               value: 4,
                               label: Text('四列'),
-                              icon: Icon(Icons.grid_view_rounded),
+                              icon: Icon(AppIcons.grid),
                             ),
                           ],
                           selected: {_gridColumns.value},
@@ -421,14 +418,14 @@ class _AlbumsPageState extends State<AlbumsPage>
                           children: [
                             const SizedBox(width: 16),
                             Icon(
-                              Icons.album_outlined,
+                              AppIcons.album,
                               color: theme.colorScheme.error,
                             ),
                             const SizedBox(width: 12),
                             const Expanded(child: Text('已屏蔽的专辑')),
                             Text('${_blockedAlbums.value.length} 个'),
                             const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right_rounded),
+                            const Icon(AppIcons.chevronRight),
                             const SizedBox(width: 12),
                           ],
                         ),
@@ -471,7 +468,7 @@ class _AlbumsPageState extends State<AlbumsPage>
                               children: [
                                 ListTile(
                                   leading: const Icon(
-                                    Icons.album_outlined,
+                                    AppIcons.album,
                                     color: Colors.red,
                                   ),
                                   title: const Text('屏蔽专辑'),
@@ -616,9 +613,7 @@ class _AlbumsPageState extends State<AlbumsPage>
           title: '专辑',
           leading: IconButton(
             icon: Icon(
-              useBottomNavigation
-                  ? Icons.arrow_back_rounded
-                  : Icons.menu_rounded,
+              useBottomNavigation ? AppIcons.arrowLeft : AppIcons.menu,
             ),
             onPressed: useBottomNavigation
                 ? () => Navigator.of(context).maybePop()
@@ -673,11 +668,11 @@ class _AlbumsPageState extends State<AlbumsPage>
                                 ),
                                 child: ListTile(
                                   leading: const Icon(
-                                    Icons.album_outlined,
+                                    AppIcons.album,
                                     color: Colors.red,
                                   ),
                                   title: const Text('已屏蔽的专辑'),
-                                  trailing: const Icon(Icons.chevron_right),
+                                  trailing: const Icon(AppIcons.chevronRight),
                                   onTap: _showBlockedAlbums,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
@@ -723,7 +718,7 @@ class _AlbumsPageState extends State<AlbumsPage>
                                                 children: [
                                                   ListTile(
                                                     leading: const Icon(
-                                                      Icons.album_outlined,
+                                                      AppIcons.album,
                                                       color: Colors.red,
                                                     ),
                                                     title: const Text('屏蔽专辑'),

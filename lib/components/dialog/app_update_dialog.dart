@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/services/app_update_service.dart';
 import '../feedback/app_toast.dart';
@@ -40,7 +41,7 @@ Future<void> showLatestVersionDialog(
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      icon: Icon(Icons.verified_rounded, color: scheme.primary, size: 32),
+      icon: Icon(AppIcons.checkCircle, color: scheme.primary, size: 32),
       title: const Text('已是最新版本'),
       content: Text('当前版本 $currentVersion 已是最新版本。'),
       actions: [
@@ -59,7 +60,7 @@ Future<void> showUpdateFailedDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      icon: Icon(Icons.cloud_off_rounded, color: scheme.error, size: 30),
+      icon: Icon(AppIcons.cloudOff, color: scheme.error, size: 30),
       title: const Text('检查更新失败'),
       content: const Text('无法连接更新服务，请检查网络后重试，或手动打开发布页面。'),
       actions: [
@@ -133,7 +134,7 @@ class _UpdateAvailableDialog extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.rocket_launch_rounded,
+                      AppIcons.sparkle,
                       color: Colors.white,
                       size: 24,
                     ),
@@ -177,7 +178,7 @@ class _UpdateAvailableDialog extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Icon(
-                      Icons.arrow_forward_rounded,
+                      AppIcons.arrowRight,
                       size: 18,
                       color: scheme.onSurfaceVariant,
                     ),
@@ -231,7 +232,7 @@ class _UpdateAvailableDialog extends StatelessWidget {
                         info.releaseUrl ?? AppUpdateService.releasePageUrl,
                       );
                     },
-                    icon: const Icon(Icons.download_rounded, size: 18),
+                    icon: const Icon(AppIcons.download, size: 18),
                     label: const Text('前往下载'),
                   ),
                 ],

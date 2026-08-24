@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 class PlaybackModeButton extends StatelessWidget {
   final bool isSequential;
@@ -28,7 +29,7 @@ class PlaybackModeButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(isSequential ? Icons.playlist_play : Icons.shuffle, size: 20),
+            Icon(isSequential ? AppIcons.playlist : AppIcons.shuffle, size: 20),
             const SizedBox(width: 4),
             Text(
               '${isSequential ? '顺序播放' : '随机播放'} ($count)',

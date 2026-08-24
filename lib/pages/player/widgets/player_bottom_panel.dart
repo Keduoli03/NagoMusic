@@ -1,3 +1,5 @@
+import 'package:nagomusic/app/theme/app_icons.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -390,7 +392,7 @@ class _PlayerControls extends StatelessWidget {
           children: [
             IconButton(
               iconSize: 48,
-              icon: Icon(Icons.skip_previous_rounded, color: iconColor),
+              icon: Icon(AppIcons.skipPrevious, color: iconColor),
               onPressed: player.previous,
             ),
             const SizedBox(width: 20),
@@ -402,7 +404,7 @@ class _PlayerControls extends StatelessWidget {
               child: IconButton(
                 iconSize: mainButtonSize,
                 icon: Icon(
-                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  playing ? AppIcons.pause : AppIcons.play,
                   color: scheme.onPrimaryContainer,
                 ),
                 onPressed: player.togglePlayPause,
@@ -411,7 +413,7 @@ class _PlayerControls extends StatelessWidget {
             const SizedBox(width: 20),
             IconButton(
               iconSize: 48,
-              icon: Icon(Icons.skip_next_rounded, color: iconColor),
+              icon: Icon(AppIcons.skipNext, color: iconColor),
               onPressed: player.next,
             ),
           ],
@@ -436,9 +438,9 @@ class _BottomActions extends StatelessWidget {
         final mode = player.playbackModeSignal.value;
         final text = player.sleepTimerDisplayTextSignal.value;
         final icon = switch (mode) {
-          PlaybackMode.shuffle => Icons.shuffle,
-          PlaybackMode.loop => Icons.repeat,
-          PlaybackMode.single => Icons.repeat_one,
+          PlaybackMode.shuffle => AppIcons.shuffle,
+          PlaybackMode.loop => AppIcons.repeat,
+          PlaybackMode.single => AppIcons.repeatOnce,
         };
         return AnimatedBuilder(
           animation: Listenable.merge([
@@ -471,7 +473,7 @@ class _BottomActions extends StatelessWidget {
                         clipBehavior: Clip.none,
                         children: [
                           IconButton(
-                            icon: Icon(Icons.alarm, color: iconColor),
+                            icon: Icon(AppIcons.alarm, color: iconColor),
                             onPressed: () => _showSleepTimerSheet(context),
                           ),
                           if (text != null)
@@ -495,10 +497,7 @@ class _BottomActions extends StatelessWidget {
                   if (PlayerBottomActionSettings.showPlaylist.value) {
                     actions.add(
                       IconButton(
-                        icon: Icon(
-                          Icons.format_list_bulleted,
-                          color: iconColor,
-                        ),
+                        icon: Icon(AppIcons.list, color: iconColor),
                         onPressed: () => _showPlaylistSheet(context),
                       ),
                     );
@@ -508,7 +507,7 @@ class _BottomActions extends StatelessWidget {
                   if (PlayerBottomActionSettings.showMore.value) {
                     actions.add(
                       IconButton(
-                        icon: Icon(Icons.more_horiz, color: iconColor),
+                        icon: Icon(AppIcons.moreHorizontal, color: iconColor),
                         onPressed: () => _showSongDetailSheet(context),
                       ),
                     );
@@ -994,9 +993,9 @@ class _PlaylistHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (IconData modeIcon, String modeLabel) = switch (mode) {
-      PlaybackMode.shuffle => (Icons.shuffle_rounded, '随机播放'),
-      PlaybackMode.single => (Icons.repeat_one_rounded, '单曲循环'),
-      PlaybackMode.loop => (Icons.repeat_rounded, '列表循环'),
+      PlaybackMode.shuffle => (AppIcons.shuffle, '随机播放'),
+      PlaybackMode.single => (AppIcons.repeatOnce, '单曲循环'),
+      PlaybackMode.loop => (AppIcons.repeat, '列表循环'),
     };
     return Column(
       children: [
@@ -1055,11 +1054,7 @@ class _PlaylistHeader extends StatelessWidget {
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                icon: Icon(
-                  Icons.delete_sweep_rounded,
-                  size: 19,
-                  color: secondaryTextColor,
-                ),
+                icon: Icon(AppIcons.trash, size: 19, color: secondaryTextColor),
                 label: Text(
                   '清空',
                   style: TextStyle(fontSize: 13, color: secondaryTextColor),
@@ -1155,7 +1150,7 @@ class _QueueItem extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   icon: Icon(
-                    Icons.close_rounded,
+                    AppIcons.close,
                     color: secondaryTextColor.withValues(alpha: 0.8),
                     size: 20,
                   ),
@@ -1166,7 +1161,7 @@ class _QueueItem extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Icon(
-                      Icons.drag_handle_rounded,
+                      AppIcons.dragHandle,
                       color: secondaryTextColor.withValues(alpha: 0.55),
                       size: 20,
                     ),

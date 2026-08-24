@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 class PlayerTopBar extends StatelessWidget {
   final VoidCallback onBack;
@@ -13,14 +14,11 @@ class PlayerTopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(
         children: [
-          IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-          ),
+          IconButton(onPressed: onBack, icon: const Icon(AppIcons.arrowLeft)),
           const Spacer(),
           IconButton(
             onPressed: onMore ?? () {},
-            icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
+            icon: Icon(AppIcons.moreHorizontal, color: scheme.onSurfaceVariant),
           ),
         ],
       ),

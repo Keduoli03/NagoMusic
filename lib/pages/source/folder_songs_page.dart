@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 import 'package:signals_flutter/signals_flutter.dart';
 
@@ -128,19 +129,11 @@ class _FolderSongsPageState extends State<FolderSongsPage>
       builder: (context) {
         return SortSheet(
           options: const [
-            SortOption(key: 'title', label: '歌曲名称', icon: Icons.sort_by_alpha),
-            SortOption(
-              key: 'artist',
-              label: '歌手名称',
-              icon: Icons.person_outline,
-            ),
-            SortOption(key: 'album', label: '专辑名称', icon: Icons.album_outlined),
-            SortOption(key: 'duration', label: '歌曲时长', icon: Icons.schedule),
-            SortOption(
-              key: 'fileName',
-              label: '文件名称',
-              icon: Icons.description_outlined,
-            ),
+            SortOption(key: 'title', label: '歌曲名称', icon: AppIcons.sort),
+            SortOption(key: 'artist', label: '歌手名称', icon: AppIcons.person),
+            SortOption(key: 'album', label: '专辑名称', icon: AppIcons.album),
+            SortOption(key: 'duration', label: '歌曲时长', icon: AppIcons.clock),
+            SortOption(key: 'fileName', label: '文件名称', icon: AppIcons.fileText),
           ],
           currentKey: _sortKey.value,
           ascending: _ascending.value,
@@ -326,7 +319,7 @@ class _FolderSongsPageState extends State<FolderSongsPage>
                   MultiSelectBottomBar(
                     actions: [
                       MultiSelectAction(
-                        icon: Icons.queue_play_next,
+                        icon: AppIcons.queue,
                         label: '下一首播放',
                         onTap: selectedCount == 0
                             ? null
@@ -346,14 +339,14 @@ class _FolderSongsPageState extends State<FolderSongsPage>
                               },
                       ),
                       MultiSelectAction(
-                        icon: Icons.playlist_add,
+                        icon: AppIcons.playlist,
                         label: '收藏到歌单',
                         onTap: selectedCount == 0
                             ? null
                             : _openAddToPlaylistSheet,
                       ),
                       MultiSelectAction(
-                        icon: Icons.delete_outline,
+                        icon: AppIcons.trash,
                         label: '移除',
                         isDestructive: true,
                         onTap: selectedCount == 0 ? null : _removeSelectedSongs,

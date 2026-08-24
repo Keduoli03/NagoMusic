@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 
@@ -24,8 +25,7 @@ class HomeRecommendationSection extends StatefulWidget {
       _HomeRecommendationSectionState();
 }
 
-class _HomeRecommendationSectionState
-    extends State<HomeRecommendationSection> {
+class _HomeRecommendationSectionState extends State<HomeRecommendationSection> {
   final PageController _pageController = PageController();
 
   @override
@@ -63,7 +63,7 @@ class _HomeRecommendationSectionState
               ),
             ),
             SoftIconButton(
-              icon: Icons.play_arrow_rounded,
+              icon: AppIcons.play,
               tooltip: '播放全部',
               onTap: widget.onPlayAll,
               size: 34,
@@ -163,7 +163,7 @@ class RecommendationSongTile extends StatelessWidget {
             ),
             // 原来这里是一个孤零零的黑色 ▶ 图标，看不出是控件也不像卡片语言。
             SoftIconButton(
-              icon: Icons.play_arrow_rounded,
+              icon: AppIcons.play,
               onTap: onTap,
               size: 28,
               iconSize: 17,

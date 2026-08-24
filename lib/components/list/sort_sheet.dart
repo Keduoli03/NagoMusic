@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../common/sheet_panels.dart';
@@ -216,13 +217,13 @@ class _SortSheetState extends State<SortSheet> {
                     children: [
                       buildGridOption(
                         label: '升序',
-                        icon: Icons.arrow_upward,
+                        icon: AppIcons.arrowUp,
                         selected: _ascending,
                         onTap: () => updateAscending(true),
                       ),
                       buildGridOption(
                         label: '降序',
-                        icon: Icons.arrow_downward,
+                        icon: AppIcons.arrowDown,
                         selected: !_ascending,
                         onTap: () => updateAscending(false),
                         alignRight: true,

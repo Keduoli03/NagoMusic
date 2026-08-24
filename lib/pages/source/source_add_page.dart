@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_page_route.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
@@ -84,12 +85,12 @@ class SourceAddPage extends StatelessWidget {
             options: const [
               _SourceAddOption(
                 title: 'WebDAV',
-                icon: Icons.cloud_sync_rounded,
+                icon: AppIcons.arrowsClockwise,
                 color: Color(0xFF27B5D8),
               ),
               _SourceAddOption(
                 title: 'Navidrome / Subsonic',
-                icon: Icons.library_music_rounded,
+                icon: AppIcons.musicNotes,
                 color: Color(0xFF6D7CF6),
               ),
             ],
@@ -154,10 +155,7 @@ class _SourceAddTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        color: colors.onSurfaceVariant,
-      ),
+      trailing: Icon(AppIcons.chevronRight, color: colors.onSurfaceVariant),
       onTap: () => onTap(option),
     );
   }

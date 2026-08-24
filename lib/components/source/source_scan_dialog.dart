@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 class SourceScanDialog extends StatelessWidget {
   final int processed;
@@ -90,7 +91,7 @@ class SourceScanDialog extends StatelessWidget {
                         minHeight: 32,
                       ),
                       icon: Icon(
-                        Icons.close_rounded,
+                        AppIcons.close,
                         size: 18,
                         color: scheme.onSurfaceVariant,
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
@@ -201,11 +202,11 @@ class _SearchPageState extends State<SearchPage> {
                       textInputAction: TextInputAction.search,
                       decoration: InputDecoration(
                         hintText: '搜索',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: const Icon(AppIcons.search),
                         suffixIcon: _query.isEmpty
                             ? null
                             : IconButton(
-                                icon: const Icon(Icons.clear),
+                                icon: const Icon(AppIcons.close),
                                 onPressed: () {
                                   setState(() {
                                     _query = '';

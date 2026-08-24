@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_page_route.dart';
 import '../../app/services/backup/backup_service.dart';
@@ -266,7 +267,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
               ),
               for (final t in _targets)
                 ListTile(
-                  leading: const Icon(Icons.cloud_outlined),
+                  leading: const Icon(AppIcons.cloud),
                   title: Text(_sourceName(t.sourceId)),
                   subtitle: Text(
                     t.path,
@@ -314,7 +315,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
               ListTile(
                 title: Text(_intervalLabel(h)),
                 trailing: _auto.intervalHours == h
-                    ? const Icon(Icons.check_rounded)
+                    ? const Icon(AppIcons.check)
                     : null,
                 onTap: () => Navigator.pop(context, h),
               ),
@@ -378,8 +379,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       return ListTile(
                         leading: Icon(
                           e.isCurrentDevice
-                              ? Icons.smartphone_rounded
-                              : Icons.devices_other_rounded,
+                              ? AppIcons.smartphone
+                              : AppIcons.smartphone,
                         ),
                         title: Text(fmtTime(e.modified)),
                         subtitle: Text(
@@ -433,7 +434,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
               ),
               for (final s in sources)
                 ListTile(
-                  leading: const Icon(Icons.cloud_outlined),
+                  leading: const Icon(AppIcons.cloud),
                   title: Text(s.name),
                   subtitle: Text(
                     s.endpoint,
@@ -586,16 +587,16 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                     AppSettingTile(
                       title: '导出到本地文件',
                       subtitle: '选择保存位置并生成 JSON 备份文件',
-                      leading: const Icon(Icons.save_alt_rounded),
+                      leading: const Icon(AppIcons.save),
                       trailing: _busy
                           ? _spinner()
-                          : const Icon(Icons.chevron_right_rounded),
+                          : const Icon(AppIcons.chevronRight),
                       onTap: _busy ? null : _exportLocal,
                     ),
                     AppSettingNavTile(
                       title: '从本地文件导入',
                       subtitle: '选择一个备份 JSON 文件',
-                      leading: const Icon(Icons.file_open_rounded),
+                      leading: const Icon(AppIcons.file),
                       onTap: _busy ? null : _importLocal,
                     ),
                   ],
@@ -611,16 +612,16 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                       subtitle: _targets.isEmpty
                           ? '请先在上方添加备份目标'
                           : '一键备份到 ${_targets.length} 个目标',
-                      leading: const Icon(Icons.cloud_upload_rounded),
+                      leading: const Icon(AppIcons.cloudUpload),
                       trailing: _busy
                           ? _spinner()
-                          : const Icon(Icons.chevron_right_rounded),
+                          : const Icon(AppIcons.chevronRight),
                       onTap: _busy ? null : _exportWebDav,
                     ),
                     AppSettingNavTile(
                       title: '从 WebDAV 导入',
                       subtitle: '从某个目标的备份历史中选择一个恢复',
-                      leading: const Icon(Icons.cloud_download_rounded),
+                      leading: const Icon(AppIcons.cloudDownload),
                       onTap: _busy ? null : _importWebDav,
                     ),
                   ],
@@ -640,7 +641,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
                         title: '备份间隔',
                         subtitle:
                             '最短 ${_intervalLabel(_auto.intervalHours)} 自动备份一次',
-                        leading: const Icon(Icons.timer_outlined),
+                        leading: const Icon(AppIcons.timer),
                         onTap: _busy ? null : _changeAutoInterval,
                       ),
                   ],
@@ -660,19 +661,19 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
             subtitle: _targets[i].path,
             leading: Icon(
               _sourceExists(_targets[i].sourceId)
-                  ? Icons.cloud_done_outlined
-                  : Icons.cloud_off_outlined,
+                  ? AppIcons.cloudCheck
+                  : AppIcons.cloudOff,
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: const Icon(AppIcons.pencil),
                   tooltip: '修改路径',
                   onPressed: _busy ? null : () => _editTargetPath(i),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(AppIcons.trash),
                   tooltip: '移除',
                   onPressed: _busy ? null : () => _removeTarget(i),
                 ),
@@ -683,7 +684,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
         AppSettingNavTile(
           title: '添加备份目标',
           subtitle: '选择 WebDAV 源后浏览并选取服务器上的文件夹',
-          leading: const Icon(Icons.add_circle_outline),
+          leading: const Icon(AppIcons.addCircle),
           onTap: _busy ? null : _addTarget,
         ),
       ],

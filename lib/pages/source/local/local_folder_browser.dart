@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 import 'package:signals/signals_flutter.dart';
 
@@ -73,7 +74,7 @@ class _LocalFolderBrowserState extends State<LocalFolderBrowser>
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(AppIcons.settings),
             tooltip: '设置',
             onPressed: () {
               Navigator.push(
@@ -118,7 +119,7 @@ class _LocalFolderBrowserState extends State<LocalFolderBrowser>
 
               final folder = folders[index - headerCount];
               return SourceTile(
-                icon: Icons.folder,
+                icon: AppIcons.folder,
                 title: folder.name,
                 subtitle: '${folder.count} 首歌曲',
                 actions: [],

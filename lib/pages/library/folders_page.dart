@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 import 'package:signals_flutter/signals_flutter.dart';
 
@@ -112,9 +113,7 @@ class _FoldersPageState extends State<FoldersPage> with SignalsMixin {
           title: '文件夹',
           leading: IconButton(
             icon: Icon(
-              useBottomNavigation
-                  ? Icons.arrow_back_rounded
-                  : Icons.menu_rounded,
+              useBottomNavigation ? AppIcons.arrowLeft : AppIcons.menu,
             ),
             onPressed: useBottomNavigation
                 ? () => Navigator.of(context).maybePop()
@@ -199,7 +198,7 @@ class _FolderTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
-                        Icons.folder_rounded,
+                        AppIcons.folder,
                         size: 14,
                         color: scheme.primary,
                       ),
@@ -236,7 +235,7 @@ class _FolderTile extends StatelessWidget {
                   ),
                 ),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  AppIcons.chevronRight,
                   color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
               ],

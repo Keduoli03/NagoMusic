@@ -2,6 +2,7 @@ import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nagomusic/pages/bili/bili_playback.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 Widget _host(Widget child) => MaterialApp(
   home: Scaffold(body: SizedBox(width: 400, child: child)),
@@ -72,7 +73,7 @@ void main() {
           onTap: () => played = true,
           trailing: IconButton(
             tooltip: '收藏整个视频',
-            icon: const Icon(Icons.bookmark_border_rounded),
+            icon: const Icon(AppIcons.bookmark),
             onPressed: () => favorited = true,
           ),
         ),

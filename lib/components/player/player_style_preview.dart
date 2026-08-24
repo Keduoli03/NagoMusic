@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/state/settings_state.dart';
 
@@ -99,12 +100,12 @@ class PlayerStylePreview extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(
-                Icons.keyboard_arrow_down_rounded,
+                AppIcons.chevronDown,
                 size: 12,
                 color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
               Icon(
-                Icons.more_horiz_rounded,
+                AppIcons.moreHorizontal,
                 size: 12,
                 color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
@@ -194,13 +195,13 @@ class PlayerStylePreview extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      Icons.favorite_border_rounded,
+                      AppIcons.heart,
                       size: 13,
                       color: scheme.onSurface.withValues(alpha: 0.72),
                     ),
                     const Spacer(),
                     Icon(
-                      Icons.menu_rounded,
+                      AppIcons.menu,
                       size: 13,
                       color: scheme.onSurface.withValues(alpha: 0.72),
                     ),
@@ -241,7 +242,7 @@ class PlayerStylePreview extends StatelessWidget {
             ),
           ),
           child: Icon(
-            Icons.music_note_rounded,
+            AppIcons.musicNote,
             size: size * 0.4,
             color: Colors.white.withValues(alpha: 0.9),
           ),
@@ -370,7 +371,7 @@ class PlayerStylePreview extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Icon(Icons.skip_previous_rounded, size: sideSize, color: sideColor),
+        Icon(AppIcons.skipPrevious, size: sideSize, color: sideColor),
         Container(
           width: mainSize,
           height: mainSize,
@@ -380,12 +381,12 @@ class PlayerStylePreview extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: Icon(
-            Icons.play_arrow_rounded,
+            AppIcons.play,
             size: mainSize * 0.62,
             color: scheme.onPrimaryContainer,
           ),
         ),
-        Icon(Icons.skip_next_rounded, size: sideSize, color: sideColor),
+        Icon(AppIcons.skipNext, size: sideSize, color: sideColor),
       ],
     );
   }
@@ -396,8 +397,8 @@ class PlayerStylePreview extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Icon(Icons.repeat_rounded, size: 12, color: color),
-        Icon(Icons.skip_previous_rounded, size: 16, color: color),
+        Icon(AppIcons.repeat, size: 12, color: color),
+        Icon(AppIcons.skipPrevious, size: 16, color: color),
         Container(
           width: 24,
           height: 24,
@@ -406,14 +407,10 @@ class PlayerStylePreview extends StatelessWidget {
             shape: BoxShape.circle,
             color: scheme.onSurface,
           ),
-          child: Icon(
-            Icons.play_arrow_rounded,
-            size: 15,
-            color: scheme.surface,
-          ),
+          child: Icon(AppIcons.play, size: 15, color: scheme.surface),
         ),
-        Icon(Icons.skip_next_rounded, size: 16, color: color),
-        Icon(Icons.more_vert_rounded, size: 12, color: color),
+        Icon(AppIcons.skipNext, size: 16, color: color),
+        Icon(AppIcons.moreVertical, size: 12, color: color),
       ],
     );
   }
@@ -425,10 +422,10 @@ class PlayerStylePreview extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Icon(Icons.repeat_rounded, size: 11, color: color),
-        Icon(Icons.alarm_rounded, size: 11, color: color),
-        Icon(Icons.format_list_bulleted_rounded, size: 11, color: color),
-        Icon(Icons.more_horiz_rounded, size: 11, color: color),
+        Icon(AppIcons.repeat, size: 11, color: color),
+        Icon(AppIcons.alarm, size: 11, color: color),
+        Icon(AppIcons.list, size: 11, color: color),
+        Icon(AppIcons.moreHorizontal, size: 11, color: color),
       ],
     );
   }

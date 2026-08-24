@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/playlists_service.dart';
@@ -139,7 +140,7 @@ class _PlaylistsPageState extends State<PlaylistsPage>
             children: [
               if (!playlist.isFavorite)
                 AppListTile(
-                  leading: const Icon(Icons.vertical_align_top_rounded),
+                  leading: const Icon(AppIcons.arrowUp),
                   title: '置顶',
                   onTap: () {
                     Navigator.of(context).pop();
@@ -147,7 +148,7 @@ class _PlaylistsPageState extends State<PlaylistsPage>
                   },
                 ),
               AppListTile(
-                leading: const Icon(Icons.edit_rounded),
+                leading: const Icon(AppIcons.pencil),
                 title: '重命名',
                 onTap: () {
                   Navigator.of(context).pop();
@@ -156,10 +157,7 @@ class _PlaylistsPageState extends State<PlaylistsPage>
               ),
               if (!playlist.isFavorite)
                 AppListTile(
-                  leading: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: Colors.red,
-                  ),
+                  leading: const Icon(AppIcons.trash, color: Colors.red),
                   title: '删除',
                   titleColor: Colors.red,
                   onTap: () {
@@ -215,23 +213,11 @@ class _PlaylistsPageState extends State<PlaylistsPage>
             SortOption(
               key: 'custom',
               label: '自定义拖拽',
-              icon: Icons.drag_handle_rounded,
+              icon: AppIcons.dragHandle,
             ),
-            SortOption(
-              key: 'recent',
-              label: '创建时间',
-              icon: Icons.schedule_rounded,
-            ),
-            SortOption(
-              key: 'name',
-              label: '名称',
-              icon: Icons.sort_by_alpha_rounded,
-            ),
-            SortOption(
-              key: 'count',
-              label: '歌曲数量',
-              icon: Icons.queue_music_rounded,
-            ),
+            SortOption(key: 'recent', label: '创建时间', icon: AppIcons.clock),
+            SortOption(key: 'name', label: '名称', icon: AppIcons.sort),
+            SortOption(key: 'count', label: '歌曲数量', icon: AppIcons.queue),
           ],
           currentKey: _sortMode.value,
           ascending: _ascending.value,
@@ -264,7 +250,7 @@ class _PlaylistsPageState extends State<PlaylistsPage>
           leading: useBottomNavigation
               ? null
               : IconButton(
-                  icon: const Icon(Icons.menu_rounded),
+                  icon: const Icon(AppIcons.menu),
                   onPressed: _openDrawer,
                 ),
           backgroundColor: Colors.transparent,
@@ -273,7 +259,7 @@ class _PlaylistsPageState extends State<PlaylistsPage>
             SortActionButton(onTap: _showSortSheet),
             IconButton(
               tooltip: '新建歌单',
-              icon: const Icon(Icons.add),
+              icon: const Icon(AppIcons.add),
               onPressed: _createPlaylist,
             ),
             const SizedBox(width: 8),
@@ -313,8 +299,8 @@ class _PlaylistsPageState extends State<PlaylistsPage>
                           ListTile(
                             leading: Icon(
                               isFavorite
-                                  ? Icons.favorite
-                                  : Icons.queue_music_rounded,
+                                  ? AppIconsFilled.heart
+                                  : AppIcons.queue,
                               color: isFavorite ? Colors.red : null,
                             ),
                             title: Text(
@@ -326,9 +312,7 @@ class _PlaylistsPageState extends State<PlaylistsPage>
                             trailing: canReorder
                                 ? ReorderableDragStartListener(
                                     index: index,
-                                    child: const Icon(
-                                      Icons.drag_handle_rounded,
-                                    ),
+                                    child: const Icon(AppIcons.dragHandle),
                                   )
                                 : null,
                             onTap: () async {

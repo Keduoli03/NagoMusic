@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../../app/services/db/dao/song_dao.dart';
 import '../../../app/services/navidrome/navidrome_music_service.dart';
@@ -179,7 +180,9 @@ class _NavidromeEditPageState extends State<NavidromeEditPage> {
                 obscureText: !_showPassword,
                 suffix: IconButton(
                   icon: Icon(
-                    _showPassword ? Icons.visibility : Icons.visibility_off,
+                    _showPassword
+                        ? AppIcons.visibility
+                        : AppIcons.visibilityOff,
                   ),
                   onPressed: _saving
                       ? null

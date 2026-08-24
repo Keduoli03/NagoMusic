@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -267,9 +268,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
                   ),
                   IconButton(
                     icon: Icon(
-                      _isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
+                      _isFavorite ? AppIconsFilled.heart : AppIcons.heart,
                       color: _isFavorite ? theme.colorScheme.error : null,
                     ),
                     onPressed: _loadingFavorite ? null : _toggleFavorite,
@@ -280,7 +279,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
             const Divider(height: 1, thickness: 0.6),
             const _AppVolumeControl(),
             AppListTile(
-              leading: const Icon(Icons.queue_play_next),
+              leading: const Icon(AppIcons.queue),
               title: '下一首播放',
               onTap: () async {
                 await PlayerService.instance.playNext(song);
@@ -290,7 +289,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
               },
             ),
             AppListTile(
-              leading: const Icon(Icons.add_to_photos_outlined),
+              leading: const Icon(AppIcons.addPhotos),
               title: '添加到歌单',
               onTap: () async {
                 await showAddToPlaylistDialog(context, songIds: [song.id]);
@@ -299,13 +298,13 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
               },
             ),
             AppListTile(
-              leading: const Icon(Icons.download_rounded),
+              leading: const Icon(AppIcons.download),
               title: _downloading ? '保存中...' : '保存到本地',
               onTap: _downloading ? null : _downloadToSystemFolder,
             ),
             if (widget.onOpenPlayerAppearanceSettings != null)
               AppListTile(
-                leading: const Icon(Icons.tune_rounded),
+                leading: const Icon(AppIcons.sliders),
                 title: '播放器界面设置',
                 onTap: () {
                   final nav = Navigator.of(context);
@@ -314,7 +313,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
                 },
               ),
             AppListTile(
-              leading: const Icon(Icons.person),
+              leading: const Icon(AppIcons.person),
               title: '艺术家：$primaryArtist',
               onTap: () {
                 final nav = Navigator.of(context);
@@ -324,7 +323,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
             ),
             if (canOpenAlbum)
               AppListTile(
-                leading: const Icon(Icons.album),
+                leading: const Icon(AppIcons.album),
                 title: '专辑：$album',
                 onTap: () {
                   final nav = Navigator.of(context);
@@ -333,7 +332,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
                 },
               ),
             AppListTile(
-              leading: const Icon(Icons.info_outline),
+              leading: const Icon(AppIcons.info),
               title: '歌曲信息',
               onTap: () {
                 final nav = Navigator.of(context);
@@ -347,7 +346,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
               },
             ),
             AppListTile(
-              leading: const Icon(Icons.refresh),
+              leading: const Icon(AppIcons.refresh),
               title: '刮削信息',
               onTap: () async {
                 final nav = Navigator.of(context);
@@ -364,7 +363,7 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
               },
             ),
             AppListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              leading: const Icon(AppIcons.trash, color: Colors.red),
               title: '移除歌曲',
               titleColor: Colors.red,
               onTap: () async {
@@ -475,10 +474,7 @@ class _AppVolumeControl extends StatelessWidget {
         children: [
           SizedBox(
             width: 40,
-            child: Icon(
-              Icons.volume_down_rounded,
-              color: colors.onSurfaceVariant,
-            ),
+            child: Icon(AppIcons.volumeLow, color: colors.onSurfaceVariant),
           ),
           const SizedBox(width: 12),
           Expanded(

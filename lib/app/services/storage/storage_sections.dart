@@ -1,6 +1,6 @@
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
-import 'package:flutter/material.dart';
 import 'package:media_cache/media_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -36,7 +36,7 @@ const _publicDownloadDir = '/storage/emulated/0/Download/NagoMusic';
 List<StorageSection> appStorageSections() => [
   StorageSection(
     key: 'audio',
-    icon: Icons.music_note_outlined,
+    icon: AppIcons.musicNote,
     title: '音频缓存',
     description: '播放在线歌曲时缓存的音频文件，清理后需要重新下载。',
     confirmTitle: '清除音频缓存',
@@ -49,7 +49,7 @@ List<StorageSection> appStorageSections() => [
   ),
   StorageSection(
     key: 'artwork',
-    icon: Icons.image_outlined,
+    icon: AppIcons.image,
     title: '封面缓存',
     description: '本地生成的封面缩略图，清理后会在需要时重新生成。',
     confirmTitle: '清除封面缓存',
@@ -67,7 +67,7 @@ List<StorageSection> appStorageSections() => [
   ),
   StorageSection(
     key: 'lyrics',
-    icon: Icons.description_outlined,
+    icon: AppIcons.fileText,
     title: '歌词缓存',
     description: '本地歌词文件的缓存副本，清理后会在需要时重新读取。',
     confirmTitle: '清除歌词缓存',
@@ -83,7 +83,7 @@ List<StorageSection> appStorageSections() => [
   ),
   StorageSection(
     key: 'tag_probe',
-    icon: Icons.fact_check_outlined,
+    icon: AppIcons.checkCircle,
     title: '元数据缓存',
     description: '扫描音频文件时缓存的标签/时长等元数据，清理后会在需要时重新探测。',
     confirmTitle: '清除元数据缓存',
@@ -99,7 +99,7 @@ List<StorageSection> appStorageSections() => [
   ),
   StorageSection(
     key: 'bili_cover',
-    icon: Icons.ondemand_video_outlined,
+    icon: AppIcons.video,
     title: 'B 站封面',
     description: '登录 B 站账号后缓存的视频封面，清理后会在需要时重新下载。',
     confirmTitle: '清除 B 站封面缓存',
@@ -115,7 +115,7 @@ List<StorageSection> appStorageSections() => [
   ),
   StorageSection(
     key: 'database',
-    icon: Icons.storage_outlined,
+    icon: AppIcons.hardDrive,
     title: '曲库数据',
     description: '你的歌单、收藏和播放统计都存在本机数据库里。想清理请用「数据备份」流程。',
     confirmTitle: '',
@@ -132,7 +132,7 @@ List<StorageSection> appStorageSections() => [
   ),
   StorageSection(
     key: 'downloads',
-    icon: Icons.download_outlined,
+    icon: AppIcons.download,
     title: '已下载歌曲',
     description: '通过「下载」保存到本机的歌曲文件，属于你的数据，不在缓存清理范围内。',
     confirmTitle: '',

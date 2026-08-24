@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 
@@ -284,7 +285,7 @@ class _ArtworkFallback extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
       ),
       child: Center(
-        child: Icon(Icons.music_note, color: scheme.onSurfaceVariant),
+        child: Icon(AppIcons.musicNote, color: scheme.onSurfaceVariant),
       ),
     );
   }
@@ -668,7 +669,7 @@ class MiniPlayerPlayButton extends StatelessWidget {
                 ),
                 IconButton(
                   icon: Icon(
-                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    playing ? AppIcons.pause : AppIcons.play,
                     color: scheme.onSurface,
                     size: 20,
                   ),
@@ -701,7 +702,7 @@ class MiniPlayerQueueButton extends StatelessWidget {
       width: 36,
       height: 36,
       child: IconButton(
-        icon: Icon(Icons.queue_music_rounded, color: color, size: 24),
+        icon: Icon(AppIcons.queue, color: color, size: 24),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
         onPressed: onPressed,

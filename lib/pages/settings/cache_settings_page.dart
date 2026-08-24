@@ -75,7 +75,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
       content: section.confirmMessage,
       confirmText: '清理',
       isDestructive: section.destructive,
-      icon: Icons.delete_outline,
+      icon: AppIcons.trash,
     );
     if (confirmed != true || !mounted) return;
 
@@ -276,7 +276,7 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
                 AppSettingTile(
                   title: '恢复默认下载路径',
                   subtitle: '切回系统 Download/NagoMusic 目录',
-                  trailing: const Icon(Icons.refresh_rounded),
+                  trailing: const Icon(AppIcons.refresh),
                   onTap: _clearDownloadDirectory,
                 ),
               ],

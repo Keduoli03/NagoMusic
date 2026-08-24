@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
@@ -93,15 +94,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
       isScrollControlled: true,
       builder: (_) => SortSheet(
         options: const [
-          SortOption(key: 'default', label: '添加时间', icon: Icons.sort),
-          SortOption(key: 'title', label: '歌曲名称', icon: Icons.sort_by_alpha),
-          SortOption(key: 'artist', label: '歌手名称', icon: Icons.person_outline),
-          SortOption(key: 'album', label: '专辑名称', icon: Icons.album_outlined),
-          SortOption(
-            key: 'fileName',
-            label: '文件名称',
-            icon: Icons.description_outlined,
-          ),
+          SortOption(key: 'default', label: '添加时间', icon: AppIcons.sort),
+          SortOption(key: 'title', label: '歌曲名称', icon: AppIcons.sort),
+          SortOption(key: 'artist', label: '歌手名称', icon: AppIcons.person),
+          SortOption(key: 'album', label: '专辑名称', icon: AppIcons.album),
+          SortOption(key: 'fileName', label: '文件名称', icon: AppIcons.fileText),
         ],
         currentKey: _sortKey.value,
         ascending: _sortAscending.value,
@@ -254,9 +251,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
             IconButton(
               tooltip: _showCovers.value ? '显示序号' : '显示封面',
               icon: Icon(
-                _showCovers.value
-                    ? Icons.image_outlined
-                    : Icons.format_list_numbered_rounded,
+                _showCovers.value ? AppIcons.image : AppIcons.listNumbers,
               ),
               onPressed: () {
                 _showCovers.value = !_showCovers.value;
@@ -365,7 +360,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                         MultiSelectBottomBar(
                           actions: [
                             MultiSelectAction(
-                              icon: Icons.queue_play_next,
+                              icon: AppIcons.queue,
                               label: '下一首播放',
                               onTap: selection.isEmpty
                                   ? null
@@ -385,7 +380,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                                     },
                             ),
                             MultiSelectAction(
-                              icon: Icons.playlist_add,
+                              icon: AppIcons.playlist,
                               label: '添加到歌单',
                               onTap: selection.isEmpty
                                   ? null
@@ -401,7 +396,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                                     },
                             ),
                             MultiSelectAction(
-                              icon: Icons.delete_outline,
+                              icon: AppIcons.trash,
                               label: '移出',
                               isDestructive: true,
                               onTap: selection.isEmpty
@@ -486,7 +481,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                 ? Align(
                     alignment: Alignment.centerLeft,
                     child: Icon(
-                      isSelected ? Icons.check_circle : Icons.circle_outlined,
+                      isSelected ? AppIcons.checkCircle : AppIcons.circle,
                       size: 20,
                       color: isSelected
                           ? theme.colorScheme.primary
@@ -504,7 +499,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                   index: index,
                   child: const SizedBox(
                     height: 40,
-                    child: Icon(Icons.menu, color: Colors.grey),
+                    child: Icon(AppIcons.menu, color: Colors.grey),
                   ),
                 )
               : null,
@@ -538,7 +533,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
             alignment: Alignment.centerRight,
             color: Colors.red,
             padding: const EdgeInsets.only(right: 20),
-            child: const Icon(Icons.delete, color: Colors.white),
+            child: const Icon(AppIcons.trash, color: Colors.white),
           ),
           confirmDismiss: (direction) async {
             return await showDialog<bool>(

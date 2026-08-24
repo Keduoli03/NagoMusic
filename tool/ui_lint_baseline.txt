@@ -1,5 +1,5 @@
 fontSize=98
-material_icons=329
+material_icons=0
 edge_insets=173
 sized_box_numeric=170
 raw_radius=60

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_router.dart';
 import '../../app/services/playlists_service.dart';
@@ -30,7 +31,7 @@ class ProfilePage extends StatelessWidget {
             actions: [
               IconButton(
                 tooltip: '设置',
-                icon: const Icon(Icons.settings_rounded),
+                icon: const Icon(AppIcons.settings),
                 onPressed: () =>
                     Navigator.pushNamed(context, AppRoutes.settings),
               ),
@@ -44,7 +45,7 @@ class ProfilePage extends StatelessWidget {
                 children: [
                   _tile(
                     context,
-                    icon: Icons.favorite_rounded,
+                    icon: AppIconsFilled.heart,
                     title: PlaylistsService.favoritePlaylistName,
                     subtitle: '所有标记过红心的歌曲',
                     onTap: () => Navigator.push(
@@ -58,25 +59,25 @@ class ProfilePage extends StatelessWidget {
                   ),
                   _navTile(
                     context,
-                    icon: Icons.queue_music_rounded,
+                    icon: AppIcons.queue,
                     title: '歌单',
                     route: AppRoutes.playlists,
                   ),
                   _navTile(
                     context,
-                    icon: Icons.album_rounded,
+                    icon: AppIcons.album,
                     title: '专辑',
                     route: AppRoutes.albums,
                   ),
                   _navTile(
                     context,
-                    icon: Icons.people_rounded,
+                    icon: AppIcons.users,
                     title: '艺术家',
                     route: AppRoutes.artists,
                   ),
                   _navTile(
                     context,
-                    icon: Icons.folder_rounded,
+                    icon: AppIcons.folder,
                     title: '文件夹',
                     route: AppRoutes.folders,
                   ),
@@ -88,21 +89,21 @@ class ProfilePage extends StatelessWidget {
                 children: [
                   _navTile(
                     context,
-                    icon: Icons.radar_rounded,
+                    icon: AppIcons.radar,
                     title: '音源管理',
                     subtitle: '本地与云端音乐来源',
                     route: AppRoutes.source,
                   ),
                   _navTile(
                     context,
-                    icon: Icons.bar_chart_rounded,
+                    icon: AppIcons.chartBar,
                     title: '听歌统计',
                     subtitle: '日历与播放数据概览',
                     route: AppRoutes.listeningStats,
                   ),
                   _navTile(
                     context,
-                    icon: Icons.backup_rounded,
+                    icon: AppIcons.hardDrive,
                     title: '数据备份',
                     subtitle: '歌单、听歌统计导出到本地或 WebDAV',
                     route: AppRoutes.dataBackup,
@@ -115,14 +116,14 @@ class ProfilePage extends StatelessWidget {
                 children: [
                   _navTile(
                     context,
-                    icon: Icons.settings_rounded,
+                    icon: AppIcons.settings,
                     title: '设置',
                     subtitle: '外观、播放器、通知等',
                     route: AppRoutes.settings,
                   ),
                   _navTile(
                     context,
-                    icon: Icons.info_outline_rounded,
+                    icon: AppIcons.info,
                     title: '版本信息',
                     subtitle: '版本号、检查更新与调试日志',
                     route: AppRoutes.versionInfo,
@@ -177,7 +178,7 @@ class ProfilePage extends StatelessWidget {
         ),
         child: Icon(icon, size: 20, color: scheme.primary),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: const Icon(AppIcons.chevronRight),
       onTap: onTap,
     );
   }

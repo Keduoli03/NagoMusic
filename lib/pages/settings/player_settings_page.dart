@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_router.dart';
 import '../../app/state/settings_state.dart';
@@ -255,7 +256,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                               index: index,
                               child: const Padding(
                                 padding: EdgeInsets.only(left: 8),
-                                child: Icon(Icons.drag_handle_rounded),
+                                child: Icon(AppIcons.dragHandle),
                               ),
                             ),
                           ],
@@ -338,7 +339,7 @@ class _PlayerStyleCard extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      Icons.check_rounded,
+                      AppIcons.check,
                       size: 14,
                       color: scheme.onPrimary,
                     ),

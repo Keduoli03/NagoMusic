@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/services/haptic_service.dart';
 import '../../app/theme/app_colors.dart';
@@ -36,9 +37,7 @@ class SelectAllButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isAllSelected
-                    ? Icons.check_circle_rounded
-                    : Icons.circle_outlined,
+                isAllSelected ? AppIcons.checkCircle : AppIcons.circle,
                 size: 19,
                 color: isAllSelected ? accent : c.muted,
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../../app/services/haptic_service.dart';
 import '../../../app/theme/app_colors.dart';
@@ -25,19 +26,19 @@ class HomeQuickLibrary extends StatelessWidget {
     final buttons = <QuickLibraryData>[
       QuickLibraryData(
         label: '艺术家',
-        icon: Icons.person_outline_rounded,
+        icon: AppIcons.person,
         accent: scheme.primary,
         onTap: onArtists,
       ),
       QuickLibraryData(
         label: '专辑',
-        icon: Icons.album_outlined,
+        icon: AppIcons.album,
         accent: scheme.tertiary,
         onTap: onAlbums,
       ),
       QuickLibraryData(
         label: '文件夹',
-        icon: Icons.folder_outlined,
+        icon: AppIcons.folder,
         accent: scheme.secondary,
         onTap: onFolders,
       ),

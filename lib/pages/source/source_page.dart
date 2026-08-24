@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
@@ -607,11 +608,14 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           leading: useBottomNavigation
               ? null
               : IconButton(
-                  icon: const Icon(Icons.menu_rounded),
+                  icon: const Icon(AppIcons.menu),
                   onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
           actions: [
-            IconButton(icon: const Icon(Icons.add), onPressed: _openSourceAdd),
+            IconButton(
+              icon: const Icon(AppIcons.add),
+              onPressed: _openSourceAdd,
+            ),
           ],
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -635,18 +639,18 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
                     children: localSources
                         .map(
                           (source) => SourceTile(
-                            icon: Icons.folder_open,
+                            icon: AppIcons.folderOpen,
                             title: source.name,
                             subtitle: '${source.songCount} 首歌曲',
                             actions: [
                               SourceTileAction(
-                                icon: Icons.sync,
+                                icon: AppIcons.arrowsClockwise,
                                 isLoading: _isScanning(source),
                                 tooltip: '扫描本地音乐',
                                 onTap: () => _startScan(source),
                               ),
                               SourceTileAction(
-                                icon: Icons.settings,
+                                icon: AppIcons.settings,
                                 tooltip: '设置',
                                 onTap: _openLocalSetting,
                               ),
@@ -663,18 +667,18 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
                     children: webDavSources
                         .map(
                           (source) => SourceTile(
-                            icon: Icons.cloud,
+                            icon: AppIcons.cloud,
                             title: source.name,
                             subtitle: '${source.songCount} 首歌曲',
                             actions: [
                               SourceTileAction(
-                                icon: Icons.sync,
+                                icon: AppIcons.arrowsClockwise,
                                 isLoading: _isScanning(source),
                                 tooltip: '扫描云端音乐',
                                 onTap: () => _startScan(source),
                               ),
                               SourceTileAction(
-                                icon: Icons.settings,
+                                icon: AppIcons.settings,
                                 tooltip: '设置',
                                 onTap: () => _openWebDavSetting(source),
                               ),
@@ -692,18 +696,18 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
                     children: navidromeSources
                         .map(
                           (source) => SourceTile(
-                            icon: Icons.library_music_rounded,
+                            icon: AppIcons.musicNotes,
                             title: source.name,
                             subtitle: '${source.songCount} 首歌曲',
                             actions: [
                               SourceTileAction(
-                                icon: Icons.sync,
+                                icon: AppIcons.arrowsClockwise,
                                 isLoading: _isScanning(source),
                                 tooltip: '扫描 Navidrome 音乐',
                                 onTap: () => _startScan(source),
                               ),
                               SourceTileAction(
-                                icon: Icons.settings,
+                                icon: AppIcons.settings,
                                 tooltip: '设置',
                                 onTap: () => _openNavidromeSetting(source),
                               ),

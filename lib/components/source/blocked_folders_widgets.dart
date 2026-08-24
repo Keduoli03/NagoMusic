@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/services/block_list_service.dart';
 import '../common/blocked_management_sheet.dart';
@@ -54,12 +55,12 @@ class BlockedFoldersEntryCard extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 16),
-                Icon(Icons.folder_off, color: theme.colorScheme.error),
+                Icon(AppIcons.folderOff, color: theme.colorScheme.error),
                 const SizedBox(width: 12),
                 const Expanded(child: Text('已屏蔽的文件夹')),
                 Text('${blocked.length} 个'),
                 const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded),
+                const Icon(AppIcons.chevronRight),
                 const SizedBox(width: 12),
               ],
             ),
@@ -89,7 +90,7 @@ void showBlockFolderSheet(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.folder_off, color: Colors.red),
+              leading: const Icon(AppIcons.folderOff, color: Colors.red),
               title: const Text('屏蔽此文件夹'),
               titleTextStyle: TextStyle(
                 color: Theme.of(sheetContext).colorScheme.error,

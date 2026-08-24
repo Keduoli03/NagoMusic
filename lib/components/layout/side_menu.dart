@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_router.dart';
 import 'base/app_page_scaffold.dart';
@@ -50,58 +51,58 @@ class SideMenu extends StatelessWidget {
                   children: [
                     _sectionLabel(context, '资源库'),
                     _MenuItem(
-                      icon: Icons.music_note_rounded,
+                      icon: AppIcons.musicNote,
                       label: '歌曲',
                       onTap: () => _navigateAndClose(context, AppRoutes.songs),
                     ),
                     _MenuItem(
-                      icon: Icons.album_rounded,
+                      icon: AppIcons.album,
                       label: '专辑',
                       onTap: () => _navigateAndClose(context, AppRoutes.albums),
                     ),
                     _MenuItem(
-                      icon: Icons.people_rounded,
+                      icon: AppIcons.users,
                       label: '艺术家',
                       onTap: () =>
                           _navigateAndClose(context, AppRoutes.artists),
                     ),
                     _MenuItem(
-                      icon: Icons.queue_music_rounded,
+                      icon: AppIcons.queue,
                       label: '歌单',
                       onTap: () =>
                           _navigateAndClose(context, AppRoutes.playlists),
                     ),
                     _MenuItem(
-                      icon: Icons.folder_rounded,
+                      icon: AppIcons.folder,
                       label: '文件夹',
                       onTap: () =>
                           _navigateAndClose(context, AppRoutes.folders),
                     ),
                     _MenuItem(
-                      icon: Icons.library_music_rounded,
+                      icon: AppIcons.musicNotes,
                       label: '音乐库',
                       onTap: () => _navigateAndClose(context, AppRoutes.home),
                     ),
                     const SizedBox(height: 8),
                     _sectionLabel(context, '更多'),
                     _MenuItem(
-                      icon: Icons.live_tv_rounded,
+                      icon: AppIcons.video,
                       label: 'B站',
                       onTap: () => _navigateAndClose(context, AppRoutes.bili),
                     ),
                     _MenuItem(
-                      icon: Icons.radar_rounded,
+                      icon: AppIcons.radar,
                       label: '音源',
                       onTap: () => _navigateAndClose(context, AppRoutes.source),
                     ),
                     _MenuItem(
-                      icon: Icons.bar_chart_rounded,
+                      icon: AppIcons.chartBar,
                       label: '统计',
                       onTap: () =>
                           _pushAndClose(context, AppRoutes.listeningStats),
                     ),
                     _MenuItem(
-                      icon: Icons.settings_rounded,
+                      icon: AppIcons.settings,
                       label: '设置',
                       onTap: () => _pushAndClose(context, AppRoutes.settings),
                     ),
@@ -274,7 +275,7 @@ class _MenuItem extends StatelessWidget {
                   ),
                 ),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  AppIcons.chevronRight,
                   size: 18,
                   color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
                 ),

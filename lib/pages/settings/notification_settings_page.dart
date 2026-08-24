@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/services/android_platform_service.dart';
 import '../../app/state/settings_state.dart';
@@ -24,25 +25,25 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
       permission: Permission.notification,
       title: '通知权限',
       description: '用于显示媒体播放通知和锁屏控制',
-      icon: Icons.notifications_active_outlined,
+      icon: AppIcons.notifications,
     ),
     _PermissionItem(
       permission: Permission.audio,
       title: '音乐与音频',
       description: '用于扫描和读取本地音乐文件',
-      icon: Icons.library_music_outlined,
+      icon: AppIcons.musicNotes,
     ),
     _PermissionItem(
       permission: Permission.storage,
       title: '文件存储',
       description: '用于旧版 Android 读取和保存音乐文件',
-      icon: Icons.folder_open_outlined,
+      icon: AppIcons.folderOpen,
     ),
     _PermissionItem(
       permission: Permission.ignoreBatteryOptimizations,
       title: '后台播放保护',
       description: '建议在系统设置中允许后台活动和无限制电量策略',
-      icon: Icons.battery_saver_outlined,
+      icon: AppIcons.battery,
       openSettingsOnly: true,
     ),
   ];
@@ -234,8 +235,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
               AppSettingTile(
                 title: '打开应用设置',
                 subtitle: '管理通知、电量、后台活动等系统权限',
-                leading: const Icon(Icons.settings_applications_outlined),
-                trailing: const Icon(Icons.open_in_new_rounded),
+                leading: const Icon(AppIcons.settings),
+                trailing: const Icon(AppIcons.openInNew),
                 onTap: openAppSettings,
               ),
             ],

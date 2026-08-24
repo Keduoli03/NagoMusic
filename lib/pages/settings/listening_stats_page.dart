@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_page_route.dart';
 import '../../app/services/db/dao/song_dao.dart';
@@ -205,19 +206,19 @@ class _ListeningStatsPageState extends State<ListeningStatsPage> {
           child: Row(
             children: [
               _OverviewMetric(
-                icon: Icons.schedule_rounded,
+                icon: AppIcons.clock,
                 value: _formatDuration(_totalStats.listenMs),
                 label: '累计收听',
               ),
               _OverviewDivider(),
               _OverviewMetric(
-                icon: Icons.play_circle_outline_rounded,
+                icon: AppIcons.playCircle,
                 value: '${_totalStats.playCount}',
                 label: '播放次数',
               ),
               _OverviewDivider(),
               _OverviewMetric(
-                icon: Icons.calendar_month_rounded,
+                icon: AppIcons.calendar,
                 value: '$_activeDaysThisMonth',
                 label: '本月活跃(天)',
               ),

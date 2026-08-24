@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 import 'package:photo_manager/photo_manager.dart';
 
@@ -284,7 +285,7 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
                     : const SizedBox(
                         width: 40,
                         height: 40,
-                        child: Center(child: Icon(Icons.play_arrow_rounded)),
+                        child: Center(child: Icon(AppIcons.play)),
                       ),
                 onTap: _isScanning ? null : _startScan,
               ),
@@ -344,7 +345,7 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
                   title: '添加文件夹',
                   subtitle: '扫描自定义目录中的音频文件',
                   trailing: IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
+                    icon: const Icon(AppIcons.addCircle),
                     onPressed: _addCustomFolder,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints.tightFor(
@@ -362,7 +363,7 @@ class _LocalSourceSettingsPageState extends State<LocalSourceSettingsPage> {
                       title: p.basename(path),
                       subtitle: path,
                       trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(AppIcons.trash),
                         onPressed: () => _removeCustomFolder(path),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints.tightFor(
