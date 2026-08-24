@@ -34,12 +34,12 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
 
   late final _bytes = createSignal<Uint8List?>(null);
   late final _loading = createSignal(false);
+  int _loadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    // 先同步查一眼内存缓存：命中的话第一帧就是封面，不会闪占位图。
-    if (!_seedFromCache()) _tryLoad();
+    _reloadArtwork();
   }
 
   @override
@@ -50,15 +50,22 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
         oldWidget.song.uri != widget.song.uri ||
         oldWidget.preferOriginal != widget.preferOriginal ||
         oldWidget.keepPreviousUntilLoaded != widget.keepPreviousUntilLoaded) {
-      // 换歌时同样先走同步命中 —— 首页切筛选会一次换掉六个封面，
-      // 走异步的话这六个都要先闪一帧占位图。
-      if (_seedFromCache()) return;
-      if (!widget.keepPreviousUntilLoaded) {
-        _bytes.value = null;
-      }
-      _loading.value = false;
-      _tryLoad();
+      _reloadArtwork();
     }
+  }
+
+  /// 切歌时使上一首的异步读取结果失效，避免较慢的旧请求在新歌已显示后
+  /// 回写自己的封面。这在「全部歌曲」连续切换时尤其容易发生。
+  void _reloadArtwork() {
+    final generation = ++_loadGeneration;
+    // 换歌时同样先走同步命中 —— 首页切筛选会一次换掉六个封面，
+    // 走异步的话这六个都要先闪一帧占位图。
+    if (_seedFromCache()) return;
+    if (!widget.keepPreviousUntilLoaded) {
+      _bytes.value = null;
+    }
+    _loading.value = false;
+    _tryLoad(generation);
   }
 
   /// 内存缓存命中则直接填好并返回 true，未命中返回 false（由调用方去走异步加载）。
@@ -75,16 +82,21 @@ class _ArtworkWidgetState extends State<ArtworkWidget> with SignalsMixin {
     return true;
   }
 
-  Future<void> _tryLoad() async {
+  Future<void> _tryLoad(int generation) async {
     _loading.value = true;
-    final bytes = await _artworkService.loadArtworkBytes(
-      uri: widget.song.uri,
-      localCoverPath: widget.song.localCoverPath,
-      localAssetId: widget.song.localAssetId,
-      isLocal: widget.song.isLocal,
-      preferOriginal: widget.preferOriginal,
-    );
-    if (!mounted) return;
+    Uint8List? bytes;
+    try {
+      bytes = await _artworkService.loadArtworkBytes(
+        uri: widget.song.uri,
+        localCoverPath: widget.song.localCoverPath,
+        localAssetId: widget.song.localAssetId,
+        isLocal: widget.song.isLocal,
+        preferOriginal: widget.preferOriginal,
+      );
+    } catch (_) {
+      bytes = null;
+    }
+    if (!mounted || generation != _loadGeneration) return;
     if (bytes != null && bytes.isNotEmpty) {
       _bytes.value = bytes;
     } else if (!widget.keepPreviousUntilLoaded) {

@@ -31,6 +31,14 @@ class BiliMusicService {
   /// 「存储与缓存」页统计能跟 [_coverDir] 用同一个字符串，不会因为改名漂移。
   static const String coverDirName = 'bili_covers';
 
+  /// B 站是逻辑音源，不应按 `bili://<BV号>/<cid>` 让每个视频变成一个
+  /// 文件夹。媒体库的「文件夹」页会用这个稳定的虚拟目录把所有分 P 聚合起来。
+  static const String libraryFolderPath = 'bili://B站';
+  static const String libraryFolderName = 'B站';
+
+  static bool isLibraryFolderPath(String path) =>
+      path.replaceAll('\\', '/').trim() == libraryFolderPath;
+
   final BiliApi _api = BiliApi.instance;
   final SongDao _songDao = SongDao();
   final Dio _dio = Dio(

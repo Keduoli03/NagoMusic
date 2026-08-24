@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../app/services/artwork_cache_helper.dart';
+import '../../app/services/bili/bili_music_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
 import '../../app/services/player_service.dart';
@@ -81,6 +82,8 @@ class _FolderSongsPageState extends State<FolderSongsPage>
     final allSourceSongs = await _songDao.fetchAll(sourceId: widget.sourceId);
     final folderSongs = widget.folderPath.trim().isEmpty
         ? allSourceSongs
+        : BiliMusicService.isLibraryFolderPath(widget.folderPath)
+        ? allSourceSongs.where(BiliMusicService.isBiliSong).toList()
         : allSourceSongs.where((s) {
             if (s.uri == null) return false;
             // Normalize paths for comparison

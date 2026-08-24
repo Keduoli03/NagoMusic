@@ -1,6 +1,7 @@
 import 'package:bili_api/bili_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nagomusic/app/services/bili/bili_music_service.dart';
+import 'package:nagomusic/app/state/song_state.dart';
 
 /// [BiliMusicService.songsFromDetail] 和曲目标题拼接是 app 侧代码（依赖
 /// `SongEntity`），不能跟着 id 编解码 / 音质选择那些纯逻辑一起搬进 bili_api 包，
@@ -69,6 +70,26 @@ void main() {
         ]),
       );
       expect(songs.single.uri, 'bili://BV1/456');
+    });
+  });
+
+  group('BiliMusicService 文件夹归类', () {
+    test('B 站全部归入同一个虚拟文件夹', () {
+      const song = SongEntity(
+        id: 'bili::BV1ab411c7dD-123',
+        title: 'P1',
+        artist: 'UP',
+        uri: 'bili://BV1ab411c7dD/123',
+        isLocal: false,
+        sourceId: BiliMusicService.sourceId,
+      );
+
+      expect(BiliMusicService.isBiliSong(song), isTrue);
+      expect(BiliMusicService.isLibraryFolderPath('bili://B站'), isTrue);
+      expect(
+        BiliMusicService.isLibraryFolderPath('bili://BV1ab411c7dD'),
+        isFalse,
+      );
     });
   });
 }

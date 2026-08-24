@@ -5,6 +5,7 @@ import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../app/router/app_page_route.dart';
 import '../../app/services/db/dao/song_dao.dart';
+import '../../app/services/bili/bili_music_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/utils/natural_sort.dart';
 import '../../components/index.dart';
@@ -59,7 +60,9 @@ class _FoldersPageState extends State<FoldersPage> with SignalsMixin {
       if (uri.isEmpty) continue;
       // Must match FolderSongsPage's folder derivation exactly so the detail
       // page can filter correctly.
-      final folder = p.dirname(uri).replaceAll('\\', '/');
+      final folder = BiliMusicService.isBiliSong(song)
+          ? BiliMusicService.libraryFolderPath
+          : p.dirname(uri).replaceAll('\\', '/');
       final key = '${song.sourceId ?? ''}|$folder';
       map.putIfAbsent(key, () => []).add(song);
     }
@@ -68,7 +71,9 @@ class _FoldersPageState extends State<FoldersPage> with SignalsMixin {
     for (final entry in map.entries) {
       final first = entry.value.first;
       final folder = entry.key.substring(entry.key.indexOf('|') + 1);
-      final name = p.basename(folder).trim();
+      final name = BiliMusicService.isLibraryFolderPath(folder)
+          ? BiliMusicService.libraryFolderName
+          : p.basename(folder).trim();
       groups.add(
         _FolderGroup(
           sourceId: first.sourceId ?? '',
