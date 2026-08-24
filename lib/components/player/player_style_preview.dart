@@ -371,45 +371,23 @@ class PlayerStylePreview extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Icon(AppIcons.skipPrevious, size: sideSize, color: sideColor),
-        Container(
-          width: mainSize,
-          height: mainSize,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            AppIcons.play,
-            size: mainSize * 0.62,
-            color: scheme.onPrimaryContainer,
-          ),
-        ),
-        Icon(AppIcons.skipNext, size: sideSize, color: sideColor),
+        Icon(AppIconsFilled.skipPrevious, size: sideSize, color: sideColor),
+        Icon(AppIconsFilled.play, size: mainSize, color: sideColor),
+        Icon(AppIconsFilled.skipNext, size: sideSize, color: sideColor),
       ],
     );
   }
 
   Widget _posterControls(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final color = scheme.onSurface.withValues(alpha: 0.78);
+    final color = scheme.onSurface;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Icon(AppIcons.repeat, size: 12, color: color),
-        Icon(AppIcons.skipPrevious, size: 16, color: color),
-        Container(
-          width: 24,
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: scheme.onSurface,
-          ),
-          child: Icon(AppIcons.play, size: 15, color: scheme.surface),
-        ),
-        Icon(AppIcons.skipNext, size: 16, color: color),
+        Icon(AppIconsFilled.skipPrevious, size: 16, color: color),
+        Icon(AppIconsFilled.play, size: 18, color: color),
+        Icon(AppIconsFilled.skipNext, size: 16, color: color),
         Icon(AppIcons.moreVertical, size: 12, color: color),
       ],
     );

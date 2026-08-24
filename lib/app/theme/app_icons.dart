@@ -114,5 +114,9 @@ abstract final class AppIcons {
 /// 选中态图标。不要用颜色代替实心/空心的状态差异。
 abstract final class AppIconsFilled {
   static const IconData heart = PhosphorIconsFill.heart;
+  static const IconData pause = PhosphorIconsFill.pause;
+  static const IconData play = PhosphorIconsFill.play;
+  static const IconData skipNext = PhosphorIconsFill.skipForward;
+  static const IconData skipPrevious = PhosphorIconsFill.skipBack;
   static const IconData star = PhosphorIconsFill.star;
 }

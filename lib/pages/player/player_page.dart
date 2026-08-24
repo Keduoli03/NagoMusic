@@ -872,7 +872,7 @@ class _PosterControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final iconColor = scheme.onSurface.withValues(alpha: 0.72);
+    final iconColor = scheme.onSurface;
     return Watch.builder(
       builder: (context) {
         final playing = player.isPlayingSignal.value;
@@ -888,27 +888,19 @@ class _PosterControls extends StatelessWidget {
             IconButton(
               iconSize: 40,
               color: iconColor,
-              icon: const Icon(AppIcons.skipPrevious),
+              icon: const Icon(AppIconsFilled.skipPrevious),
               onPressed: player.previous,
             ),
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: scheme.onSurface,
-              ),
-              child: IconButton(
-                iconSize: 36,
-                color: scheme.surface,
-                icon: Icon(playing ? AppIcons.pause : AppIcons.play),
-                onPressed: player.togglePlayPause,
-              ),
+            IconButton(
+              iconSize: 44,
+              color: iconColor,
+              icon: Icon(playing ? AppIconsFilled.pause : AppIconsFilled.play),
+              onPressed: player.togglePlayPause,
             ),
             IconButton(
               iconSize: 40,
               color: iconColor,
-              icon: const Icon(AppIcons.skipNext),
+              icon: const Icon(AppIconsFilled.skipNext),
               onPressed: player.next,
             ),
             IconButton(
