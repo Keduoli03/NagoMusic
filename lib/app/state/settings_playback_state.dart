@@ -77,11 +77,22 @@ class AppLaunchUpdateSettings {
 }
 
 class PlayerBottomActionSettings {
+  static const playbackModeKey = 'playback_mode';
+  static const sleepTimerKey = 'sleep_timer';
+  static const playlistKey = 'playlist';
+  static const addToPlaylistKey = 'add_to_playlist';
+  static const saveToLocalKey = 'save_to_local';
+  static const songInfoKey = 'song_info';
+  static const moreKey = 'more';
+
   static const List<String> _defaultActionOrder = [
-    'playback_mode',
-    'sleep_timer',
-    'playlist',
-    'more',
+    playbackModeKey,
+    sleepTimerKey,
+    playlistKey,
+    addToPlaylistKey,
+    saveToLocalKey,
+    songInfoKey,
+    moreKey,
   ];
 
   static final showPlaybackMode = PrefEntry.boolean(
@@ -95,6 +106,18 @@ class PlayerBottomActionSettings {
   static final showPlaylist = PrefEntry.boolean(
     'player_bottom_show_playlist',
     defaultValue: true,
+  );
+  static final showAddToPlaylist = PrefEntry.boolean(
+    'player_bottom_show_add_to_playlist',
+    defaultValue: false,
+  );
+  static final showSaveToLocal = PrefEntry.boolean(
+    'player_bottom_show_save_to_local',
+    defaultValue: false,
+  );
+  static final showSongInfo = PrefEntry.boolean(
+    'player_bottom_show_song_info',
+    defaultValue: false,
   );
   static final showMore = PrefEntry.boolean(
     'player_bottom_show_more',
@@ -112,6 +135,9 @@ class PlayerBottomActionSettings {
     showPlaybackMode,
     showSleepTimer,
     showPlaylist,
+    showAddToPlaylist,
+    showSaveToLocal,
+    showSongInfo,
     showMore,
     actionOrder,
   ]);
@@ -145,6 +171,15 @@ class PlayerBottomActionSettings {
 
   static Future<void> setShowPlaylist(bool enabled) =>
       showPlaylist.set(enabled);
+
+  static Future<void> setShowAddToPlaylist(bool enabled) =>
+      showAddToPlaylist.set(enabled);
+
+  static Future<void> setShowSaveToLocal(bool enabled) =>
+      showSaveToLocal.set(enabled);
+
+  static Future<void> setShowSongInfo(bool enabled) =>
+      showSongInfo.set(enabled);
 
   static Future<void> setShowMore(bool enabled) => showMore.set(enabled);
 }

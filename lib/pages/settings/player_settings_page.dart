@@ -54,7 +54,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
 
   _BottomActionConfig _actionConfigByKey(String key) {
     switch (key) {
-      case 'playback_mode':
+      case PlayerBottomActionSettings.playbackModeKey:
         return _BottomActionConfig(
           key: key,
           title: '随机/顺序按钮',
@@ -62,7 +62,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
           notifier: PlayerBottomActionSettings.showPlaybackMode,
           onChanged: PlayerBottomActionSettings.setShowPlaybackMode,
         );
-      case 'sleep_timer':
+      case PlayerBottomActionSettings.sleepTimerKey:
         return _BottomActionConfig(
           key: key,
           title: '定时按钮',
@@ -70,7 +70,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
           notifier: PlayerBottomActionSettings.showSleepTimer,
           onChanged: PlayerBottomActionSettings.setShowSleepTimer,
         );
-      case 'playlist':
+      case PlayerBottomActionSettings.playlistKey:
         return _BottomActionConfig(
           key: key,
           title: '播放队列按钮',
@@ -78,9 +78,33 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
           notifier: PlayerBottomActionSettings.showPlaylist,
           onChanged: PlayerBottomActionSettings.setShowPlaylist,
         );
+      case PlayerBottomActionSettings.addToPlaylistKey:
+        return _BottomActionConfig(
+          key: key,
+          title: '添加到歌单按钮',
+          subtitle: '直接将当前歌曲加入歌单',
+          notifier: PlayerBottomActionSettings.showAddToPlaylist,
+          onChanged: PlayerBottomActionSettings.setShowAddToPlaylist,
+        );
+      case PlayerBottomActionSettings.saveToLocalKey:
+        return _BottomActionConfig(
+          key: key,
+          title: '保存到本地按钮',
+          subtitle: '直接保存当前歌曲文件',
+          notifier: PlayerBottomActionSettings.showSaveToLocal,
+          onChanged: PlayerBottomActionSettings.setShowSaveToLocal,
+        );
+      case PlayerBottomActionSettings.songInfoKey:
+        return _BottomActionConfig(
+          key: key,
+          title: '歌曲信息按钮',
+          subtitle: '查看文件、音质与标签信息',
+          notifier: PlayerBottomActionSettings.showSongInfo,
+          onChanged: PlayerBottomActionSettings.setShowSongInfo,
+        );
       default:
         return _BottomActionConfig(
-          key: 'more',
+          key: PlayerBottomActionSettings.moreKey,
           title: '更多按钮',
           subtitle: '显示歌曲详情入口',
           notifier: PlayerBottomActionSettings.showMore,
