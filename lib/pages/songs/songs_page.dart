@@ -1134,7 +1134,10 @@ class _SongsPageState extends State<SongsPage>
                           bottomInset:
                               bottomInset +
                               tabletMiniPlayerInset +
-                              (multiSelect.value ? 160 : 80),
+                              (multiSelect.value ? 160 : 80) +
+                              (useBottomNavigation && !multiSelect.value
+                                  ? AppPageScaffold.modernNavHeight
+                                  : 0),
                           indexLabelBuilder: (index) =>
                               _indexLabelForSong(visibleSongs[index]),
                           itemBuilder: (context, index) {
