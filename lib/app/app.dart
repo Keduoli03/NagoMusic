@@ -7,7 +7,8 @@ import 'router/app_page_route.dart';
 import 'router/app_router.dart';
 import 'state/settings_state.dart';
 import 'theme/app_colors.dart';
-import 'theme/app_styles.dart';
+import 'theme/app_page_transitions.dart';
+import 'theme/app_surfaces.dart';
 import 'theme/app_theme.dart';
 
 class NagoMusicApp extends StatelessWidget {

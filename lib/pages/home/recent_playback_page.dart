@@ -6,7 +6,7 @@ import '../../app/services/player_service.dart';
 import '../../app/services/playlists_service.dart';
 import '../../app/services/stats_service.dart';
 import '../../app/state/song_state.dart';
-import '../../app/theme/app_styles.dart';
+import '../../app/theme/app_surfaces.dart';
 import '../../components/common/app_list_tile.dart';
 import '../../components/common/artwork_widget.dart';
 import '../../components/common/glass_panel.dart';

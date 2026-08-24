@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/state/settings_state.dart';
-import '../../app/theme/app_styles.dart';
+import '../../app/theme/app_surfaces.dart';
 
 /// 跟随「面板透明度」滑块的面板容器。
 ///

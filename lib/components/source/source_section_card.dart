@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_colors.dart';
-import '../../app/theme/app_styles.dart';
+import '../../app/theme/app_surfaces.dart';
 import '../common/glass_panel.dart';
 
 class SourceSectionCard extends StatelessWidget {
