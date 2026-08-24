@@ -91,13 +91,9 @@ class BiliPlayback {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
-      // 合集动辄几十上百个分 P，必须给面板封顶高度并让内部自己滚动，
-      // 否则 AppSheetPanel 的 Column 会给列表无限高度约束，直接撑爆。
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.72,
-      ),
-      builder: (sheetContext) => BiliPartPickerSheet(
+      builder: (sheetContext) => BiliPartPickerDraggableSheet(
         detail: detail,
         resumePartIndex: resumeIndex,
         resumePosition: resumePosition,
@@ -333,11 +329,52 @@ class BiliVideoTile extends StatelessWidget {
   }
 }
 
+/// 可从初始高度继续上拉到全屏的分 P 面板。
+class BiliPartPickerDraggableSheet extends StatelessWidget {
+  final BiliVideoDetail detail;
+  final VoidCallback onPlayAll;
+  final ValueChanged<int> onPlayPart;
+  final int resumePartIndex;
+  final Duration resumePosition;
+  final VoidCallback? onResume;
+
+  const BiliPartPickerDraggableSheet({
+    super.key,
+    required this.detail,
+    required this.onPlayAll,
+    required this.onPlayPart,
+    this.resumePartIndex = -1,
+    this.resumePosition = Duration.zero,
+    this.onResume,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      minChildSize: 0.45,
+      maxChildSize: 1,
+      snap: true,
+      snapSizes: const [0.72],
+      builder: (context, scrollController) => BiliPartPickerSheet(
+        detail: detail,
+        onPlayAll: onPlayAll,
+        onPlayPart: onPlayPart,
+        resumePartIndex: resumePartIndex,
+        resumePosition: resumePosition,
+        onResume: onResume,
+        scrollController: scrollController,
+      ),
+    );
+  }
+}
+
 /// 多 P 视频的分 P 选择面板。
 ///
 /// 独立成一个组件是为了能单独测：这里踩过一次 `AppSheetPanel` 非 expand 分支
-/// 给子组件无限高度约束、57 个分 P 直接撑出 2289px 溢出的坑。面板高度由调用方
-/// 通过 `showModalBottomSheet` 的 constraints 封顶，列表在 [Expanded] 里自己滚。
+/// 给子组件无限高度约束、57 个分 P 直接撑出 2289px 溢出的坑。面板高度由外层
+/// [BiliPartPickerDraggableSheet] 控制，列表与拖拽面板共用滚动控制器。
 class BiliPartPickerSheet extends StatelessWidget {
   final BiliVideoDetail detail;
   final VoidCallback onPlayAll;
@@ -345,6 +382,7 @@ class BiliPartPickerSheet extends StatelessWidget {
   final int resumePartIndex;
   final Duration resumePosition;
   final VoidCallback? onResume;
+  final ScrollController? scrollController;
 
   const BiliPartPickerSheet({
     super.key,
@@ -354,6 +392,7 @@ class BiliPartPickerSheet extends StatelessWidget {
     this.resumePartIndex = -1,
     this.resumePosition = Duration.zero,
     this.onResume,
+    this.scrollController,
   });
 
   @override
@@ -407,6 +446,7 @@ class BiliPartPickerSheet extends StatelessWidget {
             const Divider(height: 1),
             Expanded(
               child: ListView.builder(
+                controller: scrollController,
                 padding: const EdgeInsets.only(bottom: 8),
                 itemCount: parts.length,
                 itemBuilder: (context, index) {

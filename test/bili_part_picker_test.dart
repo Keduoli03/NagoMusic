@@ -1,6 +1,7 @@
 import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nagomusic/components/common/sheet_panels.dart';
 import 'package:nagomusic/pages/bili/bili_playback.dart';
 
 /// 造一个「每个分 P 的名字都等于视频标题」的有声书合集 —— 这正是当初撑爆布局的形状。
@@ -56,6 +57,34 @@ void main() {
     // 溢出会以 FlutterError 的形式记录在 takeException 里。
     expect(tester.takeException(), isNull);
     expect(find.text('播放全部 57 个分 P'), findsOneWidget);
+  });
+
+  testWidgets('分 P 面板初始为七成高度并可上拉展开到全屏', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BiliPartPickerDraggableSheet(
+            detail: _audiobook(57),
+            onPlayAll: () {},
+            onPlayPart: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final draggable = tester.widget<DraggableScrollableSheet>(
+      find.byType(DraggableScrollableSheet),
+    );
+    expect(draggable.initialChildSize, 0.72);
+    expect(draggable.maxChildSize, 1);
+
+    final initialHeight = tester.getSize(find.byType(AppSheetPanel)).height;
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    final expandedHeight = tester.getSize(find.byType(AppSheetPanel)).height;
+
+    expect(expandedHeight, greaterThan(initialHeight));
+    expect(expandedHeight, closeTo(600, 1));
   });
 
   testWidgets('分 P 名与视频标题相同时退回 P1/P2 而不是刷屏', (tester) async {
