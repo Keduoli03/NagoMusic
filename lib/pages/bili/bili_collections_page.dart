@@ -6,6 +6,7 @@ import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
 import '../../components/index.dart';
 import 'bili_playback.dart';
+import 'widgets/bili_collection_list_tile.dart';
 
 /// 用户保存在 NagoMusic 内的 B 站视频合集。
 class BiliCollectionsPage extends StatefulWidget {
@@ -44,20 +45,6 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
     AppToast.show(context, '已取消收藏');
   }
 
-  String _subtitle(BiliVideoCollection collection) {
-    final parts = collection.detail.parts;
-    final countLabel = parts.length == 1 ? '单 P' : '${parts.length} 个分 P';
-    if (!collection.hasProgress) {
-      return '${collection.video.author} · $countLabel';
-    }
-    final part = parts[collection.resumeIndex];
-    final position = formatBiliDuration(collection.resumePosition.inSeconds);
-    final progress = position.isEmpty
-        ? 'P${part.index}'
-        : 'P${part.index} $position';
-    return '${collection.video.author} · $countLabel\n上次播放到 $progress';
-  }
-
   @override
   Widget build(BuildContext context) {
     final bottomPadding = AppPageScaffold.scrollableBottomPadding(context);
@@ -89,15 +76,16 @@ class _BiliCollectionsPageState extends State<BiliCollectionsPage> {
                     ),
                   );
                 }
-                return ListView.builder(
+                return ListView.separated(
                   padding: AppSpacing.page.copyWith(bottom: bottomPadding),
                   itemCount: collections.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final collection = collections[index];
-                    return BiliVideoTile(
-                      video: collection.video,
-                      subtitle: _subtitle(collection),
-                      subtitleMaxLines: 2,
+                    return BiliCollectionListTile(
+                      key: ValueKey(collection.video.bvid),
+                      collection: collection,
                       onTap: () =>
                           BiliPlayback.openCollection(context, collection),
                       onLongPress: () => _remove(collection),
