@@ -1,0 +1,10 @@
+fontSize=98
+edge_insets=173
+sized_box_numeric=173
+raw_radius=76
+hardcoded_color=40
+colors_white_black=62
+raw_appbar=0
+raw_alert_dialog=10
+raw_snackbar=0
+raw_switch=0

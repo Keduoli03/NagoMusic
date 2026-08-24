@@ -66,6 +66,27 @@ dart format .
 
 Tip: format changed files first, then run full `flutter analyze`.
 
+UI 规范门禁（第二道栅栏，独立于 `flutter analyze`）：
+
+```bash
+bash tool/ui_lint.sh            # 与基线比对，任何一项指标变多就退出码 1
+bash tool/ui_lint.sh --report   # 只打印当前各项计数，不比对
+bash tool/ui_lint.sh --update   # 把当前计数写回 tool/ui_lint_baseline.txt
+```
+
+- **改动任何页面 UI 之前先提交本次改动，改完后、提交前跑一次 `bash tool/ui_lint.sh`**。
+  它统计 `fontSize:` / `EdgeInsets.*` / `SizedBox(height|width: 数字)` /
+  `BorderRadius.circular(` / `Color(0x` / `Colors.white|black|grey` /
+  `appBar: AppBar(` / `AlertDialog(` / `showSnackBar(` /
+  `SwitchListTile|CupertinoSwitch(` 这类散值写法在 `lib/` 下的出现次数，
+  与 `tool/ui_lint_baseline.txt` 比对，只要求"不新增"，不要求存量归零。
+- 新 UI 代码一律走 `lib/app/theme/tokens.dart` 里的 `AppColors` /
+  `AppRadii` / `AppSpacing` / `AppTypography`，不要在页面里手写
+  `fontSize:` / `Color(0xFF...)` / `BorderRadius.circular(数字)` 等散值。
+- `--update` **只在真正还清了一批技术债之后**才用；不要为了让红变绿而
+  在改动里顺手 `--update` 掩盖新增的违规。
+- 本门禁不接入 `flutter test`——样式规范失败不应该表现成用例失败。
+
 ## 5) Test Commands
 
 Run all tests:
