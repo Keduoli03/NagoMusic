@@ -4,12 +4,15 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../services/log/log.dart';
 import '../services/lyrics/lyrics_service.dart';
 import '../services/playlists_service.dart';
 import '../state/song_state.dart';
 import '../state/settings_state.dart';
 import 'android_platform_service.dart';
 import 'player_service.dart';
+
+const String _logTag = 'MediaNotification';
 
 class MediaNotificationService {
   static AudioHandler? _audioHandler;
@@ -59,10 +62,7 @@ class MediaNotificationService {
     _initStarted = false;
   }
 
-  static void _debugLog(String message) {
-    if (!kDebugMode) return;
-    debugPrint('[MediaNotification] $message');
-  }
+  static void _debugLog(String message) => AppLog.instance.d(_logTag, message);
 }
 
 class _NagoAudioHandler extends BaseAudioHandler
@@ -106,10 +106,7 @@ class _NagoAudioHandler extends BaseAudioHandler
     _syncPlaybackState(player.snapshot.value);
   }
 
-  void _debugLog(String message) {
-    if (!kDebugMode) return;
-    debugPrint('[MediaNotification] $message');
-  }
+  void _debugLog(String message) => AppLog.instance.d(_logTag, message);
 
   MediaItem _itemFromSong(SongEntity song) {
     final art = (song.localCoverPath ?? '').trim();

@@ -10,6 +10,7 @@ import 'package:signals/signals.dart';
 import '../player_service.dart';
 import '../../state/song_state.dart';
 import '../bili/bili_music_service.dart';
+import '../log/log.dart';
 import 'lyrics_parser.dart';
 import 'lyrics_repository.dart';
 import 'lyricon_service.dart';
@@ -56,6 +57,8 @@ class LyricsSnapshot {
 
 class LyricsService {
   static final LyricsService instance = LyricsService._internal();
+
+  static const String _logTag = 'LyricsService';
 
   static const String _prefsLyriconEnabled = 'lyrics_lyricon_enabled';
   static const String _prefsLyriconForceKaraoke =
@@ -186,11 +189,10 @@ class LyricsService {
       if (lrc == null || lrc.trim().isEmpty) return null;
       await _repo.saveLrcToCache(song.id, lrc);
       return lrc;
-    } catch (e) {
-      // 没登录 / 该视频没字幕 / 网络不通 —— 都只是「这首没歌词」，不该弹错误。
-      if (kDebugMode) {
-        debugPrint('[Lyrics] B 站字幕获取失败 ${song.title}: $e');
-      }
+    } catch (e, s) {
+      // 没登录 / 该视频没字幕 / 网络不通 —— 都只是「这首没歌词」，不该弹错误，
+      // 但仍然值得落盘一条 w，方便排查为什么某首歌一直没歌词。
+      AppLog.instance.w(_logTag, 'B 站字幕获取失败 song=${song.title}', e, s);
       return null;
     }
   }
@@ -278,7 +280,8 @@ class LyricsService {
       );
       await _syncLyriconSong(song, model);
       _updateMeizuLyricForIndex(controller.activeIndexNotifiter.value);
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '加载歌词失败 song=${song.title}', e, s);
       if (seq != _loadSeq) return;
       snapshot.value = snapshot.value.copyWith(
         status: LyricsLoadStatus.failed,

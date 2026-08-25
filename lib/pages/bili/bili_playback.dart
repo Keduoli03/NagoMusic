@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/services/bili/bili_music_service.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_colors.dart';
@@ -37,13 +38,16 @@ String formatBiliDuration(int seconds) {
 class BiliPlayback {
   const BiliPlayback._();
 
+  static const String _logTag = 'BiliPlayback';
+
   /// 点一条视频：单 P 直接播，多 P 弹分 P 列表。
   static Future<void> openVideo(BuildContext context, BiliVideo video) async {
     final closeProgress = _showProgress(context, '正在解析…');
     BiliVideoDetail detail;
     try {
       detail = await BiliApi.instance.videoDetail(video.bvid);
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析B站视频详情失败，bvid=${video.bvid}', e, s);
       closeProgress();
       if (context.mounted) {
         AppToast.show(context, '解析失败：$e', type: ToastType.error);
@@ -98,9 +102,7 @@ class BiliPlayback {
       builder: (sheetContext) => BiliPartPickerDraggableSheet(
         detail: detail,
         initiallyFavorite: collection != null,
-        onToggleFavorite: collection == null
-            ? () => _toggleCollection(sheetContext, detail)
-            : null,
+        onToggleFavorite: () => _toggleCollection(sheetContext, detail),
         resumePartIndex: resumeIndex,
         resumePosition: resumePosition,
         onResume: resumeIndex < 0
@@ -155,7 +157,8 @@ class BiliPlayback {
         );
       }
       return true;
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '收藏B站视频失败，bvid=${detail.video.bvid}', e, s);
       if (context.mounted) {
         AppToast.show(context, '收藏失败：$e', type: ToastType.error);
       }
@@ -512,14 +515,18 @@ class BiliPartPickerSheet extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onToggleFavorite != null && !isFavorite) ...[
+                  if (onToggleFavorite != null) ...[
                     AppSpacing.wGapSm,
                     IconButton(
-                      tooltip: '收藏整个视频',
+                      tooltip: isFavorite ? '取消收藏整个视频' : '收藏整个视频',
                       visualDensity: VisualDensity.compact,
                       icon: Icon(
-                        favoriteBusy ? AppIcons.hourglass : AppIcons.star,
-                        color: muted,
+                        favoriteBusy
+                            ? AppIcons.hourglass
+                            : isFavorite
+                            ? AppIconsFilled.star
+                            : AppIcons.star,
+                        color: isFavorite ? AppColors.of(context).star : muted,
                       ),
                       onPressed: favoriteBusy ? null : onToggleFavorite,
                     ),

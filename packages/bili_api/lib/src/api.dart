@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import 'cookie_repository.dart';
 import 'models.dart';
+import 'playurl_parser.dart';
 
 /// B 站 Web 接口封装。
 ///
@@ -350,6 +351,10 @@ class BiliApi {
 
   // ------------------------------------------------------------------ 搜索
 
+  /// 搜索每页条数。调用方靠「返回条数 < 这个值」判断到底了，所以它必须是公开的，
+  /// 不能只写在 query 里。
+  static const int searchPageSize = 30;
+
   Future<List<BiliVideo>> searchVideos(String keyword, {int page = 1}) async {
     await ensureBuvid();
     // 新拿到的 buvid 头几次请求会被风控挑一下：返回 `{code: 0, data: {v_voucher}}`，
@@ -363,7 +368,7 @@ class BiliApi {
         'search_type': 'video',
         'keyword': keyword,
         'page': page,
-        'page_size': 30,
+        'page_size': searchPageSize,
       });
       final data = _unwrap(
         await _get(
@@ -429,42 +434,9 @@ class BiliApi {
       'https://api.bilibili.com/x/player/wbi/playurl',
       query: query,
     );
-    final data = _unwrap(response);
-    final dash = data['dash'];
-    if (dash is! Map) return const [];
-
-    final streams = <BiliAudioStream>[];
-
-    // Hi-Res 和杜比是独立字段，不在 dash.audio 里，必须单独取。
-    final flac = dash['flac'];
-    if (flac is Map && flac['audio'] is Map) {
-      streams.add(
-        BiliAudioStream.fromJson(
-          Map<String, dynamic>.from(flac['audio'] as Map),
-        ),
-      );
-    }
-    final dolby = dash['dolby'];
-    if (dolby is Map && dolby['audio'] is List) {
-      for (final item in dolby['audio'] as List) {
-        if (item is Map) {
-          streams.add(
-            BiliAudioStream.fromJson(Map<String, dynamic>.from(item)),
-          );
-        }
-      }
-    }
-    final audio = dash['audio'];
-    if (audio is List) {
-      for (final item in audio) {
-        if (item is Map) {
-          streams.add(
-            BiliAudioStream.fromJson(Map<String, dynamic>.from(item)),
-          );
-        }
-      }
-    }
-    return streams.where((s) => s.url.isNotEmpty).toList();
+    // 解析在 playurl_parser.dart 里，纯函数、可测。DASH 与 durl 两种响应形态
+    // 的处理都在那边，包括老视频只给合流 durl 的情况。
+    return parsePlayurlAudioStreams(_unwrap(response));
   }
 
   // ------------------------------------------------------------------- 字幕

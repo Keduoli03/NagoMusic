@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/song_state.dart';
+import '../log/log.dart';
 import '../player_service.dart';
 import 'bili_music_service.dart';
 
@@ -132,6 +133,8 @@ class BiliVideoCollection {
 
 /// 本地 B 站视频合集收藏与续播进度。
 class BiliCollectionService {
+  static const String _logTag = 'BiliCollectionService';
+
   static const String prefsKey = 'bili_video_collections_v1';
 
   static final BiliCollectionService instance = BiliCollectionService(
@@ -171,12 +174,13 @@ class BiliCollectionService {
             restored.add(
               BiliVideoCollection.fromJson(item.cast<String, dynamic>()),
             );
-          } catch (_) {
-            // 一条损坏的收藏不该拖垮其余条目。
+          } catch (e, s) {
+            AppLog.instance.w(_logTag, '解析单条B站收藏失败，已跳过', e, s);
           }
         }
       }
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析B站收藏列表整体失败，回退为空列表', e, s);
       // 整体损坏时回退为空列表，后续新增会覆盖坏数据。
     }
     restored.sort((a, b) => b.addedAtMs.compareTo(a.addedAtMs));

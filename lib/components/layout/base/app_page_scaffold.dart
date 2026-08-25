@@ -14,7 +14,10 @@ class AppPageScaffold extends StatefulWidget {
     bool showMiniPlayer = true,
     double minPadding = 24,
   }) {
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    // viewPadding 而不是 padding：调用方多半在 AppPageScaffold **之上**算这个值，
+    // 享受不到正文那层 MediaQuery 修正。用 padding 的话，键盘一弹起列表底部留白
+    // 就会少掉一条导航栏的高度，整个列表跟着往下窜一下。
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final miniPlayerPadding = showMiniPlayer
         ? MiniPlayerBar.estimatedHeight
         : 0.0;
@@ -27,8 +30,6 @@ class AppPageScaffold extends StatefulWidget {
   final bool extendBodyBehindAppBar;
   final bool useSafeArea;
   final bool resizeToAvoidBottomInset;
-  final bool keepBottomOverlayFixed;
-  final bool ignoreKeyboardInsets;
   final int? bottomNavIndex;
   final ValueChanged<int>? onBottomNavTap;
   final Widget? drawer;
@@ -41,8 +42,6 @@ class AppPageScaffold extends StatefulWidget {
     this.extendBodyBehindAppBar = false,
     this.useSafeArea = true,
     this.resizeToAvoidBottomInset = false,
-    this.keepBottomOverlayFixed = false,
-    this.ignoreKeyboardInsets = false,
     this.bottomNavIndex,
     this.onBottomNavTap,
     this.drawer,
@@ -91,17 +90,34 @@ class AppPageScaffoldState extends State<AppPageScaffold>
 
   @override
   Widget build(BuildContext context) {
-    Widget content = widget.body;
-    if (widget.useSafeArea) {
-      content = SafeArea(child: content);
-    }
-    if (widget.ignoreKeyboardInsets) {
-      final mq = MediaQuery.of(context);
-      content = MediaQuery(
-        data: mq.copyWith(viewInsets: EdgeInsets.zero),
-        child: content,
-      );
-    }
+    // 页面正文一律对键盘「无感」：viewInsets 清零，padding.bottom 用 viewPadding
+    // 复原。
+    //
+    // 只清 viewInsets 是不够的 —— Flutter 里 `padding = viewPadding - viewInsets`
+    // 并且钳在 0。键盘顶起来的那一刻 `padding.bottom` 会从「导航栏高度」直接塌成
+    // 0，于是 SafeArea 的底部留白、以及所有按 `MediaQuery.padding.bottom` 算出来的
+    // 底部间距，全都缩掉一条导航栏 —— 这就是点搜索框时看到的那一下轻微拉伸。
+    // 用 viewPadding 复原后，页面完全感知不到键盘，什么都不会动。
+    //
+    // 弹窗 / 底部面板 / Toast 不走这里（它们挂在 Navigator 的 Overlay 上，在这层
+    // 之外），所以它们仍然能正常读到 viewInsets 把自己顶到键盘上方。
+    final Widget content = Builder(
+      builder: (context) {
+        final mq = MediaQuery.of(context);
+        Widget inner = widget.body;
+        // SafeArea 必须包在被修正的 MediaQuery 里面，否则它读到的还是塌掉的
+        // padding。同时这个 Builder 位于 Scaffold 之下，`padding.top` 已经被
+        // Scaffold 的 removeTopPadding 扣过，不会在顶栏下面多空一条状态栏。
+        if (widget.useSafeArea) inner = SafeArea(child: inner);
+        return MediaQuery(
+          data: mq.copyWith(
+            viewInsets: EdgeInsets.zero,
+            padding: mq.padding.copyWith(bottom: mq.viewPadding.bottom),
+          ),
+          child: inner,
+        );
+      },
+    );
 
     final hasBottomNav =
         widget.bottomNavIndex != null && widget.onBottomNavTap != null;
@@ -119,16 +135,12 @@ class AppPageScaffoldState extends State<AppPageScaffold>
           )
         : null;
 
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    // viewPadding 而不是 padding：同上，键盘弹起时 padding.bottom 会塌成 0，
+    // 迷你播放器会跟着往下掉一截。
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final miniPlayerBottom = hasBottomNav
         ? (AppPageScaffold.modernNavHeight + bottomInset)
         : bottomInset;
-    final keyboardInset = widget.resizeToAvoidBottomInset
-        ? MediaQuery.viewInsetsOf(context).bottom
-        : 0.0;
-    final effectiveMiniPlayerBottom = widget.keepBottomOverlayFixed
-        ? miniPlayerBottom - keyboardInset
-        : miniPlayerBottom;
 
     final drawerWidth = (MediaQuery.sizeOf(context).width * 0.62).clamp(
       220.0,
@@ -147,7 +159,7 @@ class AppPageScaffoldState extends State<AppPageScaffold>
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: effectiveMiniPlayerBottom,
+                  bottom: miniPlayerBottom,
                   child: miniPlayer,
                 ),
               // Keep the navigation capsule in the page's paint stack instead
@@ -244,7 +256,7 @@ class AppPageScaffoldState extends State<AppPageScaffold>
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: effectiveMiniPlayerBottom,
+                  bottom: miniPlayerBottom,
                   child: miniPlayer,
                 ),
               AnimatedBuilder(

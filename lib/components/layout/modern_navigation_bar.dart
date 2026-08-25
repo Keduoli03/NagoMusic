@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_easy/liquid_glass_easy.dart' as lg;
 
 import '../../app/router/app_router.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/theme/app_colors.dart';
-import 'liquid_glass.dart';
 
 const _primaryNavigationRoutes = <String>[
   AppRoutes.home,
@@ -235,28 +235,6 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
               );
               // 不是一层均匀白蒙版：顶部反光、中部透景、底部轻微主题色回光
               // 分开绘制，背景通过高模糊参与颜色，但不会把文字原样透出来。
-              final glassSurface = LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: isDark ? 0.24 : 0.68),
-                  glassBase.withValues(alpha: isDark ? 0.48 : 0.54),
-                  scheme.primary.withValues(alpha: isDark ? 0.24 : 0.20),
-                  glassBase.withValues(alpha: isDark ? 0.54 : 0.60),
-                ],
-                stops: const [0.0, 0.34, 0.72, 1.0],
-              );
-              final glassHighlight = LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: isDark ? 0.14 : 0.34),
-                  Colors.white.withValues(alpha: isDark ? 0.03 : 0.08),
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: isDark ? 0.11 : 0.045),
-                ],
-                stops: const [0.0, 0.18, 0.62, 1.0],
-              );
               // 悬浮胶囊，不是贴边通铺的方条 —— 这是玻璃能不能被看见的关键。
               // 贴边方条的背后只有页面底色，没东西可折射；留出左右边距和大圆角之后，
               // 内容从胶囊两侧和四个角穿过去，折射才有内容可弯。
@@ -290,27 +268,38 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
                         ),
                       ],
                     ),
-                    child: LiquidGlass(
-                      borderRadius: glassRadius,
-                      fallbackColor: glassBase.withValues(
-                        alpha: isDark ? 0.52 : 0.46,
+                    // 玻璃本体交给 liquid_glass_easy。
+                    //
+                    // 自己写的那版（着色器还在仓库里）在真机上折不出效果：
+                    // `ImageFilter.shader` 只肯采样**原始未过滤**的背景，compose 和
+                    // 嵌套都绕不过去，所以模糊永远进不到折射里。这个包的做法是把
+                    // 模糊和着色器两个 BackdropFilter 作为 Stack 里的**兄弟节点**
+                    // 前后绘制 —— 下面那个先把模糊结果画进图层，上面那个才采样得到。
+                    child: lg.LiquidGlassLens(
+                      style: lg.LiquidGlassStyle(
+                        shape: lg.LiquidGlassShape.continuousRoundedRectangle(
+                          cornerRadius: 24,
+                        ),
+                        appearance: lg.LiquidGlassAppearance(
+                          blur: const lg.LiquidGlassBlur(
+                            sigmaX: 12,
+                            sigmaY: 12,
+                          ),
+                          // 提饱和度抵消模糊的灰雾感。
+                          saturation: 1.4,
+                          // 材质层刻意压得很淡：折射才是主角，盖一层奶白就全糊了。
+                          color: glassBase.withValues(
+                            alpha: isDark ? 0.28 : 0.20,
+                          ),
+                        ),
+                        refraction: const lg.LiquidGlassRefraction(
+                          distortion: 0.5,
+                          // 折射带宽度，和圆角同量级。
+                          distortionWidth: 24,
+                          magnification: 1.02,
+                          chromaticAberration: 0.006,
+                        ),
                       ),
-                      tint: scheme.primary.withValues(
-                        alpha: isDark ? 0.06 : 0.035,
-                      ),
-                      surfaceGradient: glassSurface,
-                      surfaceHighlightGradient: glassHighlight,
-                      borderColor: Colors.white.withValues(
-                        alpha: isDark ? 0.24 : 0.58,
-                      ),
-                      blurSigma: 24,
-                      thickness: 22,
-                      refraction: 22,
-                      dispersion: 3,
-                      vibrancy: 1.45,
-                      highlight: 0.62,
-                      edgeShade: isDark ? 0.22 : 0.16,
-                      sheen: isDark ? 0.12 : 0.18,
                       child: buildItems(glass: true, height: 48),
                     ),
                   ),

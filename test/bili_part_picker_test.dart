@@ -89,7 +89,7 @@ void main() {
     expect(expandedHeight, closeTo(600, 1));
   });
 
-  testWidgets('已收藏合集不重复显示收藏按钮', (tester) async {
+  testWidgets('已收藏合集显示的是取消收藏，不是再收藏一次', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -105,8 +105,11 @@ void main() {
     );
 
     expect(find.textContaining('读客熊猫君'), findsOneWidget);
+    // 已收藏时按钮仍然在，但语义反过来：实心星 + 「取消收藏」。
     expect(find.byTooltip('收藏整个视频'), findsNothing);
-    expect(find.byIcon(AppIconsFilled.star), findsNothing);
+    expect(find.byTooltip('取消收藏整个视频'), findsOneWidget);
+    expect(find.byIcon(AppIconsFilled.star), findsOneWidget);
+    expect(find.byIcon(AppIcons.star), findsNothing);
   });
 
   testWidgets('未收藏视频仍可从分 P 面板收藏', (tester) async {

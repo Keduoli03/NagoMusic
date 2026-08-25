@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:media_cache/media_cache.dart';
 import 'package:path/path.dart' as p;
@@ -10,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../state/settings_state.dart';
 import '../state/song_state.dart';
+import 'log/log.dart';
 
 class SongDownloadResult {
   final bool success;
@@ -36,6 +36,8 @@ class SongDownloadService {
   static const MethodChannel _channel = MethodChannel(
     'com.lanke.nagomusic/downloads',
   );
+
+  static const String _logTag = 'SongDownloadService';
 
   final AudioCacheService _audioCache = AudioCacheService.instance;
 
@@ -97,10 +99,8 @@ class SongDownloadService {
         success: false,
         message: message.isEmpty ? '保存到下载目录失败' : message,
       );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('downloadToSystemFolder failed: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '保存到下载目录失败 fileName=$fileName', e, s);
       return const SongDownloadResult(success: false, message: '保存到下载目录失败');
     }
   }
@@ -112,7 +112,8 @@ class SongDownloadService {
         'subdirectory': 'NagoMusic',
       });
       return exists ?? false;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '检查下载目录是否已存在文件失败 fileName=$fileName', e, s);
       return false;
     }
   }
@@ -163,10 +164,13 @@ class SongDownloadService {
         message: overwrite ? '已覆盖保存到自定义目录' : '已保存到自定义目录',
         savedPath: exactTarget.path,
       );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('saveToDirectory failed: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.e(
+        _logTag,
+        '保存到自定义目录失败 directoryPath=$directoryPath',
+        e,
+        s,
+      );
       return const SongDownloadResult(success: false, message: '保存到自定义目录失败');
     }
   }
@@ -205,7 +209,9 @@ class SongDownloadService {
           (key, value) => MapEntry(key.toString(), value.toString()),
         );
       }
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析歌曲自定义请求头失败', e, s);
+    }
     return null;
   }
 
@@ -267,7 +273,8 @@ class SongDownloadService {
     try {
       final value = await _channel.invokeMethod<int>('getAndroidSdkInt');
       return value ?? 0;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '获取 Android SDK 版本失败', e, s);
       return 0;
     }
   }

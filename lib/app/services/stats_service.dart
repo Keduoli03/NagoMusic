@@ -1,9 +1,8 @@
-import 'package:flutter/foundation.dart';
-
 import '../state/player_state.dart';
 import '../utils/format_utils.dart';
 import 'db/db_constants.dart';
 import 'db/db_helper.dart';
+import 'log/log.dart';
 
 class DayListeningStat {
   final String dayKey;
@@ -64,6 +63,8 @@ class StatsTotals {
 
 class StatsService {
   static final StatsService instance = StatsService._internal();
+
+  static const String _logTag = 'StatsService';
 
   StatsService._internal();
 
@@ -373,10 +374,8 @@ class StatsService {
           }
         }
       });
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('StatsService flush failed: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '写入播放统计失败 songId=$songId', e, s);
     } finally {
       _flushRunning = false;
     }

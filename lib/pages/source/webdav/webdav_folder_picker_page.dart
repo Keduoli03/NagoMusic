@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../app/services/log/log.dart';
 import '../../../app/services/webdav/webdav_music_service.dart';
 import '../../../app/services/webdav/webdav_source_repository.dart';
 import '../../../components/index.dart';
@@ -28,6 +29,8 @@ class WebDavFolderPickerPage extends StatefulWidget {
 }
 
 class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
+  static const String _logTag = 'WebDavFolderPickerPage';
+
   final WebDavMusicService _service = WebDavMusicService();
 
   late String _path;
@@ -68,7 +71,8 @@ class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
         _dirs = dirs;
         _loading = false;
       });
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '加载WebDAV目录列表失败，path=$_path', e, s);
       if (!mounted) return;
       setState(() {
         _error = e.toString();

@@ -10,6 +10,7 @@ export 'src/api.dart';
 export 'src/audio_selector.dart';
 export 'src/cookie_repository.dart';
 export 'src/models.dart';
+export 'src/playurl_parser.dart';
 export 'src/prefs.dart';
 export 'src/song_id.dart';
 export 'src/subtitle_service.dart';

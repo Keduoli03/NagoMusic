@@ -8,12 +8,15 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:media_cache/media_cache.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+import 'log/log.dart';
 import 'native_audio_thumbnail_service.dart';
 
 class ArtworkService {
   ArtworkService._();
 
   static final ArtworkService instance = ArtworkService._();
+
+  static const String _logTag = 'ArtworkService';
 
   static const bool _debugArtwork = false;
   // 条数上限只是次要保险，真正的约束是下面的字节预算 —— 缩略图和内嵌原图
@@ -212,7 +215,8 @@ class ArtworkService {
         }
       }
       return null;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析本地资源 assetId 失败 uri=$normalizedUri', e, s);
       return null;
     }
   }
@@ -354,12 +358,8 @@ class ArtworkService {
         }
       } catch (_) {}
       return original;
-    } catch (_) {
-      if (kDebugMode && _debugArtwork) {
-        debugPrint(
-          '[ArtworkService] read artwork failed uri=$uri asset=$assetId',
-        );
-      }
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '读取封面失败 uri=$uri asset=$assetId', e, s);
       return null;
     }
   }

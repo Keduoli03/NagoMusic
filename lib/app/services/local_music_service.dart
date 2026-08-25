@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../state/song_state.dart';
 import 'artwork_cache_helper.dart';
 import 'db/dao/song_dao.dart';
+import 'log/log.dart';
 import 'lyrics/lyrics_repository.dart';
 import '../services/scan_types.dart';
 
@@ -116,6 +117,7 @@ class _LocalScanCandidate {
 }
 
 class LocalMusicService {
+  static const String _logTag = 'LocalMusicService';
   static const String _prefsKey = 'local_source_settings';
   final SongDao _songDao = SongDao();
   final LyricsRepository _lyricsRepo = LyricsRepository();
@@ -130,7 +132,8 @@ class LocalMusicService {
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       return LocalSourceSettings.fromJson(data);
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '本地音乐来源设置解析失败，已回退默认值', e, s);
       return LocalSourceSettings.defaults();
     }
   }

@@ -2,11 +2,15 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'log/log.dart';
+
 /// 以 JSON 数组形式存放在 SharedPreferences 中的音乐源仓库基类。
 ///
 /// 子类只需提供 prefs key、id 前缀以及 JSON 编解码方式。
 abstract class PrefsSourceRepository<T> {
   const PrefsSourceRepository();
+
+  static const String _logTag = 'PrefsSourceRepository';
 
   /// SharedPreferences 中存放该列表的键。
   String get prefsKey;
@@ -36,7 +40,9 @@ abstract class PrefsSourceRepository<T> {
             .toList();
         if (list.isNotEmpty) return list;
       }
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '解析音乐源列表失败: key=$prefsKey', e, s);
+    }
     return const [];
   }
 

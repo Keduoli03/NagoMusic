@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/player_state.dart';
 import '../../state/song_state.dart';
+import '../log/log.dart';
 
 /// 播放状态持久化的**序列化一半**，从 [PlayerService] 里抽出来。
 ///
@@ -17,6 +18,8 @@ import '../../state/song_state.dart';
 /// 读当前播放状态全部通过回调注入（归 PlayerService / AppPlayerState 所有），
 /// 这里只持有自己的防抖定时器和 `_lastPersistTime`。
 class PlaybackStatePersistence {
+  static const String _logTag = 'PlaybackStatePersistence';
+
   static const String prefsQueueKey = 'playback_queue_v1';
   static const String prefsIndexKey = 'playback_index_v1';
   static const String prefsPositionKey = 'playback_position_v1';
@@ -150,7 +153,8 @@ class PlaybackStatePersistence {
             .where((s) => (s.uri ?? '').trim().isNotEmpty)
             .toList();
       }
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析上次播放队列 JSON 失败，放弃恢复播放状态', e, s);
       return null;
     }
     if (restoredQueue.isEmpty) return null;

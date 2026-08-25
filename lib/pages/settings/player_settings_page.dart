@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_router.dart';
 import '../../app/state/settings_state.dart';
 import '../../components/index.dart';
-import '../../components/player/player_style_preview.dart';
+import '../../components/player/player_style_grid.dart';
 import '../player/widgets/player_background.dart';
 
 class PlayerSettingsPage extends StatefulWidget {
@@ -24,32 +23,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
     PlayerBottomActionSettings.ensureLoaded();
     AppLaunchPlaybackSettings.ensureLoaded();
     MiniPlayerInfoSettings.ensureLoaded();
-  }
-
-  Widget _styleGrid(BuildContext context, PlayerStylePreset selected) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const spacing = 10.0;
-          final itemWidth = (constraints.maxWidth - spacing) / 2;
-          return Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            children: PlayerStylePreset.values.map((preset) {
-              return SizedBox(
-                width: itemWidth,
-                child: _PlayerStyleCard(
-                  preset: preset,
-                  selected: preset == selected,
-                  onTap: () => PlayerStyleSettings.setStylePreset(preset),
-                ),
-              );
-            }).toList(),
-          );
-        },
-      ),
-    );
   }
 
   _BottomActionConfig _actionConfigByKey(String key) {
@@ -139,7 +112,11 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                         padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
                         child: Text('播放器样式'),
                       ),
-                      _styleGrid(context, selected),
+                      PlayerStyleGrid(
+                        selected: selected,
+                        onSelected: PlayerStyleSettings.setStylePreset,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      ),
                     ],
                   );
                 },
@@ -236,61 +213,43 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          AppSettingSection(
-            title: '底部操作栏',
-            children: [
-              ValueListenableBuilder<List<String>>(
-                valueListenable: PlayerBottomActionSettings.actionOrder,
-                builder: (context, order, _) {
-                  return ReorderableListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    buildDefaultDragHandles: false,
-                    onReorder: (oldIndex, newIndex) {
-                      if (newIndex > oldIndex) newIndex -= 1;
-                      final next = List<String>.from(order);
-                      final item = next.removeAt(oldIndex);
-                      next.insert(newIndex, item);
-                      PlayerBottomActionSettings.setActionOrder(next);
-                    },
-                    itemCount: order.length,
-                    itemBuilder: (context, index) {
-                      final key = order[index];
-                      final config = _actionConfigByKey(key);
-                      return AppSettingTile(
-                        key: ValueKey(key),
-                        title: config.title,
-                        subtitle: config.subtitle,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ValueListenableBuilder<bool>(
-                              valueListenable: config.notifier,
-                              builder: (context, enabled, _) {
-                                return AppSwitch(
-                                  value: enabled,
-                                  onChanged: (value) {
-                                    config.onChanged(value);
-                                  },
-                                );
-                              },
-                            ),
-                            ReorderableDragStartListener(
-                              index: index,
-                              child: const Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: Icon(AppIcons.dragHandle),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ],
+          // 只有默认样式的控制区走可插拔按钮那一套；海报和沉浸都是固定的一排
+          // 播放/暂停/上一首/下一首，没地方塞这些按钮，见 PlayerStyleCapabilities。
+          ValueListenableBuilder<PlayerStylePreset>(
+            valueListenable: PlayerStyleSettings.stylePreset,
+            builder: (context, preset, _) {
+              if (!preset.capabilities.customBottomActions) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                children: [
+                  const SizedBox(height: 16),
+                  AppSettingSection(
+                    title: '底部操作栏',
+                    children: [
+                      ValueListenableBuilder<List<String>>(
+                        valueListenable: PlayerBottomActionSettings.actionOrder,
+                        builder: (context, order, _) {
+                          return AppReorderableToggleList(
+                            items: [
+                              for (final key in order)
+                                _actionConfigByKey(key).toToggleItem(),
+                            ],
+                            onReorder: (oldIndex, newIndex) {
+                              if (newIndex > oldIndex) newIndex -= 1;
+                              final next = List<String>.from(order);
+                              final item = next.removeAt(oldIndex);
+                              next.insert(newIndex, item);
+                              PlayerBottomActionSettings.setActionOrder(next);
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -305,6 +264,14 @@ class _BottomActionConfig {
   final ValueNotifier<bool> notifier;
   final Future<void> Function(bool) onChanged;
 
+  AppReorderableToggleItem toToggleItem() => AppReorderableToggleItem(
+    itemKey: key,
+    title: title,
+    subtitle: subtitle,
+    enabled: notifier,
+    onChanged: onChanged,
+  );
+
   const _BottomActionConfig({
     required this.key,
     required this.title,
@@ -312,88 +279,4 @@ class _BottomActionConfig {
     required this.notifier,
     required this.onChanged,
   });
-}
-
-class _PlayerStyleCard extends StatelessWidget {
-  final PlayerStylePreset preset;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PlayerStyleCard({
-    required this.preset,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              Container(
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: selected ? 0.22 : 0.12,
-                      ),
-                      blurRadius: selected ? 16 : 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: PlayerStylePreview(preset: preset, selected: selected),
-              ),
-              if (selected)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: scheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      AppIcons.check,
-                      size: 14,
-                      color: scheme.onPrimary,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            preset.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: selected ? scheme.primary : scheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            preset.description,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: scheme.onSurfaceVariant.withValues(alpha: 0.78),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

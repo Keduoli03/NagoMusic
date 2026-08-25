@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_surfaces.dart';
+import '../../app/theme/tokens.dart';
 import '../../components/index.dart';
 import '../songs/song_detail_sheet.dart';
 
-enum SearchCategory { all, song, album, artist, lyric }
+enum SearchCategory {
+  all('综合'),
+  song('歌曲'),
+  album('专辑'),
+  artist('歌手'),
+  lyric('歌词');
+
+  const SearchCategory(this.label);
+
+  final String label;
+}
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -124,192 +134,185 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-  Widget _buildCategoryChip(SearchCategory category, String label) {
-    final selected = _category == category;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final selectedColor = theme.colorScheme.primary;
-    final selectedTextColor = theme.colorScheme.onPrimary;
-    final unselectedBg = theme.appPanelColor;
-    final unselectedText = isDark
-        ? Colors.white70
-        : const Color.fromARGB(255, 80, 80, 80);
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: selected ? selectedTextColor : unselectedText,
-          ),
+  @override
+  Widget build(BuildContext context) {
+    return AppPageScaffold(
+      // 不再 extendBodyBehindAppBar：搜索框现在就在顶栏里，内容从顶栏下面开始，
+      // 省掉原来那个写死的 48px 顶部补偿。背景由 AppBackground 在更外层铺满，
+      // 不开这个也不会露白。
+      resizeToAvoidBottomInset: false,
+      appBar: AppTopBar(
+        // 搜索框直接当标题用，省掉「顶栏 + 下面再一条输入框」的两行占位。
+        titleWidget: AppSearchField(
+          controller: _controller,
+          hintText: '搜索歌曲、歌手、专辑、歌词',
+          onChanged: (value) {
+            setState(() => _query = value);
+            _runSearch();
+          },
+          onClear: () {
+            setState(() => _query = '');
+            _runSearch();
+          },
+          onSubmitted: (_) => _submit(),
         ),
-        selected: selected,
-        onSelected: (_) {
-          setState(() {
-            _category = category;
-          });
-          _runSearch();
-        },
-        showCheckmark: false,
-        selectedColor: selectedColor,
-        backgroundColor: unselectedBg,
-        pressElevation: 0,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        // 0 而不是默认的 16：返回箭头本身已经占了 56 宽，再加缩进搜索框就被挤窄了。
+        titleSpacing: 0,
+        actions: [_buildSubmitButton(context)],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCategoryBar(context),
+                Expanded(child: _buildResults(context)),
+              ],
+            ),
+    );
+  }
+
+  void _submit() {
+    FocusScope.of(context).unfocus();
+    _runSearch();
+  }
+
+  Widget _buildSubmitButton(BuildContext context) {
+    return TextButton(
+      onPressed: _submit,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(48, 44),
+        padding: AppSpacing.hMd,
+      ),
+      child: Text(
+        '搜索',
+        style: AppTypography.bodyLg.on(Theme.of(context).colorScheme.primary),
       ),
     );
   }
 
+  Widget _buildCategoryBar(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: AppSpacing.page,
+      child: Row(
+        children: [
+          for (final category in SearchCategory.values)
+            _CategoryChip(
+              label: category.label,
+              selected: _category == category,
+              onTap: () {
+                setState(() => _category = category);
+                _runSearch();
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResults(BuildContext context) {
+    if (_results.isEmpty) {
+      return Center(
+        child: Text(
+          _query.trim().isEmpty
+              ? '请输入关键字进行搜索'
+              : _searchingLyrics
+              ? '正在搜索歌词...'
+              : '没有匹配的结果',
+          style: AppTypography.body.on(AppColors.of(context).muted),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: AppSpacing.listBottom(
+        AppPageScaffold.scrollableBottomPadding(context),
+      ),
+      itemCount: _results.length,
+      itemBuilder: (context, index) {
+        final song = _results[index];
+        return ListTile(
+          leading: ArtworkWidget(
+            song: song,
+            size: 44,
+            borderRadius: AppRadii.chip,
+          ),
+          title: Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodyLg,
+          ),
+          subtitle: Text(
+            '${song.artist}'
+            '${song.album != null && song.album!.isNotEmpty ? ' · ${song.album}' : ''}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.caption,
+          ),
+          onTap: () {
+            if ((song.uri ?? '').trim().isEmpty) return;
+            _player.playQueue(_results, index);
+          },
+          onLongPress: () {
+            showModalBottomSheet<void>(
+              context: context,
+              backgroundColor: Colors.transparent,
+              isScrollControlled: true,
+              builder: (_) => SongDetailSheet(song: song),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// 分类筛选胶囊。
+///
+/// 原来用的是 [ChoiceChip]，它自带的内边距和 48 高触摸目标让这一排比结果列表
+/// 的行还高。这里用裸 InkWell 手搓，高度压到 30。
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    const topBarHeight = 48.0;
-    return AppPageScaffold(
-      extendBodyBehindAppBar: true,
-      resizeToAvoidBottomInset: false,
-      keepBottomOverlayFixed: true,
-      ignoreKeyboardInsets: true,
-      appBar: AppTopBar(
-        title: '搜索',
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        showBackButton: true,
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.only(top: topBarHeight),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: TextField(
-                      controller: _controller,
-                      autofocus: false,
-                      onChanged: (value) {
-                        setState(() {
-                          _query = value;
-                        });
-                        _runSearch();
-                      },
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: '搜索',
-                        prefixIcon: const Icon(AppIcons.search),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                icon: const Icon(AppIcons.close),
-                                onPressed: () {
-                                  setState(() {
-                                    _query = '';
-                                    _controller.clear();
-                                  });
-                                  _runSearch();
-                                },
-                              ),
-                        filled: true,
-                        fillColor: theme.appPanelColor,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        border: const OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(20)),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) => _runSearch(),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildCategoryChip(SearchCategory.all, '综合'),
-                          _buildCategoryChip(SearchCategory.song, '歌曲'),
-                          _buildCategoryChip(SearchCategory.album, '专辑'),
-                          _buildCategoryChip(SearchCategory.artist, '歌手'),
-                          _buildCategoryChip(SearchCategory.lyric, '歌词'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: _results.isEmpty
-                        ? Center(
-                            child: Text(
-                              _query.trim().isEmpty
-                                  ? '请输入关键字进行搜索'
-                                  : _searchingLyrics
-                                  ? '正在搜索歌词...'
-                                  : '没有匹配的结果',
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.white70
-                                    : const Color.fromARGB(255, 110, 110, 110),
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: EdgeInsets.only(
-                              bottom: AppPageScaffold.scrollableBottomPadding(
-                                context,
-                                showMiniPlayer: true,
-                              ),
-                            ),
-                            itemCount: _results.length,
-                            itemBuilder: (context, index) {
-                              final song = _results[index];
-                              return ListTile(
-                                leading: ArtworkWidget(
-                                  song: song,
-                                  size: 48,
-                                  borderRadius: 6,
-                                ),
-                                title: Text(
-                                  song.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  '${song.artist}'
-                                  '${song.album != null && song.album!.isNotEmpty ? ' · ${song.album}' : ''}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onTap: () {
-                                  if ((song.uri ?? '').trim().isEmpty) return;
-                                  _player.playQueue(_results, index);
-                                },
-                                onLongPress: () {
-                                  showModalBottomSheet<void>(
-                                    context: context,
-                                    backgroundColor: Colors.transparent,
-                                    isScrollControlled: true,
-                                    builder: (_) => SongDetailSheet(song: song),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
+    final c = AppColors.of(context);
+    final scheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.sm),
+      child: Material(
+        color: selected ? scheme.primary : theme.appPanelColor,
+        borderRadius: AppRadii.rPill,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadii.rPill,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: 6,
             ),
+            child: Text(
+              label,
+              style: AppTypography.meta
+                  .on(selected ? scheme.onPrimary : c.muted)
+                  .copyWith(fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

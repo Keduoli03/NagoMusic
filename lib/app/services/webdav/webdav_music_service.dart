@@ -10,7 +10,7 @@ import 'package:webdav_client/webdav_client.dart' as webdav;
 import '../../state/song_state.dart';
 import '../../utils/webdav_song_id.dart';
 import '../artwork_cache_helper.dart';
-import '../debug_log_service.dart';
+import '../log/log.dart';
 import '../db/dao/song_dao.dart';
 import 'webdav_endpoint_resolver.dart';
 import 'webdav_source_repository.dart';
@@ -39,8 +39,9 @@ class WebDavMusicService {
   final SongDao _songDao = SongDao();
   final TagProbeService _tagProbe = TagProbeService.instance;
   final WebDavSourceRepository _repo = WebDavSourceRepository.instance;
-  final WebDavEndpointResolver _endpointResolver = WebDavEndpointResolver.instance;
-  final DebugLogService _debugLogs = DebugLogService.instance;
+  final WebDavEndpointResolver _endpointResolver =
+      WebDavEndpointResolver.instance;
+  final AppLog _logs = AppLog.instance;
 
   static const _audioExts = {
     '.mp3',
@@ -146,7 +147,7 @@ class WebDavMusicService {
     if (endpoint.isEmpty) {
       return const ScanResult(processed: 0, added: 0);
     }
-    await _debugLogs.ensureLoaded();
+    await _logs.ensureLoaded();
 
     final pathsToScan = source.includeFolders.isNotEmpty
         ? source.includeFolders
@@ -544,8 +545,9 @@ class WebDavMusicService {
     final hasCoverPath = ((coverPath ?? '').trim().isNotEmpty) ? 1 : 0;
     final hadExistingCover =
         ((existing?.localCoverPath ?? '').trim().isNotEmpty) ? 1 : 0;
-    _debugLogs.add(
-      '[WebDavScan][$source] $reason | host=$host ext=$ext parsed=${song.tagsParsed ? 1 : 0} title=$hasTitle artist=$hasArtist album=$hasAlbum duration=$hasDuration artwork=$hasArtwork cachedCover=$hasCoverPath existingCover=$hadExistingCover :: $shortUri',
+    _logs.d(
+      'WebDavScan',
+      '[$source] $reason | host=$host ext=$ext parsed=${song.tagsParsed ? 1 : 0} title=$hasTitle artist=$hasArtist album=$hasAlbum duration=$hasDuration artwork=$hasArtwork cachedCover=$hasCoverPath existingCover=$hadExistingCover :: $shortUri',
     );
   }
 

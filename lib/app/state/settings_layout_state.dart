@@ -2,8 +2,8 @@ import 'pref_entry.dart';
 
 enum AppNavigationStyle { drawer, bottomBar }
 
-/// 底栏外观。[liquidGlass] 需要 Impeller，不支持的设备会自动回落到 [standard]，
-/// 见 `LiquidGlassSupport`。
+/// 底栏外观。[liquidGlass] 由 `liquid_glass_easy` 渲染：Impeller 上折射实时背景，
+/// Skia 上自动退化成磨砂（模糊 + 染色 + 描边），不需要我们自己探测后端。
 enum AppBottomBarStyle { standard, liquidGlass }
 
 class AppLayoutSettings {

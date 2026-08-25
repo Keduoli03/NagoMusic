@@ -9,9 +9,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../app/services/haptic_service.dart';
 import '../../app/state/settings_state.dart';
-import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_accents.dart';
 import '../../components/index.dart';
-import '../../components/layout/liquid_glass.dart';
 
 class AppAppearanceSettingsPage extends StatefulWidget {
   const AppAppearanceSettingsPage({super.key});
@@ -317,7 +316,6 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                             ? AppBottomBarStyle.liquidGlass
                             : AppBottomBarStyle.standard,
                       );
-                      if (value) LiquidGlassSupport.ensureLoaded();
                     },
                   );
                 },
@@ -343,18 +341,11 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                   return ValueListenableBuilder<Color?>(
                     valueListenable: AppThemeSettings.themeSeedColor,
                     builder: (context, seedColor, _) {
+                      // 博客那套 17 档强调色。色板上显示的是**亮色**那一半，
+                      // 存下来的也是它；暗色模式会自动换成配对的那个颜色，
+                      // 见 AppAccents.resolve。
                       final colors = [
-                        // 第一个是 kBrand —— 没选过主题色时的默认值，
-                        // 放在首位这样默认状态下能看出选中的是哪一个。
-                        kBrand,
-                        const Color(0xFF3B82F6),
-                        const Color(0xFF22C55E),
-                        const Color(0xFFA855F7),
-                        const Color(0xFFF97316),
-                        const Color(0xFFEF4444),
-                        const Color(0xFFEC4899),
-                        const Color(0xFF14B8A6),
-                        const Color(0xFF6366F1),
+                        for (final accent in AppAccents.presets) accent.light,
                       ];
                       return Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),

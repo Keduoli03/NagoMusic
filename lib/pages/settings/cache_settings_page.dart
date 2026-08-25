@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/haptic_service.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/storage/device_storage_service.dart';
 import '../../app/services/storage/storage_sections.dart';
 import '../../app/services/storage/storage_usage_service.dart';
@@ -35,6 +36,8 @@ class CacheSettingsPage extends StatefulWidget {
 
 class _CacheSettingsPageState extends State<CacheSettingsPage>
     with SignalsMixin {
+  static const String _logTag = 'CacheSettingsPage';
+
   late final List<StorageSection> _sections = appStorageSections();
 
   late final _usage = createSignal<StorageUsage?>(null);
@@ -83,7 +86,8 @@ class _CacheSettingsPageState extends State<CacheSettingsPage>
     final before = _usage.value?.of(section.key) ?? 0;
     try {
       await section.clear();
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '清理存储分类失败，section=${section.key}', e, s);
       if (!mounted) return;
       _clearing.value = null;
       AppToast.show(context, '清理失败', type: ToastType.error);

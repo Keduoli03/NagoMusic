@@ -10,6 +10,7 @@ import '../../app/router/app_page_route.dart';
 import '../../app/services/app_update_service.dart';
 import '../../app/services/backup/backup_service.dart';
 import '../../app/services/library_refresh_service.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/playlists_service.dart';
@@ -37,6 +38,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with SignalsMixin {
+  static const String _logTag = 'HomePage';
+
   final GlobalKey<AppPageScaffoldState> _scaffoldKey =
       GlobalKey<AppPageScaffoldState>();
   final PlayerService _player = PlayerService.instance;
@@ -125,8 +128,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
       final info = await AppUpdateService.instance.checkLatest(current);
       if (!mounted || !info.hasUpdate) return;
       await showAppUpdateDialog(context, info: info, currentVersion: current);
-    } catch (e) {
-      debugPrint('Auto check update on launch failed: $e');
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '启动时自动检查更新失败', e, s);
     }
   }
 
@@ -157,8 +160,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
     }
     try {
       await _player.play();
-    } catch (e) {
-      debugPrint('App auto play on launch failed: $e');
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '启动时自动播放失败', e, s);
     }
   }
 

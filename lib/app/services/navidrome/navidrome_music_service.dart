@@ -4,10 +4,13 @@ import 'package:flutter/foundation.dart';
 import '../../state/song_state.dart';
 import '../artwork_cache_helper.dart';
 import '../db/dao/song_dao.dart';
+import '../log/log.dart';
 import 'navidrome_source_repository.dart';
 import '../scan_types.dart';
 
 class NavidromeMusicService {
+  static const String _logTag = 'NavidromeMusicService';
+
   final Dio _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 12),
@@ -22,7 +25,13 @@ class NavidromeMusicService {
     try {
       final data = await _request(source, 'ping');
       return (data['status'] ?? '').toString().toLowerCase() == 'ok';
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(
+        _logTag,
+        '测试 Navidrome 连接失败 endpoint=${source.endpoint}',
+        e,
+        s,
+      );
       return false;
     }
   }

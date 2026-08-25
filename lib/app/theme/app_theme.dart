@@ -14,7 +14,8 @@ import 'app_radii.dart';
 /// 里成百上千处 `scheme.onSurface` / `scheme.outline` 自动拿到新配色，不必逐处
 /// 改写成 `AppColors.of(context).text`。
 ThemeData buildAppTheme(ThemeData base, ColorScheme source) {
-  final c = AppColors.forBrightness(source.brightness);
+  // 底色由强调色派生（博客的取色方案），所以这里不能再用写死的 light / dark。
+  final c = AppColors.fromAccent(source.primary, source.brightness);
   final isDark = source.brightness == Brightness.dark;
 
   final scheme = source.copyWith(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/router/app_router.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_icons.dart';
@@ -21,6 +22,8 @@ class BiliProfilePage extends StatefulWidget {
 }
 
 class _BiliProfilePageState extends State<BiliProfilePage> {
+  static const String _logTag = 'BiliProfilePage';
+
   final BiliApi _api = BiliApi.instance;
 
   BiliAccount _account = const BiliAccount();
@@ -65,7 +68,8 @@ class _BiliProfilePageState extends State<BiliProfilePage> {
         _folders = folders;
         _loadingFolders = false;
       });
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '加载收藏夹失败', e, s);
       if (!mounted) return;
       setState(() {
         _loadingFolders = false;

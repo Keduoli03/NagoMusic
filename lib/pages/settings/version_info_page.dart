@@ -1,14 +1,10 @@
-import 'dart:io';
 import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/router/app_router.dart';
 import '../../app/services/app_update_service.dart';
-import '../../app/services/debug_log_service.dart';
+import '../../app/services/log/log.dart';
 import '../../app/state/settings_state.dart';
 import '../../components/dialog/app_update_dialog.dart';
 import '../../components/index.dart';
@@ -21,10 +17,10 @@ class VersionInfoPage extends StatefulWidget {
 }
 
 class _VersionInfoPageState extends State<VersionInfoPage> {
+  static const String _logTag = 'VersionInfoPage';
+
   static const String _appName = 'NagoMusic';
   static const String _iconAsset = '开发文档/NagoAPP图标.png';
-
-  final DebugLogService _debugLogs = DebugLogService.instance;
 
   bool _checking = false;
   String _version = '...';
@@ -33,7 +29,6 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
   @override
   void initState() {
     super.initState();
-    _debugLogs.ensureLoaded();
     AppLaunchUpdateSettings.ensureLoaded();
     _loadVersion();
   }
@@ -57,87 +52,14 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
       } else {
         await showLatestVersionDialog(context, currentVersion: current);
       }
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '检查更新失败', e, s);
       if (!mounted) return;
       await showUpdateFailedDialog(context);
     } finally {
       if (mounted) {
         setState(() => _checking = false);
       }
-    }
-  }
-
-  Future<void> _clearLogs() async {
-    await _debugLogs.clear();
-    if (!mounted) return;
-    AppToast.show(context, '日志已清空');
-  }
-
-  Future<void> _copyLogs() async {
-    final text = _debugLogs.exportText();
-    if (text.trim().isEmpty) {
-      AppToast.show(context, '暂无日志');
-      return;
-    }
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    AppToast.show(context, '日志已复制');
-  }
-
-  Future<void> _exportLogs() async {
-    await _debugLogs.ensureLoaded();
-    final now = DateTime.now();
-    final filename =
-        'nagomusic-debug-${now.year}${_two(now.month)}${_two(now.day)}-${_two(now.hour)}${_two(now.minute)}${_two(now.second)}.txt';
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, filename));
-    await file.writeAsString(_debugLogs.exportText(), flush: true);
-    if (!mounted) return;
-    await _showLogExportDialog(file.path);
-  }
-
-  Future<void> _showLogExportDialog(String path) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('日志已导出'),
-          content: SelectableText(path),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('关闭'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: path));
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                AppToast.show(context, '文件路径已复制');
-              },
-              child: const Text('复制路径'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _openFile(path);
-              },
-              child: const Text('打开文件'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _openFile(String path) async {
-    final uri = Uri.file(path);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      await Clipboard.setData(ClipboardData(text: path));
-      if (!mounted) return;
-      AppToast.show(context, '无法打开文件，路径已复制');
     }
   }
 
@@ -207,114 +129,16 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
           AppSettingSection(
             title: '调试',
             children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: _debugLogs.enabled,
-                builder: (context, enabled, _) {
-                  return AppSettingSwitchTile(
-                    title: '调试模式',
-                    subtitle: '开启后记录最近的调试日志，便于排查卡顿和异常',
-                    value: enabled,
-                    onChanged: _debugLogs.setEnabled,
-                  );
-                },
-              ),
-              AppSettingTile(
-                title: '清空日志',
-                subtitle: '删除已记录的本地调试日志',
-                leading: const Icon(AppIcons.trash),
-                onTap: _clearLogs,
-              ),
               AppSettingNavTile(
-                title: '导出日志',
-                subtitle: '生成日志文件，便于发送给开发者',
-                leading: const Icon(AppIcons.download),
-                onTap: _exportLogs,
+                title: '日志',
+                subtitle: '异常始终记录；开启调试模式后还会记录每一步操作',
+                leading: const Icon(AppIcons.info),
+                route: AppRoutes.debugLog,
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildLogViewer(context),
         ],
       ),
-    );
-  }
-
-  Widget _buildLogViewer(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ValueListenableBuilder<List<String>>(
-      valueListenable: _debugLogs.entries,
-      builder: (context, logs, _) {
-        return AppSettingSection(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '最近日志 (${logs.length})',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (logs.isNotEmpty)
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(AppIcons.copy, size: 18),
-                    tooltip: '复制全部',
-                    onPressed: _copyLogs,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (logs.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                child: Center(
-                  child: Text(
-                    _debugLogs.enabled.value ? '暂无日志' : '调试模式未开启',
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                constraints: const BoxConstraints(maxHeight: 300),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Scrollbar(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(10),
-                    shrinkWrap: true,
-                    // Newest first.
-                    itemCount: logs.length,
-                    separatorBuilder: (_, _) => Divider(
-                      height: 10,
-                      thickness: 0.5,
-                      color: scheme.outlineVariant.withValues(alpha: 0.3),
-                    ),
-                    itemBuilder: (context, i) {
-                      final line = logs[logs.length - 1 - i];
-                      return SelectableText(
-                        line,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 11.5,
-                          height: 1.4,
-                          color: scheme.onSurface.withValues(alpha: 0.88),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 
@@ -326,6 +150,4 @@ class _VersionInfoPageState extends State<VersionInfoPage> {
     }
     return '当前已是最新版本';
   }
-
-  String _two(int value) => value.toString().padLeft(2, '0');
 }

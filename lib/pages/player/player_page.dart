@@ -4,6 +4,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import 'package:nagomusic/app/theme/app_icons.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
+import '../../app/services/haptic_service.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/services/playlists_service.dart';
 import '../../app/services/player_service.dart';
@@ -14,6 +15,7 @@ import '../../components/feedback/app_toast.dart';
 import 'lyrics/lyric_view.dart';
 import 'widgets/player_background.dart';
 import 'widgets/player_bottom_panel.dart';
+import 'widgets/player_immersive_layout.dart';
 import 'widgets/player_header.dart';
 import '../../app/utils/format_utils.dart';
 import '../songs/show_song_detail_sheet.dart';
@@ -130,95 +132,124 @@ class _PlayerPageState extends State<PlayerPage>
       child: Scaffold(
         backgroundColor: Colors.transparent,
         resizeToAvoidBottomInset: false,
-        body: ValueListenableBuilder<double>(
-          valueListenable: _dismissOffset,
-          builder: (context, dragOffset, child) {
-            final dismissProgress = (dragOffset / 120).clamp(0.0, 1.0);
-            return Transform.translate(
-              offset: Offset(0, dragOffset),
-              child: Opacity(
-                opacity: 1 - dismissProgress * 0.08,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(dismissProgress * 24),
+        body: GestureDetector(
+          // 长按空白处打开这首歌的「更多」面板，不用绕去底部操作栏或设置页。
+          // behavior 用 translucent 而不是 opaque：它只是在竞技场里多加一个
+          // 候选人，快速点击（按钮、拖拽关闭）该怎么响应还怎么响应——长按
+          // 识别器在指针提前抬起或发生位移时会自己认输，不会拖慢或吞掉下面
+          // 控件的点击。
+          behavior: HitTestBehavior.translucent,
+          onLongPressStart: (_) => _openMorePanel(context),
+          child: ValueListenableBuilder<double>(
+            valueListenable: _dismissOffset,
+            builder: (context, dragOffset, child) {
+              final dismissProgress = (dragOffset / 120).clamp(0.0, 1.0);
+              return Transform.translate(
+                offset: Offset(0, dragOffset),
+                child: Opacity(
+                  opacity: 1 - dismissProgress * 0.08,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(dismissProgress * 24),
+                    ),
+                    child: child,
                   ),
-                  child: child,
                 ),
-              ),
-            );
-          },
-          child: Stack(
-            children: [
-              RepaintBoundary(
-                child: PlayerBackground(songSignal: _player.currentSongSignal),
-              ),
-              PlayerTheme(
-                child: ValueListenableBuilder<PlayerStylePreset>(
-                  valueListenable: PlayerStyleSettings.stylePreset,
-                  builder: (context, stylePreset, _) {
-                    final isPoster = stylePreset == PlayerStylePreset.poster;
-                    // Poster disables top/bottom SafeArea so the artwork panel
-                    // can reach the screen edges; re-apply the insets to the
-                    // lyrics page so its lines don't slide under the status bar
-                    // or the system navigation bar.
-                    final topInset = MediaQuery.paddingOf(context).top;
-                    final bottomInset = MediaQuery.paddingOf(context).bottom;
-                    return SafeArea(
-                      top: !isPoster,
-                      bottom: !isPoster,
-                      child: Column(
-                        children: [
-                          GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onVerticalDragStart: _handleDismissDragStart,
-                            onVerticalDragUpdate: _handleDismissDragUpdate,
-                            onVerticalDragEnd: _handleDismissDragEnd,
-                            onVerticalDragCancel: _handleDismissDragCancel,
-                            child: isPoster
-                                ? const SizedBox.shrink()
-                                : PlayerHeader(
-                                    songSignal: _player.currentSongSignal,
-                                    stylePreset: stylePreset,
-                                  ),
-                          ),
-                          Expanded(
-                            child: PageView(
-                              controller: _pageController,
-                              children: [
-                                _PlayerView(
-                                  player: _player,
-                                  onTapLyrics: () =>
-                                      _pageController.animateToPage(
-                                        1,
-                                        duration: const Duration(
-                                          milliseconds: 280,
-                                        ),
-                                        curve: Curves.easeOut,
-                                      ),
-                                ),
-                                isPoster
-                                    ? Padding(
-                                        padding: EdgeInsets.only(
-                                          top: topInset,
-                                          bottom: bottomInset,
-                                        ),
-                                        child: const PlayerLyricsView(),
-                                      )
-                                    : const PlayerLyricsView(),
-                              ],
+              );
+            },
+            child: Stack(
+              children: [
+                RepaintBoundary(
+                  child: PlayerBackground(
+                    songSignal: _player.currentSongSignal,
+                  ),
+                ),
+                PlayerTheme(
+                  child: ValueListenableBuilder<PlayerStylePreset>(
+                    valueListenable: PlayerStyleSettings.stylePreset,
+                    builder: (context, stylePreset, _) {
+                      // 海报和沉浸都是通栏样式：不画公共头部，也不套 SafeArea，
+                      // 这样封面 / 背景能顶到屏幕边缘。代价是歌词页要自己把
+                      // 状态栏和导航栏的安全区补回来，见下面那个 Padding。
+                      final isFullBleed =
+                          stylePreset == PlayerStylePreset.poster ||
+                          stylePreset == PlayerStylePreset.immersive;
+                      final topInset = MediaQuery.paddingOf(context).top;
+                      final bottomInset = MediaQuery.paddingOf(context).bottom;
+                      return SafeArea(
+                        top: !isFullBleed,
+                        bottom: !isFullBleed,
+                        child: Column(
+                          children: [
+                            GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onVerticalDragStart: _handleDismissDragStart,
+                              onVerticalDragUpdate: _handleDismissDragUpdate,
+                              onVerticalDragEnd: _handleDismissDragEnd,
+                              onVerticalDragCancel: _handleDismissDragCancel,
+                              child: isFullBleed
+                                  ? const SizedBox.shrink()
+                                  : PlayerHeader(
+                                      songSignal: _player.currentSongSignal,
+                                      stylePreset: stylePreset,
+                                    ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                            Expanded(
+                              child: PageView(
+                                controller: _pageController,
+                                children: [
+                                  _PlayerView(
+                                    player: _player,
+                                    onTapLyrics: () =>
+                                        _pageController.animateToPage(
+                                          1,
+                                          duration: const Duration(
+                                            milliseconds: 280,
+                                          ),
+                                          curve: Curves.easeOut,
+                                        ),
+                                  ),
+                                  isFullBleed
+                                      ? Padding(
+                                          padding: EdgeInsets.only(
+                                            top: topInset,
+                                            bottom: bottomInset,
+                                          ),
+                                          child: const PlayerLyricsView(),
+                                        )
+                                      : const PlayerLyricsView(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// 长按空白处打开「更多」——歌曲详情/操作面板，和底部操作栏「更多」按钮
+  /// 打开的是同一个面板（[showSongDetailSheet]），包括收藏、加入歌单、下载、
+  /// 歌曲信息，以及跳去「播放器外观」的入口。
+  ///
+  /// 一开始做成了单独弹一个"播放样式"网格，后来发现这不是用户要的——长按
+  /// 应该是这首歌的快捷菜单，样式切换只是其中顺带能到达的一站，不该是
+  /// 长按唯一能做的事。
+  void _openMorePanel(BuildContext context) {
+    final song = _player.currentSong.value;
+    if (song == null) {
+      AppToast.show(context, '暂无歌曲');
+      return;
+    }
+    Haptics.impact();
+    showSongDetailSheet(context, song: song, enablePlayerAppearanceEntry: true);
   }
 }
 
@@ -244,6 +275,9 @@ class _PlayerView extends StatelessWidget {
             if (!isTabletLandscape) {
               if (stylePreset == PlayerStylePreset.poster) {
                 return _PosterPlayerLayout(player: player);
+              }
+              if (stylePreset == PlayerStylePreset.immersive) {
+                return PlayerImmersiveLayout(player: player);
               }
               return _MobilePlayerLayout(
                 player: player,
@@ -376,6 +410,9 @@ class _PlayerLayoutSpec {
 
   factory _PlayerLayoutSpec.fromPreset(PlayerStylePreset preset) {
     switch (preset) {
+      // 沉浸样式在手机上走 PlayerImmersiveLayout，用不到这个 spec；
+      // 平板横屏仍会落到通用布局，所以照 poster 给一份。
+      case PlayerStylePreset.immersive:
       case PlayerStylePreset.poster:
         return const _PlayerLayoutSpec(topSpacerFlex: 1, middleSpacerFlex: 1);
       case PlayerStylePreset.classic:
@@ -1014,6 +1051,7 @@ class _ArtworkSpec {
 
   factory _ArtworkSpec.fromPreset(PlayerStylePreset preset, bool isTablet) {
     switch (preset) {
+      case PlayerStylePreset.immersive:
       case PlayerStylePreset.poster:
         return _ArtworkSpec(
           borderRadius: 0,

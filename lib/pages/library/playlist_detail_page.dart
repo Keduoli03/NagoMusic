@@ -442,8 +442,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
                   );
           },
         ),
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
+        bottomNavIndex: useBottomNavigation && !multiSelect.value ? 0 : null,
+        onBottomNavTap: useBottomNavigation && !multiSelect.value
             ? (index) => navigateToPrimaryDestination(context, index)
             : null,
       ),

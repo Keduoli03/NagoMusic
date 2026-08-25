@@ -6,8 +6,11 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../state/song_state.dart';
+import '../log/log.dart';
 
 class LyricsRepository {
+  static const String _logTag = 'LyricsRepository';
+
   Future<String?> loadLrc(SongEntity song) async {
     final embedded = await _readFromEmbeddedTags(song);
     if (embedded != null && embedded.trim().isNotEmpty) {
@@ -34,7 +37,9 @@ class LyricsRepository {
       if (await file.exists()) {
         await file.delete();
       }
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '删除歌词缓存失败 songId=$songId', e, s);
+    }
   }
 
   Future<void> saveLrcToCache(
@@ -55,7 +60,8 @@ class LyricsRepository {
     try {
       final file = await _cacheFileForSongId(songId);
       return await file.exists();
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '检查歌词缓存是否存在失败 songId=$songId', e, s);
       return false;
     }
   }
@@ -84,7 +90,9 @@ class LyricsRepository {
       }
       final file = File(p.join(lyricsDir.path, '${fnv1a64Hex(songId)}.lrc'));
       await file.writeAsString(content, flush: true);
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '写入歌词缓存失败 songId=$songId', e, s);
+    }
   }
 
   Future<File> _cacheFileForSongId(String songId) async {

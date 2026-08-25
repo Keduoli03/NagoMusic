@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show IconData;
 
+import '../log/log.dart';
+
 /// 存储空间页的**通用层**：类别模型 + 占用统计 + 目录遍历工具。
 ///
 /// 这个文件本应和 `flutter_template_local` 逐字节一致，项目差异全部收在
@@ -86,6 +88,8 @@ class StorageUsage {
 class StorageUsageService {
   StorageUsageService._();
 
+  static const String _logTag = 'StorageUsageService';
+
   /// 统计每一类的占用。
   ///
   /// 目录遍历放到后台 isolate（[compute]）：缓存目录动辄上千个文件，
@@ -100,9 +104,9 @@ class StorageUsageService {
       return StorageUsage({
         for (var i = 0; i < sections.length; i++) sections[i].key: sizes[i],
       });
-    } catch (e) {
+    } catch (e, s) {
       // 目录拿不到（平台不支持/权限异常）不该让整页停在转圈上
-      debugPrint('[storage] measure failed: $e');
+      AppLog.instance.w(_logTag, '统计存储占用失败', e, s);
       return StorageUsage.emptyFor(sections);
     }
   }
@@ -111,6 +115,8 @@ class StorageUsageService {
 /// 写 [StorageSection] 的 `resolvePaths` / `clear` 时的公共工具。
 class StorageScan {
   StorageScan._();
+
+  static const String _logTag = 'StorageScan';
 
   /// 临时文件的"正在使用"判定窗口，见 [touchedRecently]。
   static const inUseWindow = Duration(minutes: 5);
@@ -129,7 +135,8 @@ class StorageScan {
           .where((e) => !exclude.contains(nameOf(e.path)))
           .map((e) => e.path)
           .toList();
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '列出目录子项失败: dir=${dir.path}', e, s);
       return const [];
     }
   }

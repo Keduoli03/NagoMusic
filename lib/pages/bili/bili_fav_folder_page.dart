@@ -1,6 +1,7 @@
 import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/services/log/log.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_typography.dart';
@@ -29,6 +30,8 @@ class BiliFavFolderPage extends StatefulWidget {
 }
 
 class _BiliFavFolderPageState extends State<BiliFavFolderPage> {
+  static const String _logTag = 'BiliFavFolderPage';
+
   List<BiliVideo> _videos = const [];
   bool _loading = true;
   String _error = '';
@@ -52,7 +55,13 @@ class _BiliFavFolderPageState extends State<BiliFavFolderPage> {
         _videos = videos;
         _loading = false;
       });
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(
+        _logTag,
+        '加载收藏夹视频失败，folderId=${widget.folder.id}',
+        e,
+        s,
+      );
       if (!mounted) return;
       setState(() {
         _loading = false;

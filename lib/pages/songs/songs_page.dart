@@ -1082,8 +1082,8 @@ class _SongsPageState extends State<SongsPage>
                     onCloseDrawer: () =>
                         _scaffoldKey.currentState?.closeDrawer(),
                   ),
-            bottomNavIndex: useBottomNavigation ? 1 : null,
-            onBottomNavTap: useBottomNavigation
+            bottomNavIndex: useBottomNavigation && !multiSelect.value ? 1 : null,
+            onBottomNavTap: useBottomNavigation && !multiSelect.value
                 ? (index) => navigateToPrimaryDestination(context, index)
                 : null,
             body: Column(

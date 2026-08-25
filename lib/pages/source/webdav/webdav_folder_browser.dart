@@ -6,6 +6,7 @@ import 'package:signals/signals_flutter.dart';
 import '../../../app/router/app_page_route.dart';
 import '../../../app/services/block_list_service.dart';
 import '../../../app/services/db/dao/song_dao.dart';
+import '../../../app/services/log/log.dart';
 import '../../../app/services/webdav/webdav_source_repository.dart';
 import '../../../components/index.dart';
 import '../folder_info.dart';
@@ -28,6 +29,8 @@ class WebDavFolderBrowser extends StatefulWidget {
 
 class _WebDavFolderBrowserState extends State<WebDavFolderBrowser>
     with SignalsMixin {
+  static const String _logTag = 'WebDavFolderBrowser';
+
   final SongDao _songDao = SongDao();
   final WebDavSourceRepository _repo = WebDavSourceRepository.instance;
 
@@ -107,7 +110,13 @@ class _WebDavFolderBrowserState extends State<WebDavFolderBrowser>
       if (changed == true) {
         _loadFolders();
       }
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(
+        _logTag,
+        '加载WebDAV源设置失败，sourceId=${widget.sourceId}',
+        e,
+        s,
+      );
       if (!mounted) return;
       AppToast.show(context, '无法加载设置');
     }

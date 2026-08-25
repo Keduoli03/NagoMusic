@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// 默认品牌色。
+/// 旧的默认品牌色，**已经不再是任何地方的默认值**。
 ///
-/// 与 `flutter_template_local` 的 `kBrand` 同值。NagoMusic 与模板的区别在于：
-/// 模板把 `kBrand` 当成写死的强调色，而这里它只是**默认种子色** —— 用户在
-/// 「应用外观 → 主题色」里选过颜色、或打开了 Android 动态取色时，实际强调色
-/// 来自 `Theme.of(context).colorScheme.primary`。
+/// 2026-08 换成博客那套配色后，默认强调色改由 `AppAccents.fallback` 提供
+/// （亮色珊瑚红 / 暗色琥珀黄），这个常量只剩历史参考价值。
 ///
-/// 所以：**页面里要用强调色时读 `colorScheme.primary`，不要直接用 `kBrand`**，
-/// 否则用户换主题色时你这一处不会跟着变。
+/// **页面里要用强调色一律读 `Theme.of(context).colorScheme.primary`**，
+/// 不要直接用这个常量，也不要直接用 `AppAccents` 里的值 —— 否则用户换主题色、
+/// 或者开了 Android 动态取色时，你这一处不会跟着变。
 const kBrand = Color(0xFF20B889);
 
 /// 收藏红。两个主题下固定，不进 [AppColors]。
@@ -108,6 +107,53 @@ class AppColors extends ThemeExtension<AppColors> {
 
   static AppColors forBrightness(Brightness brightness) =>
       brightness == Brightness.dark ? dark : light;
+
+  // ------------------------------------------------------------ 按强调色派生
+  //
+  // 取自作者博客（Astro / gyoza）的取色方案，见其
+  // `scripts/generate-accent-css.mjs`。核心是**页面底色不是中性灰白，而是由强调色
+  // 混出来的**：
+  //
+  //   亮色  bg = mix(#FAFAFA, accent, 5%)
+  //   暗色  bg = mix(#000212, accent, 12%)
+  //
+  // 这样换主题色时整个页面的底色跟着走一点点，不会出现「彩色控件浮在死白纸上」
+  // 的割裂感。5% / 12% 是刻意的小比例——再高就从"有温度的白"变成"有颜色的底"，
+  // 文字对比度也会开始掉。
+  //
+  // 另外注意 [bg] 和 [surface] 从此**不再相等**（亮色下是暖白底 + 纯白卡）。
+  // 这正是博客的做法：底色拉层次、卡片仍然纯白、再配 [line] 描边。原来那版
+  // bg == surface == 纯白、全靠描边和阴影撑层次的方案到此为止。
+
+  /// 亮色下的底色基准，会往强调色混 5%。
+  static const _lightBgBase = Color(0xFFFAFAFA);
+
+  /// 暗色下的底色基准，会往强调色混 12%。带一点点蓝，纯黑会显得发死。
+  static const _darkBgBase = Color(0xFF000212);
+
+  static Color _mix(Color base, Color accent, double weight) {
+    return Color.from(
+      alpha: 1,
+      red: base.r + (accent.r - base.r) * weight,
+      green: base.g + (accent.g - base.g) * weight,
+      blue: base.b + (accent.b - base.b) * weight,
+    );
+  }
+
+  /// 按当前强调色派生整套中性色。
+  ///
+  /// [accent] 传 `ColorScheme.primary`（用户自选主题色或 Android 动态取色）。
+  static AppColors fromAccent(Color accent, Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final base = isDark ? dark : light;
+    return base.copyWith(
+      bg: _mix(
+        isDark ? _darkBgBase : _lightBgBase,
+        accent,
+        isDark ? 0.12 : 0.05,
+      ),
+    );
+  }
 
   /// 取当前主题的 AppColors；未注册时回退浅色，保证任何 context 都能用。
   static AppColors of(BuildContext context) =>

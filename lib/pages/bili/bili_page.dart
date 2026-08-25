@@ -6,6 +6,7 @@ import '../../app/router/app_router.dart';
 import '../../app/router/app_page_route.dart';
 import '../../app/services/bili/bili_collection_service.dart';
 import '../../app/services/bili/bili_music_service.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/player_service.dart';
 
 import '../../app/state/song_state.dart';
@@ -32,6 +33,8 @@ class BiliPage extends StatefulWidget {
 }
 
 class _BiliPageState extends State<BiliPage> {
+  static const String _logTag = 'BiliPage';
+
   final BiliApi _api = BiliApi.instance;
   final BiliMusicService _music = BiliMusicService.instance;
   final BiliCollectionService _collections = BiliCollectionService.instance;
@@ -118,7 +121,8 @@ class _BiliPageState extends State<BiliPage> {
         _folders = folders;
         _loadingFolders = false;
       });
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '加载收藏夹失败', e, s);
       if (!mounted) return;
       setState(() {
         _loadingFolders = false;

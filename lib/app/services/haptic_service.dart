@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'log/log.dart';
+
 /// 触感反馈强度档位（设备级偏好）。
 enum HapticLevel {
   /// 关闭：所有触感调用直接吞掉。
@@ -33,6 +35,8 @@ enum HapticLevel {
 class Haptics {
   Haptics._();
 
+  static const String _logTag = 'Haptics';
+
   static const _kLevel = 'haptic_level'; // off / light / standard
 
   static HapticLevel _level = HapticLevel.standard;
@@ -40,8 +44,9 @@ class Haptics {
 
   /// 供设置页监听的当前档位。业务代码判断强度请用 [level]（静态读取，
   /// 不用每次都建 ValueListenableBuilder）。
-  static final ValueNotifier<HapticLevel> levelListenable =
-      ValueNotifier(HapticLevel.standard);
+  static final ValueNotifier<HapticLevel> levelListenable = ValueNotifier(
+    HapticLevel.standard,
+  );
 
   /// 上一次真正触发震动的时刻，用于节流。用毫秒时间戳而不是 DateTime 比较，
   /// 省掉高频路径上的对象分配。
@@ -62,8 +67,9 @@ class Haptics {
       final p = await SharedPreferences.getInstance();
       _level = _parse(p.getString(_kLevel));
       levelListenable.value = _level;
-    } catch (_) {
+    } catch (e, s) {
       // 存储不可用时保持默认标准档。
+      AppLog.instance.w(_logTag, '读取触感档位偏好失败，使用默认标准档', e, s);
     }
   }
 
@@ -78,7 +84,9 @@ class Haptics {
     try {
       final p = await SharedPreferences.getInstance();
       await p.setString(_kLevel, v.name);
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '保存触感档位偏好失败: level=${v.name}', e, s);
+    }
   }
 
   static HapticLevel _parse(String? s) => switch (s) {

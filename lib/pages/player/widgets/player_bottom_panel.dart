@@ -118,7 +118,7 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
         final lines = model?.lines ?? const <LyricLine>[];
         final alignment = _alignment.value;
         final previewHeight = switch (widget.stylePreset) {
-          PlayerStylePreset.poster => 118.0,
+          PlayerStylePreset.poster || PlayerStylePreset.immersive => 118.0,
           PlayerStylePreset.classic => 110.0,
         };
         final textAlign = alignment == 'left'
@@ -297,7 +297,7 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> with SignalsMixin {
         final duration = widget.player.durationSignal.value;
         final scheme = Theme.of(context).colorScheme;
         final trackHeight = switch (widget.stylePreset) {
-          PlayerStylePreset.poster => 4.0,
+          PlayerStylePreset.poster || PlayerStylePreset.immersive => 4.0,
           PlayerStylePreset.classic => 2.0,
         };
         final totalMs = duration?.inMilliseconds ?? 0;
@@ -1248,68 +1248,64 @@ class _QueueItem extends StatelessWidget {
         : secondaryTextColor.withValues(alpha: 0.82);
     final artist = song.artist.trim().isEmpty ? '未知艺术家' : song.artist.trim();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Material(
-        color: isCurrent ? accent.withValues(alpha: 0.13) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+    return ReorderableDelayedDragStartListener(
+      index: index,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Material(
+          color: isCurrent
+              ? accent.withValues(alpha: 0.13)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 5, 4, 5),
-            child: Row(
-              children: [
-                _buildCover(),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title.trim().isEmpty ? '未知歌曲' : song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 15,
-                          fontWeight: isCurrent
-                              ? FontWeight.w700
-                              : FontWeight.w600,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 5, 4, 5),
+              child: Row(
+                children: [
+                  _buildCover(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title.trim().isEmpty ? '未知歌曲' : song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: titleColor,
+                            fontSize: 15,
+                            fontWeight: isCurrent
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: artistColor, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    AppIcons.close,
-                    color: secondaryTextColor.withValues(alpha: 0.8),
-                    size: 20,
-                  ),
-                  onPressed: onRemove,
-                ),
-                ReorderableDelayedDragStartListener(
-                  index: index,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Icon(
-                      AppIcons.dragHandle,
-                      color: secondaryTextColor.withValues(alpha: 0.55),
-                      size: 20,
+                        const SizedBox(height: 2),
+                        Text(
+                          artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: artistColor, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(6),
+                    icon: Icon(
+                      AppIcons.close,
+                      color: secondaryTextColor.withValues(alpha: 0.8),
+                      size: 16,
+                    ),
+                    onPressed: onRemove,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

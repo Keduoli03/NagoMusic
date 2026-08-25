@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../bili/bili_music_service.dart';
 import '../db/db_constants.dart';
+import '../log/log.dart';
 import '../../state/settings_cache_state.dart';
 import 'storage_usage_service.dart';
 
@@ -156,15 +157,21 @@ List<StorageSection> appStorageSections() => [
   ),
 ];
 
+const String _logTag = 'StorageSections';
+
 /// 删除目录再重建为空目录，用于没有「批量清空」接口、只能按 key 增删的缓存。
 Future<void> _recreateDir(Future<Directory> Function() resolve) async {
   final dir = await resolve();
   if (await dir.exists()) {
     try {
       await dir.delete(recursive: true);
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '删除缓存目录失败: path=${dir.path}', e, s);
+    }
   }
   try {
     await dir.create(recursive: true);
-  } catch (_) {}
+  } catch (e, s) {
+    AppLog.instance.w(_logTag, '重建缓存目录失败: path=${dir.path}', e, s);
+  }
 }

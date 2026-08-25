@@ -14,6 +14,7 @@ import '../../pages/settings/player_settings_page.dart';
 import '../../pages/settings/cache_settings_page.dart';
 import '../../pages/settings/listening_stats_page.dart';
 import '../../pages/settings/backup_restore_page.dart';
+import '../../pages/settings/debug_log_page.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/settings/version_info_page.dart';
 import '../../pages/library/albums_page.dart';
@@ -47,6 +48,7 @@ class AppRoutes {
   static const listeningStats = '/settings/listening-stats';
   static const dataBackup = '/settings/data-backup';
   static const versionInfo = '/settings/version-info';
+  static const debugLog = '/settings/debug-log';
   static const artists = '/artists';
   static const albums = '/albums';
   static const playlists = '/playlists';
@@ -80,6 +82,7 @@ class AppRouter {
     AppRoutes.listeningStats: (_) => const ListeningStatsPage(),
     AppRoutes.dataBackup: (_) => const BackupRestorePage(),
     AppRoutes.versionInfo: (_) => const VersionInfoPage(),
+    AppRoutes.debugLog: (_) => const DebugLogPage(),
     AppRoutes.artists: (_) => const ArtistsPage(),
     AppRoutes.albums: (_) => const AlbumsPage(),
     AppRoutes.playlists: (_) => const PlaylistsPage(),

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:nagomusic/app/theme/app_icons.dart';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:media_cache/media_cache.dart';
@@ -11,6 +10,7 @@ import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/artwork_cache_helper.dart';
 import '../../app/services/db/dao/song_dao.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/lyrics/lyrics_repository.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../app/services/playlists_service.dart';
@@ -621,6 +621,8 @@ class SongInfoSheet extends StatefulWidget {
 }
 
 class _SongInfoSheetState extends State<SongInfoSheet> {
+  static const String _logTag = 'SongInfoSheet';
+
   late SongEntity _song;
   bool _loadingTechnicalMetadata = false;
 
@@ -672,10 +674,8 @@ class _SongInfoSheetState extends State<SongInfoSheet> {
       await SongDao().upsertSongs([updated]);
       if (!mounted) return;
       setState(() => _song = updated);
-    } catch (error) {
-      if (kDebugMode) {
-        debugPrint('Failed to load technical song metadata: $error');
-      }
+    } catch (error, s) {
+      AppLog.instance.w(_logTag, '加载技术元数据失败，songId=${_song.id}', error, s);
     } finally {
       if (mounted) {
         setState(() => _loadingTechnicalMetadata = false);
@@ -769,6 +769,8 @@ class SongScrapeSheet extends StatefulWidget {
 }
 
 class _SongScrapeSheetState extends State<SongScrapeSheet> with SignalsMixin {
+  static const String _logTag = 'SongScrapeSheet';
+
   final SongDao _dao = SongDao();
   final LyricsRepository _lyrics = LyricsRepository();
   late final _working = createSignal(false);
@@ -933,7 +935,8 @@ class _SongScrapeSheetState extends State<SongScrapeSheet> with SignalsMixin {
       _lastResult.value = result;
       AppToast.show(context, '已更新', type: ToastType.success);
       Navigator.pop(context, updated);
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '刮削歌曲信息失败，songId=${_song.id}', e, s);
       if (!mounted) return;
       _lastError.value = '刮削失败';
       AppToast.show(context, '刮削失败');

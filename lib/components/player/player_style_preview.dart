@@ -38,6 +38,7 @@ class PlayerStylePreview extends StatelessWidget {
         : switch (preset) {
             PlayerStylePreset.classic => _classicPreview(context, accent),
             PlayerStylePreset.poster => _posterPreview(context, accent),
+            PlayerStylePreset.immersive => _immersivePreview(context, accent),
           };
 
     // Over the real 流光: no own background / aspect / clip (parent provides).
@@ -127,6 +128,125 @@ class PlayerStylePreview extends StatelessWidget {
           _bottomActions(context),
         ],
       ),
+    );
+  }
+
+  /// 「沉浸」样式的缩略图：通栏封面 + 下缘频谱 + 居中歌词 + 一排控制键。
+  /// 刻意不画进度条 —— 这一版没有。
+  Widget _immersivePreview(BuildContext context, Color accent) {
+    final scheme = Theme.of(context).colorScheme;
+    final onSurface = scheme.onSurface;
+    return Column(
+      children: [
+        Expanded(
+          flex: 5,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                _coverAsset,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accent.withValues(alpha: 0.92),
+                        accent.withValues(alpha: 0.5),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final level in const [
+                        0.35,
+                        0.62,
+                        0.45,
+                        0.8,
+                        0.55,
+                        0.9,
+                        0.4,
+                        0.7,
+                        0.5,
+                        0.85,
+                        0.42,
+                        0.66,
+                        0.38,
+                        0.74,
+                        0.48,
+                        0.6,
+                      ])
+                        Container(
+                          width: 1.6,
+                          height: 14 * level,
+                          color: Colors.white.withValues(alpha: 0.55),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          flex: 6,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(9, 6, 9, 9),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _lyricLine(context, 'FLAC · 48kHz', size: 6),
+                    ),
+                    Container(
+                      width: 4,
+                      height: 4,
+                      color: const Color(0xFFD9B45A),
+                    ),
+                    const SizedBox(width: 2),
+                    _lyricLine(context, 'HI-RES', size: 6),
+                  ],
+                ),
+                const Spacer(),
+                _titleText(context, _sampleTitle, size: 11),
+                const SizedBox(height: 2),
+                _titleText(context, _sampleArtist, size: 7, secondary: true),
+                const SizedBox(height: 7),
+                _lyricLine(context, '有一束光 那瞬间', size: 7),
+                const SizedBox(height: 4),
+                _lyricLine(context, '是什么痛得刺眼', active: true, size: 9),
+                const SizedBox(height: 4),
+                _lyricLine(context, '你的视线 是谅解', size: 7),
+                const Spacer(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Icon(AppIcons.repeat, size: 9, color: onSurface),
+                    Icon(
+                      AppIconsFilled.skipPrevious,
+                      size: 11,
+                      color: onSurface,
+                    ),
+                    Icon(AppIconsFilled.play, size: 14, color: onSurface),
+                    Icon(AppIconsFilled.skipNext, size: 11, color: onSurface),
+                    Icon(AppIcons.queue, size: 9, color: onSurface),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

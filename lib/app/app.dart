@@ -6,7 +6,7 @@ import '../components/layout/tablet_layout_host.dart';
 import 'router/app_page_route.dart';
 import 'router/app_router.dart';
 import 'state/settings_state.dart';
-import 'theme/app_colors.dart';
+import 'theme/app_accents.dart';
 import 'theme/app_page_transitions.dart';
 import 'theme/app_surfaces.dart';
 import 'theme/app_theme.dart';
@@ -58,14 +58,15 @@ class NagoMusicApp extends StatelessWidget {
                 return ValueListenableBuilder<Color?>(
                   valueListenable: AppThemeSettings.themeSeedColor,
                   builder: (context, seedColor, _) {
-                    final seed = seedColor ?? kBrand;
+                    // 亮暗各自解析：命中预设时会拿到配对的那个颜色，
+                    // 自选颜色时两边都用它本身。
                     final lightTheme = _buildTheme(
-                      seed: seed,
+                      seed: AppAccents.resolve(seedColor, Brightness.light),
                       brightness: Brightness.light,
                       dynamicScheme: dynamicEnabled ? lightDynamic : null,
                     );
                     final darkTheme = _buildTheme(
-                      seed: seed,
+                      seed: AppAccents.resolve(seedColor, Brightness.dark),
                       brightness: Brightness.dark,
                       dynamicScheme: dynamicEnabled ? darkDynamic : null,
                     );

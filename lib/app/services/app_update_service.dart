@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'log/log.dart';
+
 class AppUpdateInfo {
   final String latestVersion;
   final String? releaseName;
@@ -18,6 +20,8 @@ class AppUpdateInfo {
 }
 
 class AppUpdateService {
+  static const String _logTag = 'AppUpdateService';
+
   AppUpdateService._();
 
   static final AppUpdateService instance = AppUpdateService._();
@@ -48,7 +52,8 @@ class AppUpdateService {
       final v = info.version.trim();
       _cachedVersion = v.isEmpty ? '0.0.0' : v;
       return _cachedVersion!;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '读取当前应用版本号失败，回退为 0.0.0', e, s);
       return _cachedVersion ?? '0.0.0';
     }
   }

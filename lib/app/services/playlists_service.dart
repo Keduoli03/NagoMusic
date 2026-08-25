@@ -6,6 +6,7 @@ import 'package:sqflite/sqflite.dart';
 import '../utils/cache_version_store.dart';
 import 'db/db_constants.dart';
 import 'db/db_helper.dart';
+import 'log/log.dart';
 
 class PlaylistEntity {
   final String id;
@@ -67,6 +68,7 @@ class PlaylistEntity {
 class PlaylistsService {
   static final PlaylistsService instance = PlaylistsService._internal();
 
+  static const String _logTag = 'PlaylistsService';
   static const String _prefsKey = 'playlists_v1';
   static const String cacheVersionScope = 'playlists';
   static const String favoritePlaylistId = '__favorite__';
@@ -516,7 +518,8 @@ class PlaylistsService {
       });
       await prefs.remove(_prefsKey);
       return true;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '从旧版 SharedPreferences 迁移歌单失败', e, s);
       return false;
     }
   }

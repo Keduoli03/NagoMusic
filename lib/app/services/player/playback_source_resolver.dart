@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:media_cache/media_cache.dart';
 
 import '../../state/song_state.dart';
 import '../bili/bili_music_service.dart';
+import '../log/log.dart';
 import '../webdav/webdav_endpoint_resolver.dart';
 import '../webdav/webdav_source_repository.dart';
 
@@ -16,10 +16,7 @@ class PlaybackSourceQueue {
   final List<SongEntity> songs;
   final List<AudioSource> sources;
 
-  const PlaybackSourceQueue({
-    required this.songs,
-    required this.sources,
-  });
+  const PlaybackSourceQueue({required this.songs, required this.sources});
 }
 
 /// 播放地址的解析与注册，从 [PlayerService] 里抽出来。
@@ -30,6 +27,7 @@ class PlaybackSourceQueue {
 /// 必须和它的所有读写者放在一起 —— 分开的话会拿到过期签名 URL 的 403，
 /// 且只在会话开始十几分钟后才复现。
 class PlaybackSourceResolver {
+  static const String _logTag = 'PlaybackSourceResolver';
   static const Duration _resolvedSourceTtl = Duration(minutes: 10);
 
   final AudioCacheService _audioCache;
@@ -50,8 +48,7 @@ class PlaybackSourceResolver {
   }) : _audioCache = audioCache ?? AudioCacheService.instance,
        _proxy = proxy ?? AudioProxyServer.instance,
        _biliService = biliService ?? BiliMusicService.instance,
-       _webdavSourceRepo =
-           webdavSourceRepo ?? WebDavSourceRepository.instance,
+       _webdavSourceRepo = webdavSourceRepo ?? WebDavSourceRepository.instance,
        _webdavEndpointResolver =
            webdavEndpointResolver ?? WebDavEndpointResolver.instance;
 
@@ -142,10 +139,8 @@ class PlaybackSourceResolver {
     }
     try {
       await resolvePlayableUri(song);
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('PlayerService warmup source failed for ${song.title}: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '预热播放源失败 song=${song.title}', e, s);
     }
   }
 
@@ -171,7 +166,8 @@ class PlaybackSourceResolver {
         );
       }
       return null;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析歌曲自带请求头 JSON 失败 songId=${song.id}', e, s);
       return null;
     }
   }
@@ -198,7 +194,13 @@ class PlaybackSourceResolver {
       );
       if (active == null) return rawUri;
       return _webdavEndpointResolver.rewriteHost(rawUri, active).toString();
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(
+        _logTag,
+        '解析 WebDAV 可用地址失败 sourceId=$sourceId，回退到原始地址',
+        e,
+        s,
+      );
       return rawUri;
     }
   }
@@ -310,5 +312,6 @@ class _ResolvedRemoteSource {
   });
 
   bool get isExpired =>
-      DateTime.now().difference(resolvedAt) > PlaybackSourceResolver._resolvedSourceTtl;
+      DateTime.now().difference(resolvedAt) >
+      PlaybackSourceResolver._resolvedSourceTtl;
 }

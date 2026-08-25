@@ -66,7 +66,8 @@ class _TabletLayoutHostState extends State<TabletLayoutHost>
         final pageOffset = drawerWidth * t;
         final scale = 1 - (0.02 * t);
         final contentWidth = (width - pageOffset).clamp(0.0, width);
-        final bottomInset = MediaQuery.paddingOf(context).bottom;
+        // viewPadding：键盘弹起时 padding.bottom 会塌成 0，页面会整体窜一下。
+        final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
         final pageRadius = 24.0 * t;
         final pageShadow = Theme.of(context).brightness == Brightness.dark
             ? Colors.black.withValues(alpha: 0.28 * t)

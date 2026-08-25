@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
 import '../db/db_constants.dart';
+import '../log/log.dart';
 import '../navidrome/navidrome_source_repository.dart';
 import '../playlists_service.dart';
 import '../stats_service.dart';
@@ -48,6 +49,8 @@ class BackupSections {
 }
 
 class BackupService {
+  static const String _logTag = 'BackupService';
+
   BackupService._();
   static final BackupService instance = BackupService._();
 
@@ -97,7 +100,8 @@ class BackupService {
         sources: m['sources'] as bool? ?? false,
         settings: m['settings'] as bool? ?? false,
       );
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析备份分区设置失败，回退为默认值', e, s);
       return const BackupSections();
     }
   }
@@ -121,7 +125,9 @@ class BackupService {
     try {
       final info = await PackageInfo.fromPlatform();
       appVersion = '${info.version}+${info.buildNumber}';
-    } catch (_) {}
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '读取应用版本号失败，备份中版本号将留空', e, s);
+    }
 
     final data = <String, dynamic>{
       'format': formatVersion,
@@ -167,7 +173,8 @@ class BackupService {
     final Map<String, dynamic> data;
     try {
       data = jsonDecode(jsonStr) as Map<String, dynamic>;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '解析备份文件 JSON 失败', e, s);
       throw const FormatException('备份文件格式无效');
     }
     if (data['format'] == null) {
@@ -313,7 +320,9 @@ class BackupService {
             );
             break;
         }
-      } catch (_) {}
+      } catch (e, s) {
+        AppLog.instance.w(_logTag, '导入单条应用设置失败 key=${entry.key}', e, s);
+      }
     }
   }
 
@@ -446,8 +455,8 @@ class BackupService {
     final dir = _normalizeDir(target.path);
     try {
       await client.mkdirAll(dir);
-    } catch (e) {
-      if (kDebugMode) debugPrint('BackupService mkdirAll($dir) failed: $e');
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '创建备份目录失败 dir=$dir', e, s);
     }
     final dev = await deviceId();
     final path = '$dir/nagomusic_backup__${dev}__${_tsNow()}.json';
@@ -508,7 +517,8 @@ class BackupService {
     List<webdav.File> files;
     try {
       files = await client.readDir(dir);
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '列出 WebDAV 备份目录失败 dir=$dir', e, s);
       return [];
     }
     final me = await deviceId();

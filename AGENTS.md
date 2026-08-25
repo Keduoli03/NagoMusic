@@ -191,10 +191,50 @@ These conventions are inferred from current code and should be preserved.
 
 ### Error Handling and Logging
 
+日志层在 `lib/app/services/log/`，入口是 `AppLog.instance`（`import '<相对路径>/log/log.dart';`）。
+
+```dart
+AppLog.instance.d(tag, message);                 // 调试：仅在用户打开「调试模式」时记录
+AppLog.instance.i(tag, message);                 // 信息：同上
+AppLog.instance.w(tag, message, [error, stack]); // 警告：永远记录 + 立即落盘
+AppLog.instance.e(tag, message, [error, stack]); // 错误：永远记录 + 立即落盘
+```
+
+- **不要再写 `if (kDebugMode) debugPrint(...)`**。这个写法在 release 包里一条都不记，
+  而用户手上跑的正是 release 包。裸 `debugPrint` 仍会被钩子收进日志，但没有级别和
+  堆栈，只适合临时排查。
+- `tag` 用类名，**不能包含冒号**（会破坏日志文件的行解析）。习惯写法是在类里放一个
+  `static const String _logTag = 'XxxService';`。
+- catch 住异常时写成 `catch (e, s)`，把 `e, s` 一起传给 `w` / `e`，否则日志里没有堆栈。
 - Wrap fallible IO/network/database calls in `try/catch` where failures are expected.
-- Do not swallow errors silently; at minimum log in debug builds.
-- Follow existing logging style: `if (kDebugMode) debugPrint(...)`.
+- **什么该记**：网络、文件、数据库、JSON 解析、平台通道失败，以及用户主动触发的操作
+  （备份/导入/登录/扫描/下载）失败——这些用户看得见，但不记就查不到原因。
+- **什么不该记**（保持空 catch）：错误路径里的尽力而为收尾（`dispose`、`stop`）、
+  「先试 A 失败再退 B」的能力探测、以及每首歌都会跑一次的循环内失败（会刷屏，
+  需要的话在循环外记一条汇总的 `w`）。
+- **`compute()` 送进后台 isolate 的函数里不要调 `AppLog`**——它是主 isolate 的单例，
+  在子 isolate 里拿到的是另一个互不相通的空实例，写了也看不到。
+- 全局未捕获异常已经由 `runGuardedApp()` + `installErrorHandlers()` 在 `main.dart` 接管，
+  不需要在页面里再兜一层。
 - Provide safe fallback behavior on failure (defaults, retries, or early returns).
+
+### 键盘与安全区（全局约定）
+
+页面正文**一律不随键盘变形**。这条由 `AppPageScaffold` 统一保证，页面不需要也不应该
+自己处理：
+
+- `resizeToAvoidBottomInset` 默认 `false`，别改成 `true`。
+- `AppPageScaffold` 会给正文套一层修正过的 `MediaQuery`：`viewInsets` 清零，
+  `padding.bottom` 用 `viewPadding.bottom` 复原。
+- **底部安全区一律读 `MediaQuery.viewPaddingOf(context).bottom`，不要读
+  `padding.bottom`。** Flutter 里 `padding = viewPadding - viewInsets` 且钳在 0，
+  键盘一弹起 `padding.bottom` 就从导航栏高度塌成 0，所有按它算的底部留白会缩掉
+  一条导航栏，表现为「键盘升起时页面轻微拉伸/窜动」。列表底部留白统一走
+  `AppPageScaffold.scrollableBottomPadding(context)`。
+- 例外是**弹窗 / 底部面板 / Toast**：它们挂在 Navigator 的 Overlay 上，在上述修正
+  之外，本来就该读 `viewInsets` 把自己顶到键盘上方——那里的 `viewInsets` 用法是对的，
+  不要跟着改。
+- 回归测试在 `test/app_page_scaffold_inset_test.dart`，改动这块前先跑它。
 
 ### UI and Theming
 

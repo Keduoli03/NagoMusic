@@ -4,6 +4,7 @@ import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/router/app_page_route.dart';
 import '../../app/services/backup/backup_service.dart';
+import '../../app/services/log/log.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
 import '../source/webdav/webdav_folder_picker_page.dart';
@@ -16,6 +17,8 @@ class BackupRestorePage extends StatefulWidget {
 }
 
 class _BackupRestorePageState extends State<BackupRestorePage> {
+  static const String _logTag = 'BackupRestorePage';
+
   final BackupService _backup = BackupService.instance;
 
   BackupSections _sections = const BackupSections();
@@ -100,7 +103,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       final summary = await _backup.restoreFromJson(jsonStr);
       if (!mounted) return;
       _afterImport(summary);
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '从本地文件导入备份失败', e, s);
       if (!mounted) return;
       AppToast.show(context, '导入失败：$e', type: ToastType.error);
     }
@@ -139,7 +143,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     List<WebDavBackupEntry> entries;
     try {
       entries = await _backup.listWebDavBackups(target);
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '读取WebDAV备份列表失败', e, s);
       if (!mounted) return;
       AppToast.show(context, '读取备份列表失败：$e', type: ToastType.error);
       return;
@@ -154,7 +159,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     String jsonStr;
     try {
       jsonStr = await _backup.downloadFromWebDavPath(target, chosen.path);
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '从WebDAV下载备份失败', e, s);
       if (!mounted) return;
       AppToast.show(context, '下载失败：$e', type: ToastType.error);
       return;
@@ -166,7 +172,8 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       final summary = await _backup.restoreFromJson(jsonStr);
       if (!mounted) return;
       _afterImport(summary);
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '从WebDAV导入备份失败', e, s);
       if (!mounted) return;
       AppToast.show(context, '导入失败：$e', type: ToastType.error);
     }

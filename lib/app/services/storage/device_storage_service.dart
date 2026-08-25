@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
+import '../log/log.dart';
 
 /// 设备存储容量（总量 / 可用），给「存储与缓存」页顶部那条
 /// 「本 App 已用 / 其他 App 已用 / 剩余可用」构成条用。
@@ -37,6 +38,8 @@ class DeviceStorage {
 class DeviceStorageService {
   DeviceStorageService._();
 
+  static const String _logTag = 'DeviceStorageService';
+
   static const _channel = MethodChannel('app/device_storage');
 
   /// 查询设备容量；查不到返回 null（调用方负责降级，不要抛给用户）。
@@ -47,8 +50,8 @@ class DeviceStorageService {
       final free = (r?['free'] as num?)?.toInt() ?? 0;
       if (total <= 0) return null;
       return DeviceStorage(total: total, free: free.clamp(0, total));
-    } catch (e) {
-      debugPrint('[storage] capacity unavailable: $e');
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '查询设备存储容量失败', e, s);
       return null;
     }
   }

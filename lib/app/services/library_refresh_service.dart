@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../state/settings_state.dart';
 import 'db/dao/song_dao.dart';
 import 'local_music_service.dart';
+import 'log/log.dart';
 import 'navidrome/navidrome_music_service.dart';
 import 'navidrome/navidrome_source_repository.dart';
 import 'webdav/webdav_music_service.dart';
@@ -22,6 +22,8 @@ class LibraryRefreshResult {
 }
 
 class LibraryRefreshService {
+  static const String _logTag = 'LibraryRefreshService';
+
   LibraryRefreshService._();
 
   static final LibraryRefreshService instance = LibraryRefreshService._();
@@ -84,10 +86,8 @@ class LibraryRefreshService {
       );
       await _localService.saveLastScanCount(result.added);
       return result.added;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Silent local refresh failed: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '静默本地扫描失败', e, s);
       return 0;
     }
   }
@@ -107,10 +107,13 @@ class LibraryRefreshService {
             onProgress: (_) {},
           );
           added += result.added;
-        } catch (e) {
-          if (kDebugMode) {
-            debugPrint('Silent WebDAV refresh failed for ${source.id}: $e');
-          }
+        } catch (e, s) {
+          AppLog.instance.w(
+            _logTag,
+            '静默 WebDAV 扫描失败 sourceId=${source.id}',
+            e,
+            s,
+          );
         }
       }
       final navidromeSources = await _navidromeRepo.loadSources();
@@ -123,17 +126,18 @@ class LibraryRefreshService {
             onProgress: (_) {},
           );
           added += result.added;
-        } catch (e) {
-          if (kDebugMode) {
-            debugPrint('Silent Navidrome refresh failed for ${source.id}: $e');
-          }
+        } catch (e, s) {
+          AppLog.instance.w(
+            _logTag,
+            '静默 Navidrome 扫描失败 sourceId=${source.id}',
+            e,
+            s,
+          );
         }
       }
       return added;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Silent cloud refresh failed: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '静默云端刷新失败', e, s);
       return 0;
     }
   }

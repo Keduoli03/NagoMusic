@@ -7,6 +7,7 @@ import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/local_music_service.dart';
 import '../../app/services/db/dao/song_dao.dart';
+import '../../app/services/log/log.dart';
 import '../../app/router/app_page_route.dart';
 import '../../app/services/navidrome/navidrome_music_service.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
@@ -60,6 +61,8 @@ class SourcePage extends StatefulWidget {
 }
 
 class _SourcePageState extends State<SourcePage> with SignalsMixin {
+  static const String _logTag = 'SourcePage';
+
   final LocalMusicService _localService = LocalMusicService();
   final WebDavMusicService _webDavService = WebDavMusicService();
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
@@ -447,7 +450,13 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           );
         },
       );
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(
+        _logTag,
+        'Navidrome扫描失败，sourceId=${sourceItem.id}',
+        e,
+        s,
+      );
       _scanRunning.remove(sourceItem.id);
       _scanCancelSignals.remove(sourceItem.id);
       if (!mounted) return;

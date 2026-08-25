@@ -7,12 +7,14 @@ import 'package:just_audio/just_audio.dart';
 import 'package:media_cache/media_cache.dart';
 import 'package:signals/signals.dart';
 
+import 'bili/bili_music_service.dart';
 import 'db/dao/song_dao.dart';
 import 'media_notification_service.dart';
 import 'player/playback_source_resolver.dart';
 import 'player/playback_state_persistence.dart';
 import 'player/player_sleep_timer.dart';
 import 'player/song_metadata_persister.dart';
+import 'log/log.dart';
 import 'stats_service.dart';
 import '../state/settings_state.dart';
 import '../state/song_state.dart';
@@ -104,10 +106,9 @@ class PlayerService with WidgetsBindingObserver {
 
   bool get hasLoadedAudioSource => _player.audioSource != null;
 
-  void _debugLog(String message) {
-    if (!kDebugMode) return;
-    debugPrint('[PlayerService] $message');
-  }
+  static const String _logTag = 'PlayerService';
+
+  void _debugLog(String message) => AppLog.instance.d(_logTag, message);
 
   PlayerService._internal() {
     WidgetsBinding.instance.addObserver(this);
@@ -168,8 +169,8 @@ class PlayerService with WidgetsBindingObserver {
           _emitSnapshot();
         }
       }
-    } catch (e) {
-      if (kDebugMode) debugPrint('Hydration failed: $e');
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '恢复播放列表元数据失败', e, s);
     }
   }
 
@@ -312,8 +313,8 @@ class PlayerService with WidgetsBindingObserver {
   Future<void> _applyAppVolume(double value) async {
     try {
       await _player.setVolume(value.clamp(0, 1).toDouble());
-    } catch (e) {
-      if (kDebugMode) debugPrint('PlayerService set volume failed: $e');
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '设置音量失败 value=$value', e, s);
     }
   }
 
@@ -342,10 +343,8 @@ class PlayerService with WidgetsBindingObserver {
         );
         await _loadPlaybackSourceQueue(sourceQueue, initialIndex: actualIndex);
         return true;
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('PlayerService.playQueue setAudioSources failed: $e');
-        }
+      } catch (e, s) {
+        AppLog.instance.w(_logTag, 'playQueue 装载音源失败，准备重试', e, s);
         final msg = e.toString();
         final shouldRetry =
             msg.contains('404') ||
@@ -378,12 +377,8 @@ class PlayerService with WidgetsBindingObserver {
             initialIndex: actualIndex,
           );
           return true;
-        } catch (e2) {
-          if (kDebugMode) {
-            debugPrint(
-              'PlayerService.playQueue setAudioSources retry failed: $e2',
-            );
-          }
+        } catch (e2, s2) {
+          AppLog.instance.e(_logTag, 'playQueue 装载音源重试仍失败', e2, s2);
           return false;
         }
       }
@@ -406,15 +401,13 @@ class PlayerService with WidgetsBindingObserver {
 
     try {
       await _player.play();
-    } catch (e) {
+    } catch (e, s) {
       try {
         await _player.stop();
       } catch (_) {}
       isPlaying.value = false;
       _emitSnapshot();
-      if (kDebugMode) {
-        debugPrint('PlayerService.playQueue play failed: $e');
-      }
+      AppLog.instance.e(_logTag, 'playQueue 起播失败', e, s);
     }
   }
 
@@ -563,11 +556,9 @@ class PlayerService with WidgetsBindingObserver {
     );
     try {
       await _loadPlaybackSourceQueue(sourceQueue, initialIndex: actualIndex);
-    } catch (e) {
+    } catch (e, s) {
       await stopAndClear();
-      if (kDebugMode) {
-        debugPrint('PlayerService._reloadQueue setAudioSources failed: $e');
-      }
+      AppLog.instance.e(_logTag, '_reloadQueue 装载音源失败', e, s);
       return;
     }
 
@@ -581,11 +572,9 @@ class PlayerService with WidgetsBindingObserver {
     if (play) {
       try {
         await _startPlayback();
-      } catch (e) {
+      } catch (e, s) {
         await stopAndClear();
-        if (kDebugMode) {
-          debugPrint('PlayerService._reloadQueue play failed: $e');
-        }
+        AppLog.instance.e(_logTag, '_reloadQueue 起播失败', e, s);
       }
     } else {
       try {
@@ -599,18 +588,22 @@ class PlayerService with WidgetsBindingObserver {
     final failedIndex = error.index;
     final list = queue.value;
     if (failedIndex == null || failedIndex < 0 || failedIndex >= list.length) {
-      if (kDebugMode) {
-        debugPrint('PlayerService player error without valid index: $error');
-      }
+      AppLog.instance.w(_logTag, '播放器报错但没有有效的队列下标: $error');
       return;
     }
 
     final failedSong = list[failedIndex];
     final storedUri = (failedSong.uri ?? '').trim();
-    if (failedSong.isLocal || !storedUri.startsWith('http')) {
-      if (kDebugMode) {
-        debugPrint('PlayerService player error on non-remote source: $error');
-      }
+    // B 站曲目存的是 `bili://` 占位地址，真实直链是播放时才解析的（见
+    // BiliMusicService.resolveStreamUri）。所以不能拿「uri 不是 http」当成
+    // 「这是本地文件」—— 那样每一首 B 站歌都会被挡在恢复逻辑外面，直链一过期
+    // 就直接放不出来，连一次重新解析都不会尝试。
+    //
+    // 恢复逻辑本身是通用的：它会 forceRefresh 重新解析，对 B 站正好就是重新取一次
+    // playurl，这恰恰是最该做的事。
+    final isBili = BiliMusicService.isBiliSong(failedSong);
+    if (!isBili && (failedSong.isLocal || !storedUri.startsWith('http'))) {
+      AppLog.instance.w(_logTag, '本地音源播放出错，不做在线重定向恢复: $error');
       return;
     }
 
@@ -655,10 +648,8 @@ class PlayerService with WidgetsBindingObserver {
       } else {
         await _pausePlayback();
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('PlayerService current source recovery failed: $e');
-      }
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '当前音源恢复失败', e, s);
     } finally {
       _recoveringCurrentSource = false;
     }
@@ -936,10 +927,8 @@ class PlayerService with WidgetsBindingObserver {
         _debugLog('restorePlaybackState autoPlay');
         await _startPlayback();
         return;
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('Auto play on app launch failed: $e');
-        }
+      } catch (e, s) {
+        AppLog.instance.e(_logTag, '启动自动续播失败', e, s);
       }
     }
 
@@ -982,8 +971,8 @@ class PlayerService with WidgetsBindingObserver {
         ..seekApplied = true;
       position.value = session.position;
       _emitSnapshot(force: true);
-    } catch (e) {
-      if (kDebugMode) debugPrint('Error restoring playback state: $e');
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '恢复播放进度失败', e, s);
       session.prepareFailed = true;
     }
   }

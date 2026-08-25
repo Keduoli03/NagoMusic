@@ -2,10 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'log/log.dart';
+
 class AndroidPlatformService {
   AndroidPlatformService._();
 
   static final AndroidPlatformService instance = AndroidPlatformService._();
+
+  static const String _logTag = 'AndroidPlatformService';
 
   static const MethodChannel _channel = MethodChannel(
     'com.lanke.nagomusic/downloads',
@@ -20,7 +24,8 @@ class AndroidPlatformService {
     try {
       final value = await _channel.invokeMethod<int>('getAndroidSdkInt');
       _sdkInt = value ?? 0;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '获取 Android SDK 版本失败', e, s);
       _sdkInt = 0;
     }
     return _sdkInt!;

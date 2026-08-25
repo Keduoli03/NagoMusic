@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../state/song_state.dart';
 import '../db/dao/song_dao.dart';
+import '../log/log.dart';
 import '../stats_service.dart';
 
 /// 把 B 站视频接到本地曲库上。
@@ -19,6 +20,8 @@ import '../stats_service.dart';
 /// 2. **`uri` 只是缓存值。** 播放时由 [PlayerService] 回调 [resolveStreamUri] 重新拿
 ///    新链接，DB 里那条过期 URL 只用来避免冷启动多一次请求。
 class BiliMusicService {
+  static const String _logTag = 'BiliMusicService';
+
   static final BiliMusicService instance = BiliMusicService._();
 
   BiliMusicService._();
@@ -236,7 +239,8 @@ class BiliMusicService {
       if (bytes == null || bytes.isEmpty) return null;
       await file.writeAsBytes(bytes, flush: true);
       return file.path;
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '缓存视频封面失败 bvid=$bvid url=$coverUrl', e, s);
       return null;
     }
   }
@@ -263,7 +267,10 @@ class BiliMusicService {
     bool forceRefresh = false,
   }) async {
     final parsed = parseSongId(songId);
-    if (parsed == null) return null;
+    if (parsed == null) {
+      AppLog.instance.w(_logTag, '取流失败：songId 解析不出 bvid/cid songId=$songId');
+      return null;
+    }
 
     if (forceRefresh) {
       _streamCache.remove(songId);
@@ -277,13 +284,41 @@ class BiliMusicService {
     if (inflight != null) return inflight;
 
     final future = () async {
-      final streams = await _api.audioStreams(bvid: parsed.$1, cid: parsed.$2);
-      final best = BiliAudioSelector.best(streams);
-      if (best == null) return null;
-      _streamCache[songId] = _ResolvedStream(best.url, DateTime.now());
-      // 顺手把码率 / 格式补进 DB，歌曲详情页才能显示音质。
-      unawaited(_updateQuality(songId, best));
-      return best.url;
+      // 这条路径以前一条日志都没有，三个失败分支全是静默 return null。
+      // 结果是 B 站放不出来时，日志里只有下游 just_audio 的 `Source error`，
+      // 完全看不出到底是没登录、被风控、还是这个视频压根没有音频流。
+      try {
+        final streams = await _api.audioStreams(
+          bvid: parsed.$1,
+          cid: parsed.$2,
+        );
+        final best = BiliAudioSelector.best(streams);
+        if (best == null) {
+          AppLog.instance.w(
+            _logTag,
+            '取流失败：playurl 没返回可用音频流 '
+            'bvid=${parsed.$1} cid=${parsed.$2} 候选数=${streams.length}',
+          );
+          return null;
+        }
+        AppLog.instance.d(
+          _logTag,
+          '取流成功 bvid=${parsed.$1} cid=${parsed.$2} '
+          'id=${best.id} bandwidth=${best.bandwidth}',
+        );
+        _streamCache[songId] = _ResolvedStream(best.url, DateTime.now());
+        // 顺手把码率 / 格式补进 DB，歌曲详情页才能显示音质。
+        unawaited(_updateQuality(songId, best));
+        return best.url;
+      } catch (e, s) {
+        AppLog.instance.e(
+          _logTag,
+          '取流失败：playurl 请求出错 bvid=${parsed.$1} cid=${parsed.$2}',
+          e,
+          s,
+        );
+        return null;
+      }
     }();
 
     _inflight[songId] = future;
@@ -292,6 +327,9 @@ class BiliMusicService {
   }
 
   Future<void> _updateQuality(String songId, BiliAudioStream stream) async {
+    // durl 合流流没有音质档位，bandwidth 里混着视频码率。写进 DB 会让详情页
+    // 显示一个凭空捏造的"音质"，不如不写。
+    if (stream.bandwidth <= 0) return;
     try {
       final rows = await _songDao.fetchByIds([songId]);
       if (rows.isEmpty) return;
@@ -303,7 +341,8 @@ class BiliMusicService {
           format: stream.id == 30251 ? 'FLAC' : 'M4A',
         ),
       ]);
-    } catch (_) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '更新曲目音质信息失败 songId=$songId', e, s);
       // 音质标签是锦上添花，写失败不该影响播放。
     }
   }

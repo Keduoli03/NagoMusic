@@ -4,6 +4,7 @@ import 'package:bili_api/bili_api.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../app/services/log/log.dart';
 import '../../app/theme/app_icons.dart';
 import '../../components/index.dart';
 
@@ -20,6 +21,8 @@ class BiliLoginPage extends StatefulWidget {
 }
 
 class _BiliLoginPageState extends State<BiliLoginPage> {
+  static const String _logTag = 'BiliLoginPage';
+
   final BiliApi _api = BiliApi.instance;
 
   Timer? _pollTimer;
@@ -60,7 +63,8 @@ class _BiliLoginPageState extends State<BiliLoginPage> {
         _hint = '请使用哔哩哔哩客户端扫码';
       });
       _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
-    } catch (e) {
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '获取B站登录二维码失败', e, s);
       if (!mounted) return;
       setState(() {
         _loading = false;
