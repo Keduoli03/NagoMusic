@@ -47,7 +47,7 @@ class PlayerBottomPanel extends StatelessWidget {
       children: [
         if (showMiniLyrics)
           _MiniLyricsPreview(onTap: onTapLyrics, stylePreset: stylePreset),
-        _PlayerSeekBar(player: player, stylePreset: stylePreset),
+        PlayerSeekBar(player: player, stylePreset: stylePreset),
         const SizedBox(height: 20),
         _PlayerControls(player: player),
         const SizedBox(height: 30),
@@ -276,17 +276,21 @@ class _MiniLyricsPreviewState extends State<_MiniLyricsPreview>
   }
 }
 
-class _PlayerSeekBar extends StatefulWidget {
+class PlayerSeekBar extends StatefulWidget {
   final PlayerService player;
   final PlayerStylePreset stylePreset;
 
-  const _PlayerSeekBar({required this.player, required this.stylePreset});
+  const PlayerSeekBar({
+    super.key,
+    required this.player,
+    required this.stylePreset,
+  });
 
   @override
-  State<_PlayerSeekBar> createState() => _PlayerSeekBarState();
+  State<PlayerSeekBar> createState() => _PlayerSeekBarState();
 }
 
-class _PlayerSeekBarState extends State<_PlayerSeekBar> with SignalsMixin {
+class _PlayerSeekBarState extends State<PlayerSeekBar> with SignalsMixin {
   late final _dragValue = createSignal<double?>(null);
 
   @override

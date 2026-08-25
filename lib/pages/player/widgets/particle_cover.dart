@@ -14,9 +14,11 @@ const String _logTag = 'ParticleCover';
 
 /// 「粒子封面」。
 ///
-/// **稳态**：全图铺一层点画（stipple）质感——中心接近干净的原图，密度往边缘
-/// 快速升高，边缘一圈近乎"雪花"，再往外溶解进背景。这是静态贴图，不逐帧
-/// 重绘（省电，也避免几千个点每帧重算）。
+/// **稳态**：中心是高清原封面，仅最外 5% 渐隐并碎片化。边缘粒子直接移植自
+/// mica-music 的 `buildEdgeParticles()`：固定 Java Random 序列、同一组 band /
+/// size / scatter 参数；可见数量按 Flutter 实心方块面积折算为 3,200 枚，每枚
+/// 方块只采样自己 UV 的封面颜色。
+/// 稳定态是静态效果，不逐帧重绘。
 ///
 /// **切歌过渡**（900ms）：旧封面先按"离边缘越近越先飞散"的顺序碎成粒子
 /// （前 450ms），新封面的粒子再按同样的顺序从四散状态聚拢回来、边缘的最后
@@ -45,13 +47,15 @@ class _ParticleCoverState extends State<ParticleCover>
   /// 切歌过渡用的粗网格——逐帧重算，密度不能高。
   static const int _transitionGridSize = 44;
 
-  /// 稳态点画用的密网格——只在封面换的时候算一次，不逐帧重算，可以铺得很密。
-  static const int _stippleGridSize = 96;
+  /// 原 OpenGL 的 11,000 点还会经过约 77% 面积的 shard mask 与残影透明度；
+  /// Flutter atlas 是实心方块，因此按实际可见面积折算为约 3,200 枚。
+  static const int _edgeParticleCount = 3200;
 
   static const Duration _transitionDuration = Duration(milliseconds: 900);
 
   String? _loadedSongId;
   int _loadToken = 0;
+  bool _didLoadInitialSong = false;
 
   /// 稳态 / 过渡终点（聚拢目标）用的网格。
   _CoverGrid? _currentGrid;
@@ -65,8 +69,10 @@ class _ParticleCoverState extends State<ParticleCover>
   )..addStatusListener(_onTransitionStatus);
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didLoadInitialSong) return;
+    _didLoadInitialSong = true;
     _handleSongChanged(widget.song);
   }
 
@@ -110,7 +116,7 @@ class _ParticleCoverState extends State<ParticleCover>
 
     _CoverGrid? grid;
     try {
-      grid = await _buildGrid(image, _transitionGridSize, _stippleGridSize);
+      grid = await _buildGrid(image, _transitionGridSize, _edgeParticleCount);
     } catch (e, s) {
       AppLog.instance.w(_logTag, '封面取样网格构建失败 songId=${song.id}', e, s);
     }
@@ -177,6 +183,7 @@ class _ParticleCoverState extends State<ParticleCover>
             outgoing: _outgoingGrid,
             transitionValue: _transition.value,
             transitioning: _transition.isAnimating,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
           ),
           child: const SizedBox.expand(),
         );
@@ -211,36 +218,25 @@ class _CoverSample {
   final Offset scatterDir;
 }
 
-/// 稳态点画用的密粒子。
+/// 稳态时覆盖在高清原图边缘的一枚碎片。
 @immutable
-class _StippleDot {
-  const _StippleDot({
+class _EdgeParticle {
+  const _EdgeParticle({
     required this.uv,
-    required this.color,
-    required this.edgeness,
-    required this.presence,
-    required this.sizeSeed,
-    required this.whiteSeed,
+    required this.home,
+    required this.scatter,
+    required this.size,
+    required this.edgeWeight,
   });
 
+  /// 原仓库的 `aUv`：颜色只采样该粒子在封面上的对应像素。
   final Offset uv;
-  final Color color;
 
-  /// 0（中心）~1（边缘），点画密度直接按它算——中心接近干净，边缘接近铺满。
-  final double edgeness;
-
-  /// 独立哈希（和 [edgeness] 不相关），配合密度曲线决定这一点画不画：
-  /// `presence <= density(edgeness)` 才画。密度低的区域（画面中心）大部分点
-  /// 会被这道门槛挡掉，只剩零星几个漏网的，边缘密度高时门槛松，绝大多数
-  /// 点都画得出来。
-  final double presence;
-
-  /// 独立哈希，决定这一点的大小。点画质感全靠大小不一，不能所有点一个尺寸。
-  final double sizeSeed;
-
-  /// 独立哈希，决定这一点偏白还是偏原色。大部分偏白（呼应参考图那种"雪花/
-  /// 高光颗粒"的观感），少数保留原色增加色彩层次，不然会变成纯黑白噪点。
-  final double whiteSeed;
+  /// 原仓库顶点缓冲中的 home / scatter，范围为 OpenGL 的 -1~1。
+  final Offset home;
+  final Offset scatter;
+  final double size;
+  final double edgeWeight;
 }
 
 @immutable
@@ -248,7 +244,7 @@ class _CoverGrid {
   const _CoverGrid({
     required this.image,
     required this.samples,
-    required this.stipple,
+    required this.edgeParticles,
   });
 
   final ui.Image image;
@@ -256,8 +252,8 @@ class _CoverGrid {
   /// 粗网格，切歌过渡用。
   final List<_CoverSample> samples;
 
-  /// 密网格，稳态点画用。
-  final List<_StippleDot> stipple;
+  /// 只分布在封面最外 5% 的碎片。
+  final List<_EdgeParticle> edgeParticles;
 }
 
 /// 整数哈希，出的是 0~1。不用 `Random`：点的位置抖动/方向/大小要在多次重建
@@ -277,7 +273,7 @@ double _edgeness(double u, double v) {
 Future<_CoverGrid?> _buildGrid(
   ui.Image image,
   int transitionGridSize,
-  int stippleGridSize,
+  int edgeParticleCount,
 ) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
   if (data == null) return null;
@@ -291,8 +287,12 @@ Future<_CoverGrid?> _buildGrid(
     height,
     transitionGridSize,
   );
-  final stipple = _buildStipple(pixels, width, height, stippleGridSize);
-  return _CoverGrid(image: image, samples: samples, stipple: stipple);
+  final edgeParticles = _buildEdgeParticles(edgeParticleCount);
+  return _CoverGrid(
+    image: image,
+    samples: samples,
+    edgeParticles: edgeParticles,
+  );
 }
 
 List<_CoverSample> _buildTransitionSamples(
@@ -333,43 +333,102 @@ List<_CoverSample> _buildTransitionSamples(
   return samples;
 }
 
-List<_StippleDot> _buildStipple(
-  Uint8List pixels,
-  int width,
-  int height,
-  int gridSize,
-) {
-  final dots = <_StippleDot>[];
-  for (var gy = 0; gy < gridSize; gy++) {
-    for (var gx = 0; gx < gridSize; gx++) {
-      // 格内再抖动一次位置，避免看出规整的行列——点画从来不是对齐的网格。
-      final jitterX = _hash(gx * 3 + 1, gy * 5 + 2) - 0.5;
-      final jitterY = _hash(gx * 7 + 4, gy * 9 + 6) - 0.5;
-      final u = ((gx + 0.5 + jitterX) / gridSize).clamp(0.0, 1.0);
-      final v = ((gy + 0.5 + jitterY) / gridSize).clamp(0.0, 1.0);
-      final px = (u * width).floor().clamp(0, width - 1);
-      final py = (v * height).floor().clamp(0, height - 1);
-      final i = (py * width + px) * 4;
-      final color = Color.fromARGB(
-        255,
-        pixels[i],
-        pixels[i + 1],
-        pixels[i + 2],
-      );
+List<_EdgeParticle> _buildEdgeParticles(int count) {
+  // 下面的 seed、5% 边缘带、分布指数和散射范围均直接来自原仓库的
+  // buildEdgeParticles()，不再为本项目另设一套视觉参数。
+  final random = _JavaRandom(0xE06ED957);
+  const edgeBand = 0.050;
+  final particles = <_EdgeParticle>[];
+  for (var index = 0; index < count; index++) {
+    final side = random.nextInt(4);
+    final layer = math.pow(random.nextFloat(), 2.65).toDouble();
+    final edgeDepth = edgeBand * layer;
+    final edgeWeight = math
+        .pow(1 - _smoothstep(0, edgeBand, edgeDepth), 1.35)
+        .toDouble();
+    final tangent = random.nextFloat();
+    final tangentJitter = random.between(-0.035, 0.035) * (0.35 + edgeWeight);
+    late double u;
+    late double v;
+    var normalX = 0.0;
+    var normalY = 0.0;
+    switch (side) {
+      case 0:
+        u = (tangent + tangentJitter).clamp(0.0, 1.0);
+        v = edgeDepth.clamp(0.0, 1.0);
+        normalY = 1;
+      case 1:
+        u = (1 - edgeDepth).clamp(0.0, 1.0);
+        v = (tangent + tangentJitter).clamp(0.0, 1.0);
+        normalX = 1;
+      case 2:
+        u = (tangent + tangentJitter).clamp(0.0, 1.0);
+        v = (1 - edgeDepth).clamp(0.0, 1.0);
+        normalY = -1;
+      default:
+        u = edgeDepth.clamp(0.0, 1.0);
+        v = (tangent + tangentJitter).clamp(0.0, 1.0);
+        normalX = -1;
+    }
+    final homeX = u * 2 - 1;
+    final homeY = 1 - v * 2;
+    final outward =
+        random.between(0.018, 0.34) * edgeBand * (0.28 + edgeWeight * 1.18) * 2;
+    final shear =
+        random.between(-0.11, 0.11) * edgeBand * (0.25 + edgeWeight) * 2;
+    final scatter = Offset(
+      homeX + normalX * outward + normalY * shear,
+      homeY + normalY * outward + normalX * shear,
+    );
+    random.between(-1, 1); // homeZ
+    final size =
+        random.between(2.0, 3.4) + edgeWeight * random.between(1.4, 3.4);
+    random.between(-0.08, 0.16); // scatterZ
+    random.nextFloat(); // seed
 
-      dots.add(
-        _StippleDot(
-          uv: Offset(u, v),
-          color: color,
-          edgeness: _edgeness(u, v),
-          presence: _hash(gx * 13 + 5, gy * 17 + 11),
-          sizeSeed: _hash(gx * 19 + 3, gy * 23 + 7),
-          whiteSeed: _hash(gx * 29 + 2, gy * 31 + 9),
-        ),
-      );
+    particles.add(
+      _EdgeParticle(
+        uv: Offset(u, v),
+        home: Offset(homeX, homeY),
+        scatter: scatter,
+        size: size,
+        edgeWeight: edgeWeight,
+      ),
+    );
+  }
+  return particles;
+}
+
+/// `java.util.Random` 的 48-bit LCG，用来复现原仓库的固定粒子序列。
+class _JavaRandom {
+  _JavaRandom(int seed) : _seed = (seed ^ _multiplier) & _mask;
+
+  static const int _multiplier = 0x5DEECE66D;
+  static const int _addend = 0xB;
+  static const int _mask = (1 << 48) - 1;
+
+  int _seed;
+
+  int _next(int bits) {
+    _seed = (_seed * _multiplier + _addend) & _mask;
+    return _seed >> (48 - bits);
+  }
+
+  bool nextBoolean() => _next(1) != 0;
+
+  double nextFloat() => _next(24) / (1 << 24);
+
+  double between(double min, double max) => min + nextFloat() * (max - min);
+
+  int nextInt(int bound) {
+    if (bound <= 0) throw ArgumentError.value(bound, 'bound');
+    if ((bound & -bound) == bound) return (bound * _next(31)) >> 31;
+    while (true) {
+      final bits = _next(31);
+      final value = bits % bound;
+      if (bits - value + (bound - 1) >= 0) return value;
     }
   }
-  return dots;
 }
 
 Future<ui.Image?> _loadCoverBitmap(SongEntity song, int targetWidth) async {
@@ -430,12 +489,14 @@ class _CoverPainter extends CustomPainter {
     required this.outgoing,
     required this.transitionValue,
     required this.transitioning,
+    required this.devicePixelRatio,
   });
 
   final _CoverGrid? steady;
   final _CoverGrid? outgoing;
   final double transitionValue;
   final bool transitioning;
+  final double devicePixelRatio;
 
   /// 归属阈值的羽化宽度：rank 相差在这个范围内的粒子会同时动，不是严格的
   /// 一个一个按顺序弹出，看起来才不像逐帧点名。
@@ -469,27 +530,99 @@ class _CoverPainter extends CustomPainter {
 
   void _paintSteady(Canvas canvas, Size size, _CoverGrid? grid) {
     if (grid == null) return;
-    _drawImage(canvas, size, grid.image, alpha: 1);
-    _drawStipple(canvas, size, grid.stipple);
+    _drawFeatheredImage(canvas, size, grid.image);
+    _drawEdgeParticles(canvas, size, grid);
   }
 
-  void _drawStipple(Canvas canvas, Size size, List<_StippleDot> dots) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (final dot in dots) {
-      // 密度曲线：指数 >1 让中间过渡更陡——画面中心几乎干净，一靠近边缘密度
-      // 就迅速拉满，呼应参考图"中心清楚、边缘瞬间变浓"的观感，不是均匀渐变。
-      final density = math.pow(dot.edgeness, 1.6).toDouble();
-      if (dot.presence > density) continue;
+  /// 原图不做像素化，只在原仓库的 EdgeParticleBand=0.05 区间渐隐。
+  void _drawFeatheredImage(Canvas canvas, Size size, ui.Image image) {
+    const edgeBand = 0.050;
+    // 原仓库 StableEdgeResidueAlpha=0.38；最外沿仍保留一层原图，不把封面
+    // 挖成透明框，再由碎片补满。
+    const edgeResidue = Color.fromARGB(97, 0, 0, 0);
+    const opaque = Color.fromARGB(255, 0, 0, 0);
+    final bounds = Offset.zero & size;
+    canvas.saveLayer(bounds, Paint());
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      bounds,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    final maskPaint = Paint()..blendMode = BlendMode.dstIn;
+    maskPaint.shader = ui.Gradient.linear(
+      Offset.zero,
+      Offset(size.width, 0),
+      const [edgeResidue, opaque, opaque, edgeResidue],
+      const [0, edgeBand, 1 - edgeBand, 1],
+    );
+    canvas.drawRect(bounds, maskPaint);
+    maskPaint.shader = ui.Gradient.linear(
+      Offset.zero,
+      Offset(0, size.height),
+      const [edgeResidue, opaque, opaque, edgeResidue],
+      const [0, edgeBand, 1 - edgeBand, 1],
+    );
+    canvas.drawRect(bounds, maskPaint);
+    canvas.restore();
+  }
 
-      final pos = Offset(dot.uv.dx * size.width, dot.uv.dy * size.height);
-      final dotSize = 0.9 + dot.sizeSeed * 2.0;
-      final useWhite = dot.whiteSeed > 0.28;
-      final alpha = (0.25 + 0.65 * dot.edgeness).clamp(0.0, 0.9);
-      paint.color = (useWhite ? Colors.white : dot.color).withValues(
-        alpha: alpha,
+  /// 用原仓库 buildEdgeParticles() 的 11,000 枚方块碎片覆盖渐隐区。颜色严格
+  /// 采样各自 UV，不再用白点或黑点替代。
+  void _drawEdgeParticles(Canvas canvas, Size size, _CoverGrid grid) {
+    final particles = grid.edgeParticles;
+    if (particles.isEmpty) return;
+    final density = math.min(devicePixelRatio, 1.8);
+    final transforms = <RSTransform>[];
+    final textureRects = <Rect>[];
+    final colors = <Color>[];
+    final paint = Paint()
+      ..isAntiAlias = false
+      ..filterQuality = FilterQuality.none;
+    for (final particle in particles) {
+      final position = particle.scatter;
+      final fragmentPos = Offset(
+        (position.dx + 1) * 0.5 * size.width,
+        (1 - position.dy) * 0.5 * size.height,
       );
-      canvas.drawCircle(pos, dotSize / 2, paint);
+      final sourceX = (particle.uv.dx * grid.image.width).floor().clamp(
+        0,
+        grid.image.width - 1,
+      );
+      final sourceY = (particle.uv.dy * grid.image.height).floor().clamp(
+        0,
+        grid.image.height - 1,
+      );
+      final shardSize = math.max(
+        1 / devicePixelRatio,
+        particle.size * 0.83 * density / devicePixelRatio,
+      );
+      transforms.add(
+        RSTransform.fromComponents(
+          rotation: 0,
+          scale: shardSize,
+          anchorX: 0.5,
+          anchorY: 0.5,
+          translateX: fragmentPos.dx,
+          translateY: fragmentPos.dy,
+        ),
+      );
+      textureRects.add(
+        Rect.fromLTWH(sourceX.toDouble(), sourceY.toDouble(), 1, 1),
+      );
+      // 原仓库 StableEdgeResidueAlpha=0.38。
+      final alpha = 0.38 * (0.72 + 0.28 * particle.edgeWeight);
+      colors.add(Color.fromRGBO(255, 255, 255, alpha));
     }
+    canvas.drawAtlas(
+      grid.image,
+      transforms,
+      textureRects,
+      colors,
+      BlendMode.modulate,
+      null,
+      paint,
+    );
   }
 
   void _paintScatter(
@@ -607,7 +740,8 @@ class _CoverPainter extends CustomPainter {
     return steady != oldDelegate.steady ||
         outgoing != oldDelegate.outgoing ||
         transitionValue != oldDelegate.transitionValue ||
-        transitioning != oldDelegate.transitioning;
+        transitioning != oldDelegate.transitioning ||
+        devicePixelRatio != oldDelegate.devicePixelRatio;
   }
 }
 
@@ -624,4 +758,44 @@ double _inOutCubic(double x) {
 double _smoothstep(double edge0, double edge1, double x) {
   final t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
   return t * t * (3 - 2 * t);
+}
+
+@visibleForTesting
+Future<ui.Image> renderParticleCoverSteadyForTesting(
+  Uint8List encodedArtwork, {
+  int side = 320,
+  double devicePixelRatio = 3,
+}) async {
+  final codec = await ui.instantiateImageCodec(
+    encodedArtwork,
+    targetWidth: side,
+    targetHeight: side,
+  );
+  final frame = await codec.getNextFrame();
+  codec.dispose();
+  final grid = await _buildGrid(
+    frame.image,
+    _ParticleCoverState._transitionGridSize,
+    _ParticleCoverState._edgeParticleCount,
+  );
+  if (grid == null) {
+    frame.image.dispose();
+    throw StateError('Unable to sample particle-cover artwork');
+  }
+
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final size = Size.square(side.toDouble());
+  _CoverPainter(
+    steady: grid,
+    outgoing: null,
+    transitionValue: 0,
+    transitioning: false,
+    devicePixelRatio: devicePixelRatio,
+  ).paint(canvas, size);
+  final picture = recorder.endRecording();
+  final rendered = await picture.toImage(side, side);
+  picture.dispose();
+  frame.image.dispose();
+  return rendered;
 }

@@ -4,6 +4,7 @@ import 'package:signals/signals_flutter.dart';
 
 import '../../../app/services/lyrics/lyrics_service.dart';
 import '../../../app/services/player_service.dart';
+import '../../../app/state/settings_state.dart';
 import '../../../app/state/song_state.dart';
 import '../../../app/theme/tokens.dart';
 import 'particle_cover.dart';
@@ -14,12 +15,12 @@ import 'player_bottom_panel.dart';
 /// 三个和另外两版不一样的地方，也是这一版的全部性格所在：
 ///
 /// 1. **标题在封面上面**，不是下面。一进页面先读到歌名，封面是插图不是主角。
-/// 2. **封面是粒子材质**（见 [ParticleCover]）：稳态时清晰可读，边缘一圈粒子
-///    缓慢漂移；切歌时旧封面碎成粒子飞散、新封面的粒子再聚拢回来。
+/// 2. **封面边缘是粒子材质**（见 [ParticleCover]）：主体保持高清原图，只有
+///    最外一圈逐渐碎片化；切歌时旧封面飞散、新封面再聚拢回来。
 /// 3. **不自己画背景**，沿用默认样式那套封面取色流光（`PlayerBackground` 挂在
 ///    `player_page.dart` 的 Stack 底层），这一层从头到尾保持透明。
 ///
-/// 另外没有进度条：这一版的取向是"看"，不是"操作"。要跳转去歌词页拖。
+/// 下方保留进度条与时间，可直接拖动定位。
 class PlayerImmersiveLayout extends StatelessWidget {
   const PlayerImmersiveLayout({super.key, required this.player});
 
@@ -46,7 +47,12 @@ class PlayerImmersiveLayout extends StatelessWidget {
               _CoverStage(song: song),
               const Spacer(flex: 3),
               const _ImmersiveLyrics(),
-              const Spacer(flex: 3),
+              const Spacer(flex: 2),
+              PlayerSeekBar(
+                player: player,
+                stylePreset: PlayerStylePreset.immersive,
+              ),
+              AppSpacing.gapXs,
               _ImmersiveControls(player: player),
               AppSpacing.gapSm,
               _QueueIndicator(player: player),
