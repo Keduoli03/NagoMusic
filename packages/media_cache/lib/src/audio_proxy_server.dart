@@ -9,6 +9,60 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 
 import 'http_utils.dart';
 
+/// Reports a proxy failure to the log.
+///
+/// Every upstream failure used to be swallowed into a bare
+/// `Response(HttpStatus.badGateway)`, so ExoPlayer surfaced "Response code:
+/// 502" and the actual cause — timeout, TLS failure, upstream 4xx — never
+/// reached the log. These paths are rare by definition, so they log
+/// unconditionally rather than only in debug builds.
+void _logProxyFailure(String what, Object? error) {
+  final message = error == null ? what : '$what: $error';
+  final now = DateTime.now();
+
+  // 同一条失败会被反复触发 —— 离线时 ExoPlayer 自己也在不停重开请求 —— 全部打
+  // 出来会把日志冲成一面墙，反而盖掉真正有信息量的行。连续重复的只留第一条，
+  // 恢复正常后补一句被吞掉多少次，免得「安静」和「没发生」看起来一样。
+  final last = _lastFailureAt;
+  if (_lastFailureMessage == message &&
+      last != null &&
+      now.difference(last) < const Duration(seconds: 5)) {
+    _suppressedFailures += 1;
+    _lastFailureAt = now;
+    return;
+  }
+  if (_suppressedFailures > 0) {
+    debugPrint('AudioProxyServer （上一条重复 $_suppressedFailures 次）');
+    _suppressedFailures = 0;
+  }
+  _lastFailureMessage = message;
+  _lastFailureAt = now;
+  debugPrint('AudioProxyServer $message');
+}
+
+String? _lastFailureMessage;
+DateTime? _lastFailureAt;
+int _suppressedFailures = 0;
+
+/// 这个错误是不是「连主机名都解析不出来」。
+///
+/// 这类失败说明设备当下压根没有可用 DNS（飞行模式、私人 DNS 配错、VPN 断了），
+/// 500ms 后再问一次结果一模一样 —— 只会把一次失败拖成两秒，还把日志刷满。所以
+/// 它不参与退避重试，直接失败。
+///
+/// 快速失败不会丢掉恢复能力：ExoPlayer 自己会重开请求，`PlayerService` 的错误恢复
+/// 也还在，网络回来照样能接上，只是不在这一层空转。
+///
+/// 判据用的是 `Failed host lookup` 这个字符串 —— 它由 `dart:io` 生成，各平台一致；
+/// errno 反而是平台相关的（Android 7、Windows 11001、Linux -2/-3），不可靠。
+@visibleForTesting
+bool isHostLookupFailure(Object error) {
+  Object? inner = error;
+  if (inner is dio.DioException) inner = inner.error;
+  return inner is SocketException &&
+      inner.message.contains('Failed host lookup');
+}
+
 class _StreamSource {
   /// 上游地址。为 null 表示要等第一次真正取流时再通过 [resolveUri] 解析出来
   /// （B 站的直链带时效签名，在建队列时就全部解析一遍等于开播前打几十次请求）。
@@ -19,6 +73,10 @@ class _StreamSource {
   final Map<String, String> headers;
   final File cacheFile;
 
+  /// 去重键（见 [AudioProxyServer._sourceKey]）。淘汰这条记录时要顺手把反查表里
+  /// 的同名条目一起删掉，否则反查表会指向一个已经不存在的 token。
+  final String key;
+
   bool _needsFresh = false;
 
   _StreamSource({
@@ -26,6 +84,7 @@ class _StreamSource {
     this.resolveUri,
     required this.headers,
     required this.cacheFile,
+    required this.key,
   }) : assert(uri != null || resolveUri != null);
 
   /// 惰性拿到上游地址。解析结果会写回 [uri]，同一个 token 只解析一次。
@@ -70,16 +129,28 @@ class AudioProxyServer {
   HttpServer? _server;
   Future<void>? _starting;
   final Map<String, _StreamSource> _sources = {};
+
+  /// 去重键 → token 的反查表。同一首歌反复注册（预热、TTL 到期重注册、播放出错
+  /// 重试）必须拿回**同一个** token，否则每注册一次就多占一个槽位，几十首歌就能
+  /// 把整张表冲掉一遍。
+  final Map<String, String> _tokenByKey = {};
+
   // Cache-file paths currently being written to .tmp, so two concurrent
   // requests for the same song never interleave writes / promote a garbage file.
   final Set<String> _activeCacheWrites = {};
 
-  // Upper bound on retained stream tokens. Each resolve/warmup/TTL re-register
-  // creates a fresh token; without a cap the map leaks for the whole session.
-  // 队列里的每一首都会注册一个 token，所以这个上限必须高过常见队列长度 ——
-  // 64 的时候一个 57 P 的合集就已经贴着天花板，再长一点就会把正在播的那首挤掉。
-  // 每个 token 只是一个 uri + headers + File，几百个也就几十 KB。
-  static const int _maxSources = 512;
+  // 保留的 token 上限。
+  //
+  // **这个值必须大于最长的播放队列**。`setAudioSources` 把整条队列的代理地址一次性
+  // 交给 ExoPlayer，之后这些地址就固定在播放器的播放列表里了 —— 队列里任何一个
+  // token 被淘汰，播到那首时就是 404。之前是 512，而一个完整音乐库的队列轻松到
+  // 三四千首，于是**第 0 首的 token 在队列还没建完时就被自己挤掉了**，一按播放
+  // 就报 Source error。
+  //
+  // 淘汰改成按最近使用（见 [_handleRequest]），所以正在播的那首和它周围的永远排在
+  // 队尾，真到了上限也轮不到它们。每条记录只是 uri + headers + File，一万条也就
+  // 十几 MB。
+  static const int _maxSources = 8192;
 
   final dio.Dio _client = dio.Dio(
     dio.BaseOptions(
@@ -114,6 +185,30 @@ class AudioProxyServer {
 
   Future<void> resetSources() async {
     _sources.clear();
+    _tokenByKey.clear();
+  }
+
+  /// 该 token 是否还在表里。给测试用 —— 队列里任何一个 token 被淘汰，播到那首就是
+  /// 404，所以「还在不在」本身就是要断言的东西。
+  @visibleForTesting
+  bool hasToken(String token) => _sources.containsKey(token);
+
+  int _tokenSeq = 0;
+
+  String _mintToken(File cacheFile) {
+    _tokenSeq += 1;
+    return '${cacheFile.path.hashCode}_'
+        '${DateTime.now().microsecondsSinceEpoch}_$_tokenSeq';
+  }
+
+  /// 一首歌在代理里的身份：缓存文件 + 鉴权头。
+  ///
+  /// 不含上游地址 —— B 站那种延迟解析的源注册时 `uri` 还是 null，等真正取流才填，
+  /// 把它算进键里同一首歌会拿到两个 token。
+  String _sourceKey(Map<String, String> headers, File cacheFile) {
+    final pairs = headers.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return '${cacheFile.path}|${pairs.map((e) => '${e.key}=${e.value}').join('&')}';
   }
 
   Future<Uri> registerSource({
@@ -123,18 +218,32 @@ class AudioProxyServer {
     required File cacheFile,
   }) async {
     await start();
-    // Create a unique token based on cache path and time to prevent collisions
-    final token =
-        '${cacheFile.path.hashCode}_${DateTime.now().microsecondsSinceEpoch}';
-    if (_sources.length >= _maxSources) {
-      // Map preserves insertion order; drop the oldest token.
-      _sources.remove(_sources.keys.first);
+
+    final key = _sourceKey(headers, cacheFile);
+    // 同一首歌复用同一个 token。注意这里仍然**替换** _StreamSource：调用方重新
+    // 注册往往正是因为要强制刷新（比如签名过期重解析），沿用旧对象会把已经作废的
+    // uri 一起留下。
+    //
+    // 新 token 带一个自增序号。原来只有「缓存路径 hash + 微秒时间戳」，同一微秒里
+    // 注册两个源（建队列时就是这样连着注册的）会撞成同一个字符串，后一个直接覆盖
+    // 前一个 —— 于是两首歌共用一条上游，放出来是另一首。
+    final token = _tokenByKey[key] ?? _mintToken(cacheFile);
+
+    if (!_sources.containsKey(token) && _sources.length >= _maxSources) {
+      // Map 按插入序遍历，而命中时会重新插入到队尾（见 _handleRequest），
+      // 所以 keys.first 就是最久没被用过的那个。
+      final evictedToken = _sources.keys.first;
+      final evicted = _sources.remove(evictedToken);
+      if (evicted != null) _tokenByKey.remove(evicted.key);
     }
+
+    _tokenByKey[key] = token;
     _sources[token] = _StreamSource(
       uri: uri,
       resolveUri: resolveUri,
       headers: headers,
       cacheFile: cacheFile,
+      key: key,
     );
     return Uri.parse('http://127.0.0.1:${_server!.port}/stream?token=$token');
   }
@@ -155,13 +264,13 @@ class AudioProxyServer {
       }
       return Response.notFound('');
     }
-    final source = _sources[token];
+    final source = _sources.remove(token);
     if (source == null) {
-      if (kDebugMode) {
-        debugPrint('AudioProxyServer 404: unknown token $token');
-      }
+      _logProxyFailure('404: unknown token $token', null);
       return Response.notFound('');
     }
+    // 重新插入 = 移到队尾，淘汰时按最近使用而不是插入顺序挑，正在播的那首不会被挤掉。
+    _sources[token] = source;
 
     final cacheFile = source.cacheFile;
     final completeMarker = File('${cacheFile.path}.complete');
@@ -260,7 +369,8 @@ class AudioProxyServer {
         effectiveRangeHeader,
         method: request.method,
       );
-    } catch (_) {
+    } catch (e) {
+      _logProxyFailure('upstream fetch failed range=$effectiveRangeHeader', e);
       return Response(HttpStatus.badGateway);
     }
 
@@ -298,7 +408,8 @@ class AudioProxyServer {
           null,
           method: request.method,
         );
-      } catch (_) {
+      } catch (e) {
+        _logProxyFailure('upstream retry without range failed', e);
         return Response(HttpStatus.badGateway);
       }
       remoteStatus = remoteResponse.statusCode ?? 0;
@@ -320,7 +431,8 @@ class AudioProxyServer {
           effectiveRangeHeader,
           method: request.method,
         );
-      } catch (_) {
+      } catch (e) {
+        _logProxyFailure('upstream range retry failed', e);
         return Response(HttpStatus.badGateway);
       }
       remoteStatus = remoteResponse.statusCode ?? 0;
@@ -328,10 +440,11 @@ class AudioProxyServer {
 
     // 4. Log other errors
     if (remoteStatus >= 400) {
-      if (kDebugMode) {
-        final real = remoteResponse.realUri;
-        debugPrint('AudioProxyServer remote $remoteStatus: ${real.toString()}');
-      }
+      _logProxyFailure(
+        'upstream returned $remoteStatus for '
+        '${HttpUtils.redactUri(remoteResponse.realUri)}',
+        null,
+      );
       return Response(remoteStatus);
     }
 
@@ -345,7 +458,8 @@ class AudioProxyServer {
           method: request.method,
         );
         localLength = 0;
-      } catch (_) {
+      } catch (e) {
+        _logProxyFailure('upstream retry after 500 failed', e);
         return Response(HttpStatus.badGateway);
       }
     }
@@ -474,6 +588,7 @@ class AudioProxyServer {
 
     final responseStream = remoteResponse.data?.stream;
     if (responseStream == null) {
+      _logProxyFailure('upstream returned $status with no body stream', null);
       if (ownsCacheWrite) {
         _activeCacheWrites.remove(cacheFile.path);
         try {
@@ -609,16 +724,15 @@ class AudioProxyServer {
     while (true) {
       try {
         final upstream = await source.ensureUri();
-        final response = await HttpUtils.fetchWithManualRedirect<
-          dio.ResponseBody
-        >(
-          _client,
-          upstream,
-          options: dio.Options(
-            headers: currentHeaders,
-            responseType: dio.ResponseType.stream,
-          ),
-        );
+        final response =
+            await HttpUtils.fetchWithManualRedirect<dio.ResponseBody>(
+              _client,
+              upstream,
+              options: dio.Options(
+                headers: currentHeaders,
+                responseType: dio.ResponseType.stream,
+              ),
+            );
         // 403 在带签名的直链上就是「地址过期了」，重新解析一次再打。
         if (response.statusCode == HttpStatus.forbidden && retryCount < 2) {
           source.invalidate();
@@ -627,8 +741,19 @@ class AudioProxyServer {
         }
         return response;
       } catch (e) {
+        if (isHostLookupFailure(e)) {
+          _logProxyFailure('upstream host lookup failed, not retrying', e);
+          rethrow;
+        }
         retryCount++;
-        if (retryCount >= 3) rethrow;
+        if (retryCount >= 3) {
+          _logProxyFailure('upstream fetch gave up after $retryCount tries', e);
+          rethrow;
+        }
+        _logProxyFailure(
+          'upstream fetch attempt $retryCount failed, retrying',
+          e,
+        );
         await Future.delayed(Duration(milliseconds: 500 * retryCount));
       }
     }

@@ -40,6 +40,18 @@ class SongsActionsController {
     return added == true;
   }
 
+  /// 批量移除歌曲。
+  ///
+  /// 分两段：先一次性把数据库和播放队列清干净并让列表立刻更新，再去逐首删各自
+  /// 的缓存文件。
+  ///
+  /// 以前是每首歌走一整轮「删 DB → 出队列 → 删缓存 → 通知 UI」，删 200 首就是
+  /// 200 次独立 DB 往返加 200 轮串行文件 I/O。而 [SongDao.deleteByIds] 本来就收
+  /// 整个 id 列表（内部按 500 切批），播放队列那边同理。
+  ///
+  /// 缓存清理留在后面并且**保持逐首推进**，是因为它才是真正耗时的那部分（歌词
+  /// 文件、封面文件、远端音频缓存、探测缓存），进度条报的就是它；而用户想看到的
+  /// 「行消失」在第一段就已经发生了，不必等文件删完。
   Future<int> removeSongs({
     required List<SongEntity> songsToRemove,
     required Future<void> Function(int processed, int total) onProgress,
@@ -48,16 +60,18 @@ class SongsActionsController {
     required void Function(SongEntity song) clearArtwork,
   }) async {
     if (songsToRemove.isEmpty) return 0;
+    final total = songsToRemove.length;
+    final ids = songsToRemove.map((s) => s.id).toList(growable: false);
+
+    final removedCount = await _songDao.deleteByIds(ids);
+    await _playerService.removeSongsById(ids);
+    await onSongsRemoved(songsToRemove);
 
     var processed = 0;
-    var removedCount = 0;
     for (final song in songsToRemove) {
-      removedCount += await _songDao.deleteByIds([song.id]);
-      await _playerService.removeSongsById([song.id]);
       await _cleanupSongCaches(song, clearArtwork: clearArtwork);
       processed += 1;
-      await onSongsRemoved([song]);
-      await onProgress(processed, songsToRemove.length);
+      await onProgress(processed, total);
     }
     return removedCount;
   }

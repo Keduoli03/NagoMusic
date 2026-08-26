@@ -38,6 +38,7 @@ abstract final class AppIcons {
   static const IconData chevronUp = PhosphorIconsRegular.caretUp;
   static const IconData check = PhosphorIconsRegular.check;
   static const IconData close = PhosphorIconsRegular.x;
+  static const IconData closeCircle = PhosphorIconsRegular.xCircle;
   static const IconData circle = PhosphorIconsRegular.circle;
   static const IconData cloud = PhosphorIconsRegular.cloud;
   static const IconData cloudCheck = PhosphorIconsRegular.cloudCheck;

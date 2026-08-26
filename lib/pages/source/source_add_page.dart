@@ -30,7 +30,7 @@ class SourceAddPage extends StatelessWidget {
   Future<void> _openWebDavAdd(BuildContext context) async {
     final draft = WebDavSource(
       id: _webDavRepo.newId(),
-      name: 'WebDAV',
+      name: '我的 WebDAV',
       endpoint: '',
       username: '',
       password: '',

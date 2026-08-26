@@ -13,6 +13,7 @@ import '../http_utils.dart';
 import 'ogg_vorbis_comment.dart';
 import 'probe_handlers.dart';
 import 'tag_probe_result.dart';
+import 'tag_text_encoding.dart';
 import 'wav_id3_metadata.dart';
 
 int? estimateAudioBitrate({required int? fileSize, required int? durationMs}) {
@@ -1243,16 +1244,21 @@ TagProbeResult? _readMetadataIsolate(_IsolateProbeInput input) {
 
   final format = ext.isNotEmpty ? ext.toUpperCase() : null;
   return TagProbeResult(
-    title: title,
-    artist: artist,
-    album: album,
+    // Last line of defence against mojibake. Our own ID3 parser sniffs the
+    // encoding, but audio_metadata_reader decodes RIFF INFO and ID3 by the
+    // declared charset, which Chinese taggers routinely get wrong — those
+    // strings arrive here already mangled and bytes are long gone, so the only
+    // remaining fix is to reverse the bad decode.
+    title: repairMojibake(title),
+    artist: repairMojibake(artist),
+    album: repairMojibake(album),
     durationMs: durationMs,
     bitrate: bitrate,
     sampleRate: sampleRate,
     fileSize: fileSize > 0 ? fileSize : null,
     format: format,
     artwork: artwork,
-    lyrics: lyrics,
+    lyrics: repairMojibake(lyrics),
     trackNumber: trackNumber,
     discNumber: discNumber,
   );

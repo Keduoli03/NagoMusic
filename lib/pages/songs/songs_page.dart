@@ -1082,7 +1082,9 @@ class _SongsPageState extends State<SongsPage>
                     onCloseDrawer: () =>
                         _scaffoldKey.currentState?.closeDrawer(),
                   ),
-            bottomNavIndex: useBottomNavigation && !multiSelect.value ? 1 : null,
+            bottomNavIndex: useBottomNavigation && !multiSelect.value
+                ? 1
+                : null,
             onBottomNavTap: useBottomNavigation && !multiSelect.value
                 ? (index) => navigateToPrimaryDestination(context, index)
                 : null,
@@ -1362,11 +1364,10 @@ class _SongArtworkState extends State<_SongArtwork> with SignalsMixin {
               File(coverPath),
               width: widget.size,
               height: widget.size,
-              cacheWidth:
-                  (widget.size * MediaQuery.of(context).devicePixelRatio)
-                      .toInt(),
+              cacheWidth: (widget.size * MediaQuery.devicePixelRatioOf(context))
+                  .toInt(),
               cacheHeight:
-                  (widget.size * MediaQuery.of(context).devicePixelRatio)
+                  (widget.size * MediaQuery.devicePixelRatioOf(context))
                       .toInt(),
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
@@ -1388,11 +1389,10 @@ class _SongArtworkState extends State<_SongArtwork> with SignalsMixin {
               bytes,
               width: widget.size,
               height: widget.size,
-              cacheWidth:
-                  (widget.size * MediaQuery.of(context).devicePixelRatio)
-                      .toInt(),
+              cacheWidth: (widget.size * MediaQuery.devicePixelRatioOf(context))
+                  .toInt(),
               cacheHeight:
-                  (widget.size * MediaQuery.of(context).devicePixelRatio)
+                  (widget.size * MediaQuery.devicePixelRatioOf(context))
                       .toInt(),
               fit: BoxFit.cover,
             ),

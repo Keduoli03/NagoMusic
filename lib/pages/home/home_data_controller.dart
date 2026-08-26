@@ -92,7 +92,8 @@ class HomeDataController {
        _playlistsService = playlistsService ?? PlaylistsService.instance,
        _statsService = statsService ?? StatsService.instance,
        _webDavRepo = webDavRepository ?? WebDavSourceRepository.instance,
-       _navidromeRepo = navidromeRepository ?? NavidromeSourceRepository.instance,
+       _navidromeRepo =
+           navidromeRepository ?? NavidromeSourceRepository.instance,
        _cacheStore = cacheStore ?? PageCacheStore.instance;
 
   /// 按歌曲库版本号算出来的缓存 key —— 曲库没变就复用上一份计数。

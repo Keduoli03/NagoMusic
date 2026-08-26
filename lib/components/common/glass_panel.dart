@@ -85,19 +85,28 @@ class GlassPanel extends StatelessWidget {
         border: isInvisible ? null : Border.all(color: resolvedBorderColor),
         boxShadow: resolvedShadow,
       ),
-      child: padding == null ? child : Padding(padding: padding!, child: child),
+      // Material 必须在这个上色的 Container **里面**。ListTile 会把背景和涟漪画
+      // 在最近的 Material 祖先上，中间隔着一个有底色的 DecoratedBox 就会被盖住，
+      // debug 下直接抛「ListTile background color or ink splashes may be
+      // invisible」。放在外面的话，面板里任何一个裸 ListTile 都会踩到。
+      child: Material(
+        type: MaterialType.transparency,
+        child: padding == null
+            ? child
+            : Padding(padding: padding!, child: child),
+      ),
     );
 
-    final material = Material(
-      color: Colors.transparent,
-      child: onTap == null
-          ? panel
-          : InkWell(
+    final material = onTap == null
+        ? panel
+        : Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: _resolvedBorderRadius,
               onTap: onTap,
               child: panel,
             ),
-    );
+          );
 
     return ClipRRect(borderRadius: _resolvedBorderRadius, child: material);
   }

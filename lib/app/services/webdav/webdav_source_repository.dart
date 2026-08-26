@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../prefs_source_repository.dart';
+import 'webdav_url.dart';
 
 class WebDavSource {
   final String id;
@@ -30,12 +31,17 @@ class WebDavSource {
     this.scrapeTagsOnScan = false,
   });
 
-  /// [endpoint] followed by [altEndpoints], trimmed and de-duplicated.
+  /// [endpoint] followed by [altEndpoints], normalized and de-duplicated.
+  ///
+  /// Normalizing here rather than at each call site means a legacy or
+  /// hand-typed schemeless address (`nas.lan/dav`) still yields a URL Dio can
+  /// open, and it makes these strings safe to use as map keys — the connection
+  /// test results are keyed by exactly these values.
   List<String> get allEndpoints {
     final seen = <String>{};
     final result = <String>[];
     for (final raw in [endpoint, ...altEndpoints]) {
-      final t = raw.trim();
+      final t = normalizeWebDavEndpoint(raw);
       if (t.isEmpty) continue;
       if (seen.add(t)) result.add(t);
     }

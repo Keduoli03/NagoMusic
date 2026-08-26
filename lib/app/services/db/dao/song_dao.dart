@@ -116,16 +116,23 @@ class SongDao {
   Future<List<SongEntity>> fetchByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
     final db = await DbHelper.instance.database;
-    final placeholders = List.filled(ids.length, '?').join(',');
-    final rows = await db.query(
-      DbConstants.tableSongs,
-      where: 'id IN ($placeholders)',
-      whereArgs: ids,
-    );
     final map = <String, SongEntity>{};
-    for (final row in rows) {
-      final song = SongEntity.fromMap(row);
-      map[song.id] = song;
+    // 按 _maxIdsPerQuery 切批，理由和 upsertSongs 一样：Android 自带的 SQLite
+    // 默认 SQLITE_MAX_VARIABLE_NUMBER 是 999，一条 `IN (?,?,…)` 塞满整份
+    // playlist.songIds（大歌单轻松上千）会直接抛异常，不是慢，是打不开页面。
+    for (var offset = 0; offset < ids.length; offset += _maxIdsPerQuery) {
+      final end = (offset + _maxIdsPerQuery).clamp(0, ids.length);
+      final chunk = ids.sublist(offset, end);
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.query(
+        DbConstants.tableSongs,
+        where: 'id IN ($placeholders)',
+        whereArgs: chunk,
+      );
+      for (final row in rows) {
+        final song = SongEntity.fromMap(row);
+        map[song.id] = song;
+      }
     }
     return ids.map((id) => map[id]).whereType<SongEntity>().toList();
   }
@@ -144,12 +151,19 @@ class SongDao {
   Future<int> deleteByIds(List<String> ids) async {
     if (ids.isEmpty) return 0;
     final db = await DbHelper.instance.database;
-    final placeholders = List.filled(ids.length, '?').join(',');
-    final result = await db.delete(
-      DbConstants.tableSongs,
-      where: 'id IN ($placeholders)',
-      whereArgs: ids,
-    );
+    var result = 0;
+    // 同 fetchByIds：不切批的话，一次删掉一个大歌单/整个音源会撞上 SQLite 的
+    // 变量数上限。
+    for (var offset = 0; offset < ids.length; offset += _maxIdsPerQuery) {
+      final end = (offset + _maxIdsPerQuery).clamp(0, ids.length);
+      final chunk = ids.sublist(offset, end);
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      result += await db.delete(
+        DbConstants.tableSongs,
+        where: 'id IN ($placeholders)',
+        whereArgs: chunk,
+      );
+    }
     _cachedAll = null;
     CacheVersionStore.instance.bump(cacheVersionScope);
     return result;

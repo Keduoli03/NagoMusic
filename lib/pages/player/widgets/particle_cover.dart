@@ -121,8 +121,16 @@ class _ParticleCoverState extends State<ParticleCover>
   String? _sourceKey(ParticleCover source) {
     final assetName = source.assetName;
     if (assetName != null) return 'asset:$assetName';
-    final songId = source.song?.id;
-    return songId == null ? null : 'song:$songId';
+    final song = source.song;
+    if (song == null) return null;
+    // 键里**必须**带上封面路径，不能只用 song.id。
+    //
+    // 一首歌的封面往往是开始播放之后才补上的（内嵌标签探测慢，在线匹配更晚），
+    // 补上时 currentSong 换成新实例但 id 没变。只按 id 做键的话
+    // _handleSourceChanged 会认为「源没变」直接早退，封面到货了也不重新解码 ——
+    // 于是播放页一直停在上一首的封面上，只有退出重进（重跑 initState）才更新。
+    // 通知栏和列表没这个问题，因为它们直接按路径渲染，没有这层缓存键。
+    return 'song:${song.id}|${(song.localCoverPath ?? '').trim()}';
   }
 
   void _syncMotion() {
@@ -226,16 +234,22 @@ class _ParticleCoverState extends State<ParticleCover>
         tintedBackground: true,
       );
     }
-    return CustomPaint(
-      painter: _CoverPainter(
-        steady: _currentGrid,
-        outgoing: _outgoingGrid,
-        transition: _transition,
-        motion: _motion,
-        playbackProgress: widget.playbackProgress,
-        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    // RepaintBoundary 不是可选装饰：_CoverPainter 的 repaint 挂在 _motion 上，
+    // 播放中它每一帧都重绘。没有这层边界的话，重绘范围会一路上溯到播放页正文那个
+    // RepaintBoundary —— 标题、歌词、进度条、控制按钮这些明明没变的东西，会被这
+    // 一小块粒子动画拖着每帧陪跑一次光栅化。
+    return RepaintBoundary(
+      child: CustomPaint(
+        painter: _CoverPainter(
+          steady: _currentGrid,
+          outgoing: _outgoingGrid,
+          transition: _transition,
+          motion: _motion,
+          playbackProgress: widget.playbackProgress,
+          devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+        ),
+        child: const SizedBox.expand(),
       ),
-      child: const SizedBox.expand(),
     );
   }
 }

@@ -779,6 +779,164 @@ class LyricsParser {
       modelLines.sort((a, b) => a.start.compareTo(b.start));
     }
 
+    final fixedLines = _normalizeLines(
+      modelLines,
+      songDuration: songDuration,
+      forceKaraoke: forceKaraoke,
+      predictDuration: predictDuration,
+    );
+
+    return fl.LyricModel(lines: fixedLines);
+  }
+
+  // --------------------------------------------------------------- 逐字歌词
+  //
+  // QQ 音乐的 yrc：
+  //
+  //   [26400,6050]爱(26400,550)一(26950,1150)个(28100,200)...
+  //
+  // 行头是 `[行起始ms,行时长ms]`，每个字后面跟 `(起始ms,时长ms)`。
+  //
+  // **逐字时间是绝对的**（相对整首歌），不是相对行首的偏移 —— 上面那行里第一个
+  // 字的起始 26400 就等于行起始。官方文档的示例在这点上有歧义，这里按实际返回的
+  // 数据为准。写反的话整首歌的高亮会从第二行开始越跑越偏。
+  static final RegExp _yrcLineHeader = RegExp(r'^\[(\d+),(\d+)\]');
+
+  // 字段之间没有分隔符，只能靠括号切。字本身不含括号，所以 `[^()]*` 足够；
+  // 有些源会多带一个字段（`(start,dur,0)`），一并容忍掉。
+  static final RegExp _yrcToken = RegExp(r'([^()]*)\((\d+),(\d+)(?:,\d+)?\)');
+
+  /// 解析逐字歌词，返回带 [fl.LyricWord] 的行。识别不出行头的行（`[ti:]` 等
+  /// 元数据）直接跳过。
+  static List<fl.LyricLine> parseYrc(String yrc) {
+    final out = <fl.LyricLine>[];
+    for (final raw in yrc.split(RegExp(r'\r?\n'))) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+      final header = _yrcLineHeader.firstMatch(line);
+      if (header == null) continue;
+
+      final lineStartMs = int.tryParse(header.group(1) ?? '') ?? 0;
+      final lineDurationMs = int.tryParse(header.group(2) ?? '') ?? 0;
+      final body = line.substring(header.end);
+
+      final words = <fl.LyricWord>[];
+      final buffer = StringBuffer();
+      for (final token in _yrcToken.allMatches(body)) {
+        final text = token.group(1) ?? '';
+        if (text.isEmpty) continue;
+        final startMs = int.tryParse(token.group(2) ?? '');
+        final durationMs = int.tryParse(token.group(3) ?? '');
+        if (startMs == null || durationMs == null) continue;
+
+        buffer.write(text);
+        words.add(
+          fl.LyricWord(
+            text: text,
+            start: Duration(milliseconds: startMs),
+            // 时长为 0 的字（个别源会有）给 1ms，否则后面归一化会当成无效区间。
+            end: Duration(
+              milliseconds: startMs + (durationMs > 0 ? durationMs : 1),
+            ),
+          ),
+        );
+      }
+
+      final text = buffer.toString().trim();
+      if (text.isEmpty) continue;
+
+      out.add(
+        fl.LyricLine(
+          start: Duration(milliseconds: lineStartMs),
+          end: lineDurationMs > 0
+              ? Duration(milliseconds: lineStartMs + lineDurationMs)
+              : null,
+          text: text,
+          words: words.isEmpty ? null : words,
+        ),
+      );
+    }
+    out.sort((a, b) => a.start.compareTo(b.start));
+    return out;
+  }
+
+  /// 用逐字歌词建模型；[translationSource] 传普通 LRC（可含翻译），按时间戳把
+  /// 翻译贴回来。
+  ///
+  /// yrc 本身不带翻译，所以翻译只能从另一份普通歌词里取。返回 null 表示这份
+  /// yrc 解析不出任何东西，调用方应该退回普通 LRC。
+  static fl.LyricModel? buildModelFromYrc(
+    String yrc, {
+    String? translationSource,
+    Duration? songDuration,
+  }) {
+    final lines = parseYrc(yrc);
+    if (lines.isEmpty) return null;
+
+    final withTranslation = _attachTranslations(lines, translationSource);
+    return fl.LyricModel(
+      lines: _normalizeLines(
+        withTranslation,
+        songDuration: songDuration,
+        // 逐字时间是真的，不需要也不应该再拿启发式覆盖一遍。
+        forceKaraoke: false,
+        predictDuration: false,
+      ),
+    );
+  }
+
+  static List<fl.LyricLine> _attachTranslations(
+    List<fl.LyricLine> lines,
+    String? translationSource,
+  ) {
+    final source = (translationSource ?? '').trim();
+    if (source.isEmpty) return lines;
+
+    // 复用普通解析：它已经会把「同时间戳的第二行」合并成 translation，
+    // 所以这里拿到的就是配好对的原文/译文。
+    final reference = buildModelFromRaw(source, predictDuration: false);
+    if (reference.lines.isEmpty) return lines;
+
+    final byTime = <int, String>{};
+    for (final line in reference.lines) {
+      final translation = (line.translation ?? '').trim();
+      if (translation.isEmpty) continue;
+      byTime[line.start.inMilliseconds] = translation;
+    }
+    if (byTime.isEmpty) return lines;
+
+    String? lookup(int ms) {
+      final exact = byTime[ms];
+      if (exact != null) return exact;
+      for (final entry in byTime.entries) {
+        if ((entry.key - ms).abs() <= _mergeToleranceMs) return entry.value;
+      }
+      return null;
+    }
+
+    return lines
+        .map(
+          (line) => fl.LyricLine(
+            start: line.start,
+            end: line.end,
+            text: line.text,
+            translation: lookup(line.start.inMilliseconds),
+            words: line.words,
+          ),
+        )
+        .toList();
+  }
+
+  /// 补齐行尾和字尾时间。
+  ///
+  /// 从 [buildModelFromRaw] 里抽出来给 [buildModelFromYrc] 共用 —— 两条路径产出
+  /// 的行都可能缺 end，收尾逻辑没有理由写两份。
+  static List<fl.LyricLine> _normalizeLines(
+    List<fl.LyricLine> modelLines, {
+    required Duration? songDuration,
+    required bool forceKaraoke,
+    required bool predictDuration,
+  }) {
     final fixedLines = <fl.LyricLine>[];
     for (int i = 0; i < modelLines.length; i++) {
       final line = modelLines[i];
@@ -838,8 +996,7 @@ class LyricsParser {
         ),
       );
     }
-
-    return fl.LyricModel(lines: fixedLines);
+    return fixedLines;
   }
 }
 

@@ -18,6 +18,9 @@ String webdavPathOf(String hrefOrUri) {
 /// This keeps ids — and everything keyed by them (favorites, play stats,
 /// playlists) — stable when a source has multiple addresses that serve the
 /// same directory tree.
-String buildWebdavSongId({required String sourceId, required String hrefOrUri}) {
+String buildWebdavSongId({
+  required String sourceId,
+  required String hrefOrUri,
+}) {
   return '$sourceId::${webdavPathOf(hrefOrUri)}';
 }

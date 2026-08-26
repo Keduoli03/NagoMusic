@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'tag_text_encoding.dart';
+
 class WavId3Metadata {
   final String? title;
   final String? artist;
@@ -404,7 +406,7 @@ String _decodeText(Uint8List bytes, int encoding) {
 
   final end = bytes.indexOf(0);
   final value = end < 0 ? bytes : bytes.sublist(0, end);
-  return encoding == 3
-      ? utf8.decode(value, allowMalformed: true)
-      : latin1.decode(value, allowInvalid: true);
+  // encoding 3 声明 UTF-8；0 声明 ISO-8859-1，但中文标签软件经常在这里写 UTF-8
+  // 字节，所以交给 decodeTagBytes 嗅探，不能照着声明硬解。
+  return decodeTagBytes(value, declaredLatin1: encoding != 3);
 }

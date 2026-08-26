@@ -23,6 +23,7 @@ import '../../components/common/setting_widgets.dart';
 import '../../components/common/sheet_panels.dart';
 import '../../components/feedback/app_toast.dart';
 import '../library/playlist_picker_sheet.dart';
+import 'online_match_sheet.dart';
 import '../../app/utils/format_utils.dart';
 
 class SongDetailSheet extends StatefulWidget {
@@ -357,6 +358,18 @@ class _SongDetailSheetState extends State<SongDetailSheet> {
                   isScrollControlled: true,
                   builder: (_) => SongScrapeSheet(song: song),
                 );
+                if (updated != null) {
+                  widget.onUpdated?.call(updated);
+                }
+              },
+            ),
+            AppListTile(
+              leading: const Icon(AppIcons.cloudDownload),
+              title: '在线匹配信息/歌词',
+              onTap: () async {
+                final nav = Navigator.of(context);
+                nav.pop();
+                final updated = await OnlineMatchSheet.show(nav.context, song);
                 if (updated != null) {
                   widget.onUpdated?.call(updated);
                 }

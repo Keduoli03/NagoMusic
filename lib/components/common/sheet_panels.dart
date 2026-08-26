@@ -30,42 +30,47 @@ class AppSheetPanel extends StatelessWidget {
           top: Radius.circular(AppRadii.sheet),
         ),
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: c.muted.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(99),
+      // Material 在上色的 Container 里面 —— 详见 GlassPanel 里同样的注释：放外面
+      // 的话面板里任何一个裸 ListTile 都会因为背景被挡而在 debug 下报错。
+      child: Material(
+        type: MaterialType.transparency,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: c.muted.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
-            ),
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                child: Text(
-                  title!,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: c.text,
+              if (title != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                  child: Text(
+                    title!,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: c.text,
+                    ),
                   ),
                 ),
-              ),
-            if (expand)
-              Expanded(
-                child: Padding(
-                  padding: padding ?? EdgeInsets.zero,
-                  child: child,
-                ),
-              )
-            else
-              Padding(padding: padding ?? EdgeInsets.zero, child: child),
-          ],
+              if (expand)
+                Expanded(
+                  child: Padding(
+                    padding: padding ?? EdgeInsets.zero,
+                    child: child,
+                  ),
+                )
+              else
+                Padding(padding: padding ?? EdgeInsets.zero, child: child),
+            ],
+          ),
         ),
       ),
     );

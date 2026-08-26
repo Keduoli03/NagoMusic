@@ -11,6 +11,7 @@ import '../player_service.dart';
 import '../../state/song_state.dart';
 import '../bili/bili_music_service.dart';
 import '../log/log.dart';
+import '../online_meta/online_metadata_service.dart';
 import 'lyrics_parser.dart';
 import 'lyrics_repository.dart';
 import 'lyricon_service.dart';
@@ -69,6 +70,16 @@ class LyricsService {
   static const String _prefsViewForceKaraoke = 'lyrics_view_force_karaoke';
   static const String prefsBiliSubtitleEnabled = 'lyrics_bili_subtitle_enabled';
 
+  /// 本地没有歌词时，自动去 QQ 音乐按歌名匹配一份。默认开。
+  static const String prefsOnlineLyricsEnabled = 'lyrics_online_enabled';
+
+  /// 匹配到的歌词是否连翻译一起存。默认开。
+  static const String prefsOnlineLyricsTranslation =
+      'lyrics_online_translation';
+
+  /// 有逐字歌词（yrc）时优先用它做卡拉OK高亮。默认开。
+  static const String prefsPreferWordByWord = 'lyrics_prefer_word_by_word';
+
   final LyricsRepository _repo = LyricsRepository();
   final PlayerService _player = PlayerService.instance;
   final LyricController controller = LyricController();
@@ -87,6 +98,22 @@ class LyricsService {
   );
 
   int _loadSeq = 0;
+
+  /// 当前已加载（或正在加载）的歌曲 id，用来挡掉同一首歌的重复触发。
+  String? _loadedSongId;
+
+  /// 正在自己写歌词的那首歌。  ///
+  /// `_loadForSong` 里的在线匹配写完歌词会触发 [LyricsRepository.changes]，
+  /// 不排掉的话会让刚跑到一半的这次加载再被强制重跑一遍。
+  String? _selfWritingSongId;
+
+  void _onLyricsCacheChanged(String songId) {
+    if (songId == _selfWritingSongId) return;
+    final current = _player.currentSong.value;
+    if (current == null || current.id != songId) return;
+    _loadForSong(current, force: true);
+  }
+
   Timer? _lyriconPosTimer;
   int _lastLyriconPositionMs = -1;
   bool _lyriconEnabled = false;
@@ -96,6 +123,15 @@ class LyricsService {
   int _meizuLastIndex = -1;
   bool _viewForceKaraoke = false;
   bool _biliSubtitleEnabled = true;
+  bool _onlineLyricsEnabled = true;
+  bool _onlineLyricsTranslation = true;
+  bool _preferWordByWord = true;
+
+  /// 这一轮已经联网找过、但没找到歌词的歌曲。
+  ///
+  /// 没有这个集合的话，每次切回一首没歌词的歌都会重新发一轮搜索 + 取词请求 ——
+  /// 单曲循环一首没歌词的歌就是无限重试。只在进程内有效，重启后会再试一次。
+  final Set<String> _onlineLyricsMisses = <String>{};
 
   LyricsService._internal() {
     snapshot.addListener(() => snapshotSignal.value = snapshot.value);
@@ -120,6 +156,11 @@ class LyricsService {
       _player.seek(pos);
     });
     _player.currentSong.addListener(_onSongChanged);
+    // 歌词缓存真的变了才重载（内嵌标签刮削稍后写入、在线匹配、手动清除）。
+    // 上面那个 currentSong 监听只负责「换歌」，换实例不算。
+    //
+    // 不持有订阅：LyricsService 是全局单例，活到进程结束，没有需要退订的时机。
+    LyricsRepository.changes.listen(_onLyricsCacheChanged);
     _player.position.addListener(_onPositionChanged);
     _player.isPlaying.addListener(_onPlayingChanged);
     refreshSettings();
@@ -139,6 +180,10 @@ class LyricsService {
     _meizuEnabled = prefs.getBool(_prefsMeizuLyrics) ?? false;
     _viewForceKaraoke = prefs.getBool(_prefsViewForceKaraoke) ?? false;
     _biliSubtitleEnabled = prefs.getBool(prefsBiliSubtitleEnabled) ?? true;
+    _onlineLyricsEnabled = prefs.getBool(prefsOnlineLyricsEnabled) ?? true;
+    _onlineLyricsTranslation =
+        prefs.getBool(prefsOnlineLyricsTranslation) ?? true;
+    _preferWordByWord = prefs.getBool(prefsPreferWordByWord) ?? true;
     await LyriconService.setServiceEnabled(_lyriconEnabled);
     if (!_lyriconEnabled) {
       _lyriconPosTimer?.cancel();
@@ -176,7 +221,11 @@ class LyricsService {
   }
 
   void reloadCurrentSong() {
-    _loadForSong(_player.currentSong.value);
+    // 手动重载是明确的「再试一次」意图，清掉这首的失败记录，否则上一轮联网没
+    // 找到之后，用户在面板里手动匹配完再回来仍然会被挡在缓存外面。
+    final song = _player.currentSong.value;
+    if (song != null) _onlineLyricsMisses.remove(song.id);
+    _loadForSong(song, force: true);
   }
 
   /// 取 B 站视频字幕当歌词，成功后写进歌词缓存，下次直接命中本地不再联网。
@@ -197,7 +246,48 @@ class LyricsService {
     }
   }
 
-  Future<void> _loadForSong(SongEntity? song) async {
+  /// 本地和 B 站都没有时，按歌名去 QQ 音乐匹配一份歌词。
+  ///
+  /// 只取歌词 —— 标题/歌手/封面不动。每播一首就顺手改一次库的风险远大于收益，
+  /// 要改那些请从「在线匹配」面板明确选（见 `OnlineMetadataService.apply`）。
+  Future<String?> _loadOnlineLyrics(SongEntity song) async {
+    if (_onlineLyricsMisses.contains(song.id)) return null;
+    _selfWritingSongId = song.id;
+    try {
+      final found = await OnlineMetadataService.instance.fetchLyricsOnly(
+        song: song,
+        includeTranslation: _onlineLyricsTranslation,
+      );
+      if (!found) {
+        _onlineLyricsMisses.add(song.id);
+        return null;
+      }
+      return _repo.loadCachedLrc(song.id);
+    } catch (e, s) {
+      // 网络不通 / 接口挂了 —— 和「这首没歌词」在界面上是同一个结果，不该弹错误。
+      AppLog.instance.w(_logTag, '在线歌词匹配失败 song=${song.title}', e, s);
+      _onlineLyricsMisses.add(song.id);
+      return null;
+    } finally {
+      _selfWritingSongId = null;
+    }
+  }
+
+  Future<void> _loadForSong(SongEntity? song, {bool force = false}) async {
+    // 同一首歌的重复触发一律忽略，不管当前是 loaded 还是 empty。
+    //
+    // 播放器每次回写元数据（补封面 / 时长 / 标签）都会把 currentSong 换成一个
+    // **新的** SongEntity 实例，而下面第一件事就是把界面清成 loading 再重建 ——
+    // 有歌词时表现为歌词闪一下，没歌词时表现为「暂无歌词」反复闪。
+    //
+    // 「歌词稍后才到货」的情况不靠这里重试，改由 LyricsRepository.changes 通知
+    // （见构造函数里的订阅）—— 那才是歌词真的变了的信号，而 currentSong 换实例
+    // 不是。
+    if (!force && song != null && song.id == _loadedSongId) {
+      return;
+    }
+    _loadedSongId = song?.id;
+
     final seq = ++_loadSeq;
     snapshot.value = snapshot.value.copyWith(
       status: LyricsLoadStatus.loading,
@@ -238,6 +328,13 @@ class LyricsService {
         if (seq != _loadSeq) return;
       }
 
+      // 还是没有就去 QQ 音乐按歌名匹配。放在最后：本地的、内嵌的、B 站字幕的
+      // 都比网上猜来的更可能是对的。
+      if ((lrc == null || lrc.trim().isEmpty) && _onlineLyricsEnabled) {
+        lrc = await _loadOnlineLyrics(song);
+        if (seq != _loadSeq) return;
+      }
+
       if (lrc == null || lrc.trim().isEmpty) {
         snapshot.value = snapshot.value.copyWith(
           status: LyricsLoadStatus.empty,
@@ -253,11 +350,28 @@ class LyricsService {
         return;
       }
 
-      final model = LyricsParser.buildModelFromRaw(
+      final songDuration = (song.durationMs == null)
+          ? null
+          : Duration(milliseconds: song.durationMs!);
+
+      // 有逐字歌词就优先用它：yrc 带的是真实的每字时间，而普通 LRC 只能靠整行
+      // 时长把字均摊出来。翻译仍然从上面那份 lrc 里取（yrc 不带翻译）。
+      fl.LyricModel? model;
+      if (_preferWordByWord) {
+        final yrc = await _repo.loadYrc(song.id);
+        if (seq != _loadSeq) return;
+        if (yrc != null && yrc.trim().isNotEmpty) {
+          model = LyricsParser.buildModelFromYrc(
+            yrc,
+            translationSource: lrc,
+            songDuration: songDuration,
+          );
+        }
+      }
+
+      model ??= LyricsParser.buildModelFromRaw(
         lrc,
-        songDuration: (song.durationMs == null)
-            ? null
-            : Duration(milliseconds: song.durationMs!),
+        songDuration: songDuration,
         predictDuration: false,
         forceKaraoke: _viewForceKaraoke || _lyriconForceKaraoke,
       );

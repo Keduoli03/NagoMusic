@@ -198,6 +198,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage>
           File(coverPath),
           width: 48,
           height: 48,
+          // 磁盘上的封面缓存至少 1024×1024（见 ArtworkCacheHelper.minSize），
+          // 不限制解码尺寸的话这个 48pt 的小格子会解出一张全尺寸位图，滚动时
+          // 每张新封面都要付一次这个钱。
+          cacheWidth: (48 * MediaQuery.devicePixelRatioOf(context)).round(),
+          cacheHeight: (48 * MediaQuery.devicePixelRatioOf(context)).round(),
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
             return Center(

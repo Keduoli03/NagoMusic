@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
@@ -25,24 +27,41 @@ Future<void> _startApp() async {
   // 一旦 ensureLoaded() 先于这行跑，PrefGroup 的 onLoaded 回调拿到的就是
   // 一个 null 的 onLimitChanged，缓存大小限制会被静默地整个跳过。
   AppCacheSettings.onLimitChanged = AudioCacheService.instance.setMaxCacheBytes;
-  // 紧跟其后：日志要尽早就绪，启动阶段的异常正是最难复现、最值得留下的。
-  // 就绪之前产生的日志会先在内存里排队，ensureLoaded() 完成后补写进文件。
-  await AppLog.instance.ensureLoaded();
+  // 日志**不等**：AppLog 在就绪前会把消息排在内存里，ensureLoaded() 完成后补写
+  // 进文件。所以启动期的异常照样留得下来，但那次文件读不必挡在首帧前面。
+  unawaited(AppLog.instance.ensureLoaded());
+
+  // 首帧要用到的设置一次并行读完。
+  //
+  // 这些 PrefGroup 各自都是「await SharedPreferences.getInstance() 再遍历自己的
+  // 条目」——真正的开销只有第一次那回文件读，之后全是内存操作。原来一条条 await
+  // 排下来，等于把同一个 Future 串成了六轮微任务；并成一组是等价的，但少了那几
+  // 轮往返。
+  await Future.wait([
+    AppThemeSettings.ensureLoaded(),
+    AppLayoutSettings.ensureLoaded(),
+    AppBackgroundSettings.ensureLoaded(),
+    PlayerStyleSettings.ensureLoaded(),
+    SongListDisplaySettings.ensureLoaded(),
+  ]);
+
   // 画到系统栏底下。不开的话系统会给导航栏留出一条实底，浮动胶囊底栏就等于
   // 浮在一块满宽白板上。Android 15+ 本来就强制 edge-to-edge，这里显式声明是
   // 为了老设备行为一致。
+  //
+  // 这条必须在首帧之前生效——它改的是 padding，等首帧画完再切会让整个布局跳一下。
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  await FlutterDisplayMode.setHighRefreshRate();
-  await MediaNotificationService.init();
-  await AppThemeSettings.ensureLoaded();
-  await Haptics.init();
-  await AppLayoutSettings.ensureLoaded();
-  await AppBackgroundSettings.ensureLoaded();
-  await PlayerStyleSettings.ensureLoaded();
-  await SongListDisplaySettings.ensureLoaded();
+
   runApp(const NagoMusicApp());
-  // Fire-and-forget warm-ups that run in parallel with the first frame so
-  // per-page initState calls don't have to pay for these cold starts:
+
+  // 以下都不是首帧需要的东西，全部放到 runApp 之后，和第一帧的光栅化并行跑。
+  //
+  // 之前它们是 runApp 前的串行 await，等于把「查询显示器支持的刷新率」「问一遍
+  // 通知权限」「构造 PlayerService 和它那一堆流订阅」全垫在了用户看到第一个像素
+  // 之前。这几件事都跟首帧长什么样没有关系。
+  FlutterDisplayMode.setHighRefreshRate();
+  Haptics.init();
+  MediaNotificationService.init();
   //   - SharedPreferences.getInstance() reads its backing file once, then
   //     serves subsequent callers from the in-memory instance.
   //   - fetchAllCached() populates SongDao's static cache; every library

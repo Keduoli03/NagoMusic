@@ -29,11 +29,24 @@ class NagoMusicApp extends StatelessWidget {
     },
   );
 
+  /// 已构建好的主题，按 (种子色, 亮暗, 动态取色方案) 缓存。
+  ///
+  /// `ColorScheme.fromSeed` 要跑一遍 Material 3 的 HCT 色调板推导，是实打实的
+  /// 计算量，而下面每次重建都要算**亮暗两套**。主题的输入其实极少变化，但它挂在
+  /// `DynamicColorBuilder` + 三层 `ValueListenableBuilder` 底下，这四层里任何一个
+  /// 抖一下（比如动态取色回调姗姗来迟）整条链就会把两套主题重算一遍。
+  static final Map<(Color, Brightness, ColorScheme?), ThemeData> _themeCache =
+      {};
+
   ThemeData _buildTheme({
     required Color seed,
     required Brightness brightness,
     required ColorScheme? dynamicScheme,
   }) {
+    final key = (seed, brightness, dynamicScheme);
+    final cached = _themeCache[key];
+    if (cached != null) return cached;
+
     final base = ThemeData(
       colorScheme: ColorScheme.fromSeed(
         seedColor: seed,
@@ -42,7 +55,13 @@ class NagoMusicApp extends StatelessWidget {
       useMaterial3: true,
       pageTransitionsTheme: _pageTransitions,
     );
-    return buildAppTheme(base, dynamicScheme ?? base.colorScheme);
+    final built = buildAppTheme(base, dynamicScheme ?? base.colorScheme);
+
+    // 正常用法下键的组合就那么几种（预设强调色 × 亮暗），但用户拖主题色选择器时
+    // 每个中间色都会落一条。设个上限，涨到头就整个丢掉重来。
+    if (_themeCache.length >= 32) _themeCache.clear();
+    _themeCache[key] = built;
+    return built;
   }
 
   @override

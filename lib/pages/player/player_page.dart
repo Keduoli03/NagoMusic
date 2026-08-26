@@ -38,9 +38,17 @@ class _PlayerPageState extends State<PlayerPage>
   final ValueNotifier<double> _dismissOffset = ValueNotifier(0);
   double? _dismissDragStartY;
 
+  /// 当前停在 PageView 的哪一页（0 = 播放视图，1 = 歌词视图）。
+  ///
+  /// 只有两页时，另一页永远落在 PageView 的 cacheExtent 里、永远不会被 dispose，
+  /// 于是沉浸样式的粒子封面被歌词页盖住之后仍在逐帧重绘。用这个下标配合
+  /// [TickerMode] 把看不见那一页的动画停掉。
+  final ValueNotifier<int> _activePage = ValueNotifier(0);
+
   @override
   void initState() {
     super.initState();
+    _pageController.addListener(_handlePageChanged);
     _dismissController =
         AnimationController.unbounded(
           vsync: this,
@@ -49,6 +57,14 @@ class _PlayerPageState extends State<PlayerPage>
           if (!mounted) return;
           _dismissOffset.value = _dismissController.value;
         });
+  }
+
+  /// 只在「翻过半页」时更新，滑动过程中不会每帧写 notifier。
+  void _handlePageChanged() {
+    if (!_pageController.hasClients) return;
+    final page = _pageController.page;
+    if (page == null) return;
+    _activePage.value = page.round();
   }
 
   void _handleDismissDragStart(DragStartDetails details) {
@@ -117,8 +133,10 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void dispose() {
     _dismissController.dispose();
+    _pageController.removeListener(_handlePageChanged);
     _pageController.dispose();
     _dismissOffset.dispose();
+    _activePage.dispose();
     super.dispose();
   }
 
@@ -229,26 +247,34 @@ class _PlayerPageState extends State<PlayerPage>
                               child: PageView(
                                 controller: _pageController,
                                 children: [
-                                  _PlayerView(
-                                    player: _player,
-                                    onTapLyrics: () =>
-                                        _pageController.animateToPage(
-                                          1,
-                                          duration: const Duration(
-                                            milliseconds: 280,
+                                  _PageTickerGate(
+                                    activePage: _activePage,
+                                    page: 0,
+                                    child: _PlayerView(
+                                      player: _player,
+                                      onTapLyrics: () =>
+                                          _pageController.animateToPage(
+                                            1,
+                                            duration: const Duration(
+                                              milliseconds: 280,
+                                            ),
+                                            curve: Curves.easeOut,
                                           ),
-                                          curve: Curves.easeOut,
-                                        ),
+                                    ),
                                   ),
-                                  isFullBleed
-                                      ? Padding(
-                                          padding: EdgeInsets.only(
-                                            top: topInset,
-                                            bottom: bottomInset,
-                                          ),
-                                          child: const PlayerLyricsView(),
-                                        )
-                                      : const PlayerLyricsView(),
+                                  _PageTickerGate(
+                                    activePage: _activePage,
+                                    page: 1,
+                                    child: isFullBleed
+                                        ? Padding(
+                                            padding: EdgeInsets.only(
+                                              top: topInset,
+                                              bottom: bottomInset,
+                                            ),
+                                            child: const PlayerLyricsView(),
+                                          )
+                                        : const PlayerLyricsView(),
+                                  ),
                                 ],
                               ),
                             ),
@@ -281,6 +307,39 @@ class _PlayerPageState extends State<PlayerPage>
     }
     Haptics.impact();
     showSongDetailSheet(context, song: song, enablePlayerAppearanceEntry: true);
+  }
+}
+
+/// 让 PageView 里看不见的那一页停掉动画。
+///
+/// PageView 只有两页时，相邻页与视口的距离恒为 0，必然落在 cacheExtent 内，
+/// 所以另一页**永远不会被 dispose** —— 沉浸样式的粒子封面即使被歌词页整个盖住，
+/// 也还在每帧重算几千枚粒子并重绘。
+///
+/// [TickerMode] 正是框架为这种情况准备的开关：关掉之后，子树里所有用 vsync 建的
+/// AnimationController 都会停摆，切回来自动恢复，不需要把「我可不可见」一层层
+/// 透传给每个动画组件。
+class _PageTickerGate extends StatelessWidget {
+  final ValueNotifier<int> activePage;
+  final int page;
+  final Widget child;
+
+  const _PageTickerGate({
+    required this.activePage,
+    required this.page,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: activePage,
+      // child 从这里透传，页码变化时不会重建整棵子树，只切 TickerMode 的开关。
+      child: child,
+      builder: (context, active, child) {
+        return TickerMode(enabled: active == page, child: child!);
+      },
+    );
   }
 }
 

@@ -270,6 +270,14 @@ class PlayerService with WidgetsBindingObserver {
           song,
           nextSong: _nextSongForIndex(list, idx),
         );
+        // 下一首的音频字节从这首一开始播就下载，而不是等到只剩 30 秒才动手
+        // （见 _maybePrefetchByRemaining）。原来的窗口在短歌、慢网络、大文件
+        // 上根本不够用——后台下载还没写完最终文件，切歌那一刻 proxy 发现文件
+        // 不完整，只能重新对源服务器发起一次网络请求，跟完全没预取一样得等。
+        // 现在给足整首歌的时长去下，慢网络也大概率能在切歌前下完。
+        // startBackgroundDownload 内部按 uri+headers 去重，跟后面 30 秒那次
+        // 重复触发不会重复下载。
+        _prefetchUpcoming();
       } else {
         position.value = Duration.zero;
         bufferedPosition.value = Duration.zero;
@@ -1219,18 +1227,44 @@ class PlayerService with WidgetsBindingObserver {
     _emitSnapshot(force: true);
   }
 
+  /// 正在进行的 `setAudioSources`，以及它的代号。
+  ///
+  /// just_audio 的 `load` 不可重入：上一次还没走完就再调一次，前一次会以
+  /// "Loading interrupted" 失败。而失败会走进 [_handlePlayerError]，那里又会再装载
+  /// 一次 —— 于是用户连点两首歌就能把自己卡在原地。这里把装载串行化，并且**后来
+  /// 的请求赢**：排队期间又来了新的装载，前面那个直接放弃，不去覆盖用户最新的选择。
+  int _loadGeneration = 0;
+  Future<void>? _pendingLoad;
+
   Future<void> _loadPlaybackSourceQueue(
     PlaybackSourceQueue sourceQueue, {
     required int initialIndex,
     Duration? initialPosition,
     bool preload = false,
   }) async {
-    await _player.setAudioSources(
+    final generation = ++_loadGeneration;
+
+    final previous = _pendingLoad;
+    if (previous != null) {
+      // 前一次的成败与本次无关：它自己的调用方会处理，这里只负责等它腾出位置。
+      try {
+        await previous;
+      } catch (_) {}
+      if (generation != _loadGeneration) return;
+    }
+
+    final future = _player.setAudioSources(
       sourceQueue.sources,
       initialIndex: initialIndex,
       initialPosition: initialPosition,
       preload: preload,
     );
+    _pendingLoad = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_pendingLoad, future)) _pendingLoad = null;
+    }
   }
 
   /// 曲目回写（[SongMetadataPersister] 写完 DB 后）的联动：更新内存里的队列和
@@ -1255,6 +1289,19 @@ class PlayerService with WidgetsBindingObserver {
       _emitSnapshot(force: true);
     }
   }
+
+  /// 外部（在线匹配、标签编辑等不经过 [SongMetadataPersister] 的写路径）改完
+  /// 一首歌后，用这个把变化同步进播放器的内存状态。
+  ///
+  /// 各个列表页的「在线匹配」入口各自维护自己的本地列表，但没有一个会去碰
+  /// `currentSong`/`queue`——歌单页、歌曲页、文件夹页各刷各的，唯独播放器这份
+  /// 没人管。碰巧改的是正在播的这首时，DB 和封面文件都已经落盘，播放器内存里
+  /// 的 [SongEntity] 却还是旧的：迷你播放条、通知栏、状态栏歌词全部读的是这份
+  /// 旧实例，退出播放页重进也一样——因为播放页本身也是照着 currentSong 画的。
+  ///
+  /// 逻辑和 [_handleSongPersisted] 完全一致（同一份队列/currentSong 由持有者
+  /// 维护的规则），只是入口从「探测器回调」换成「任意外部调用方」。
+  void refreshSongMetadata(SongEntity next) => _handleSongPersisted(next);
 
   Future<void> dispose() async {
     WidgetsBinding.instance.removeObserver(this);

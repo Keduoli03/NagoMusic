@@ -177,22 +177,32 @@ class _FolderSongsPageState extends State<FolderSongsPage>
         .toList(growable: false);
     _removeProgress.start(removedSongs.length);
     _removeProgress.showDialogOn(context);
+
+    // 数据库和播放队列一次清完，而不是每首歌各来一轮。deleteByIds 内部已经按
+    // 500 切批，removeSongsById 同样收整个列表。
+    final removedIds = removedSongs.map((s) => s.id).toList(growable: false);
+    final removedCount = await _songDao.deleteByIds(removedIds);
+    if (!mounted) return;
+    await PlayerService.instance.removeSongsById(removedIds);
+    if (!mounted) return;
+
+    // 列表立刻反映结果 —— 后面删缓存文件是纯 I/O，用户不用等它逐个走完才看到
+    // 行消失。
+    final removedIdSet = removedIds.toSet();
+    _songs.value = _songs.value
+        .where((s) => !removedIdSet.contains(s.id))
+        .toList();
+    final currentId = _currentSongId.value;
+    if (currentId != null && removedIdSet.contains(currentId)) {
+      _currentSongId.value = null;
+    }
+    removeFromSelection(removedIdSet);
+
+    // 缓存文件逐首删，进度条报的就是这一段（它才是真正耗时的部分）。
     var processed = 0;
-    var removedCount = 0;
     for (final song in removedSongs) {
       if (!mounted) break;
-      removedCount += await _songDao.deleteByIds([song.id]);
-      if (!mounted) break;
-      await PlayerService.instance.removeSongsById([song.id]);
-      if (!mounted) break;
       await _cleanupCachesForSongs([song]);
-      if (!mounted) break;
-      _songs.value = _songs.value.where((s) => s.id != song.id).toList();
-      final currentId = _currentSongId.value;
-      if (currentId != null && currentId == song.id) {
-        _currentSongId.value = null;
-      }
-      removeFromSelection([song.id]);
       processed += 1;
       _removeProgress.update(processed);
     }

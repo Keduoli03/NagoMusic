@@ -96,9 +96,13 @@ class SurfaceCard extends StatelessWidget {
             : null,
         boxShadow: boxShadow ?? defaultShadow,
       ),
-      // 用 Material + InkWell 才能有涟漪；无 onTap 时省掉这一层。
+      // Material 在上色的 Container 里面 —— 详见 GlassPanel 里同样的注释：放外面
+      // 的话卡片里任何一个裸 ListTile 都会因为背景被挡而在 debug 下报错。
       child: onTap == null
-          ? Padding(padding: padding, child: child)
+          ? Material(
+              type: MaterialType.transparency,
+              child: Padding(padding: padding, child: child),
+            )
           : Material(
               color: Colors.transparent,
               child: InkWell(

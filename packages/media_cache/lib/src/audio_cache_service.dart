@@ -18,6 +18,36 @@ class AudioCacheService {
   final _AsyncLimiter _downloadLimiter = _AsyncLimiter(2);
   int _maxCacheBytes = 0;
 
+  /// 缓存目录，全进程只解析一次。
+  ///
+  /// [getApplicationSupportDirectory] 是一次 Android 平台通道往返，`exists()` 是
+  /// 一次磁盘 stat，而 [_pathsFor] 每首歌都要走一遍 —— 恢复一条 3800 首的队列时
+  /// 就是七千多次异步往返，启动要卡二十多秒。路径在进程生命周期内不会变，存下来
+  /// 就行。
+  Future<Directory>? _cacheDirFuture;
+
+  Future<Directory> _ensureCacheDir() async {
+    final cached = _cacheDirFuture;
+    if (cached != null) return cached;
+
+    final future = () async {
+      final support = await getApplicationSupportDirectory();
+      final dir = Directory(p.join(support.path, 'audio_cache'));
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return dir;
+    }();
+    _cacheDirFuture = future;
+    try {
+      return await future;
+    } catch (_) {
+      // 失败的 future 不能留在缓存里，否则一次瞬时故障会让缓存永久不可用。
+      _cacheDirFuture = null;
+      rethrow;
+    }
+  }
+
   void setMaxConcurrentDownloads(int value) {
     _downloadLimiter.updateMax(value);
   }
@@ -546,11 +576,7 @@ class AudioCacheService {
     required Uri uri,
     Map<String, String>? headers,
   }) async {
-    final support = await getApplicationSupportDirectory();
-    final cacheDir = Directory(p.join(support.path, 'audio_cache'));
-    if (!await cacheDir.exists()) {
-      await cacheDir.create(recursive: true);
-    }
+    final cacheDir = await _ensureCacheDir();
 
     final ext = p.extension(uri.path).isNotEmpty
         ? p.extension(uri.path)
@@ -583,8 +609,7 @@ class AudioCacheService {
   }
 
   Future<void> clearCache() async {
-    final support = await getApplicationSupportDirectory();
-    final cacheDir = Directory(p.join(support.path, 'audio_cache'));
+    final cacheDir = await _ensureCacheDir();
     if (await cacheDir.exists()) {
       try {
         await cacheDir.delete(recursive: true);
@@ -596,8 +621,7 @@ class AudioCacheService {
   Future<void> _enforceCacheLimit() async {
     final limit = _maxCacheBytes;
     if (limit <= 0) return;
-    final support = await getApplicationSupportDirectory();
-    final cacheDir = Directory(p.join(support.path, 'audio_cache'));
+    final cacheDir = await _ensureCacheDir();
     if (!await cacheDir.exists()) return;
 
     final items = <_CacheEntry>[];

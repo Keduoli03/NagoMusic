@@ -52,24 +52,57 @@ class PlaybackSourceResolver {
        _webdavEndpointResolver =
            webdavEndpointResolver ?? WebDavEndpointResolver.instance;
 
+  /// 建源阶段的并发上限。
+  ///
+  /// 这一步不下载音频字节，只是本地路径计算 + 代理注册（真正的网络 I/O 只有
+  /// 同一 WebDAV 音源第一次探测可用地址那一次，且按 sourceId 去重，并发多少
+  /// 份都只会探测一次）。上限纯粹是防止极端情况下瞬间创建过多 Future 造成
+  /// 调度压力，不是在保护远端服务器。
+  static const int _sourceResolveConcurrency = 24;
+
   /// 把队列里的每首歌解析成可播源。
   Future<PlaybackSourceQueue> buildPlaybackSourceQueue(
     List<SongEntity> songs, {
     String? forceRefreshSongId,
   }) async {
-    final sources = <AudioSource>[];
-    for (final song in songs) {
-      sources.add(
-        await sourceForSong(
-          song,
-          forceRefresh:
-              forceRefreshSongId != null && song.id == forceRefreshSongId,
-        ),
+    final startedAt = DateTime.now();
+    // 并发解析，而不是一首首 await 排队。
+    //
+    // 原来是纯串行 for 循环：几千首歌的队列（比如"顺序播放整个 WebDAV 音源"、
+    // 或者恢复上次播放留下的大队列）里，每一首的 await 都要等前一首彻底完成，
+    // 哪怕每首只要几毫秒，乘上几千也是实打实的几秒——期间界面点不动、切歌没
+    // 反应，因为这一步跑完之前 `setAudioSources` 都还没被调用。
+    //
+    // 用固定大小的槽位数组按下标写回，保证 sources[i] 仍然对应 songs[i]，
+    // 顺序不因并发完成顺序而错乱。
+    final sources = List<AudioSource?>.filled(songs.length, null);
+    for (
+      var offset = 0;
+      offset < songs.length;
+      offset += _sourceResolveConcurrency
+    ) {
+      final end = (offset + _sourceResolveConcurrency).clamp(0, songs.length);
+      await Future.wait([
+        for (var i = offset; i < end; i++)
+          sourceForSong(
+            songs[i],
+            forceRefresh:
+                forceRefreshSongId != null && songs[i].id == forceRefreshSongId,
+          ).then((source) => sources[i] = source),
+      ]);
+    }
+    // 整库队列（几千首）在这里跑一遍的耗时直接决定了「点一首歌多久有反应」，
+    // 出问题时得看得见，所以慢了就记一笔。
+    final elapsed = DateTime.now().difference(startedAt);
+    if (elapsed > const Duration(milliseconds: 500)) {
+      AppLog.instance.d(
+        _logTag,
+        '解析播放队列耗时 ${elapsed.inMilliseconds}ms，共 ${songs.length} 首',
       );
     }
     return PlaybackSourceQueue(
       songs: List<SongEntity>.from(songs),
-      sources: sources,
+      sources: sources.cast<AudioSource>(),
     );
   }
 

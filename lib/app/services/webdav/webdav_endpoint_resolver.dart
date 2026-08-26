@@ -1,6 +1,7 @@
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
 import 'webdav_source_repository.dart';
+import 'webdav_url.dart';
 
 /// Resolves which of a WebDAV source's configured addresses (primary +
 /// alternates, e.g. a LAN address at home and a remote-access tunnel while
@@ -58,10 +59,7 @@ class WebDavEndpointResolver {
     }
   }
 
-  Future<String?> _probeAll(
-    WebDavSource source,
-    List<String> endpoints,
-  ) async {
+  Future<String?> _probeAll(WebDavSource source, List<String> endpoints) async {
     final headers = WebDavSourceRepository.instance.buildHeaders(source);
     final probePath = source.path.trim().isEmpty ? '/' : source.path.trim();
     for (final endpoint in endpoints) {
@@ -81,7 +79,7 @@ class WebDavEndpointResolver {
   ) async {
     try {
       final client = webdav.newClient(
-        endpoint,
+        normalizeWebDavEndpoint(endpoint),
         user: '',
         password: '',
         debug: false,
@@ -104,8 +102,8 @@ class WebDavEndpointResolver {
   /// either side fails to parse.
   Uri rewriteHost(String originalUri, String targetEndpoint) {
     final original = Uri.tryParse(originalUri);
-    final target = Uri.tryParse(targetEndpoint);
-    if (original == null || target == null) {
+    final target = Uri.tryParse(normalizeWebDavEndpoint(targetEndpoint));
+    if (original == null || target == null || target.host.isEmpty) {
       return Uri.parse(originalUri);
     }
     return original.replace(

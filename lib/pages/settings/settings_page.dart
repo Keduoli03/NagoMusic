@@ -57,8 +57,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: '功能',
                 children: [
                   AppSettingNavTile(
-                    title: '歌词',
-                    subtitle: '状态栏歌词与显示偏好',
+                    title: '歌词与在线匹配',
+                    subtitle: '在线补歌词/封面、逐字歌词与状态栏歌词',
                     route: AppRoutes.lyricsSettings,
                   ),
                   AppSettingNavTile(

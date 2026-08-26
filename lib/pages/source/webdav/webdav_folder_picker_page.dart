@@ -16,12 +16,17 @@ class WebDavFolderPickerPage extends StatefulWidget {
   /// confirm the current location. Returns a one-element list with that path.
   final bool singleSelect;
 
+  /// Verb on the confirm button. The add flow lands here right after saving,
+  /// where the action reads as 「导入」 rather than 「完成」.
+  final String confirmLabel;
+
   const WebDavFolderPickerPage({
     super.key,
     required this.source,
     required this.initialPath,
     this.initialSelected = const [],
     this.singleSelect = false,
+    this.confirmLabel = '完成',
   });
 
   @override
@@ -120,13 +125,31 @@ class _WebDavFolderPickerPageState extends State<WebDavFolderPickerPage> {
                     context,
                     single ? [_path] : (_selected.toList()..sort()),
                   ),
-            child: Text(single ? '选择此处' : '完成($selectedCount)'),
+            child: Text(
+              single
+                  ? '选择此处'
+                  : selectedCount > 0
+                  ? '${widget.confirmLabel}($selectedCount)'
+                  : widget.confirmLabel,
+            ),
           ),
         ],
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
         children: [
+          if (!single && selectedCount == 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
+              child: Text(
+                '不勾选任何文件夹就直接${widget.confirmLabel}的话，会扫描整个根目录。',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ),
           AppSettingSection(
             title: '当前位置',
             children: [

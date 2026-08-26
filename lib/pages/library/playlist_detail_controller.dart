@@ -35,8 +35,12 @@ class PlaylistDetailController {
   Future<void> removeSong(String playlistId, String songId) =>
       _service.removeSongs(playlistId, [songId]);
 
-  /// 逐首移除并汇报进度，形状跟 `SongsActionsController.removeSongs` 一致：
-  /// 调用方通过回调更新 UI（是否 mounted 也由回调自己判断），这里只管顺序推进。
+  /// 从歌单里批量移除。形状跟 `SongsActionsController.removeSongs` 一致：
+  /// 调用方通过回调更新 UI（是否 mounted 也由回调自己判断）。
+  ///
+  /// 这里没有缓存文件要删 —— 从歌单移除并不删歌曲本身 —— 所以整件事就是一条
+  /// `DELETE ... WHERE playlistId = ? AND songId IN (...)`。以前是每首歌单独发
+  /// 一条，200 首就是 200 次 DB 往返加 200 次歌单缓存失效。
   Future<int> removeSongs({
     required String playlistId,
     required List<SongEntity> songsToRemove,
@@ -44,14 +48,20 @@ class PlaylistDetailController {
     required Future<void> Function(SongEntity removedSong) onSongRemoved,
   }) async {
     if (songsToRemove.isEmpty) return 0;
-    var processed = 0;
+    final total = songsToRemove.length;
+
+    await _service.removeSongs(
+      playlistId,
+      songsToRemove.map((s) => s.id).toList(growable: false),
+    );
+
+    // 回调仍然逐首发：调用方用它把行从列表里摘掉、更新进度文案，改成一次性传
+    // 整批会牵动它那边的一堆状态，收益却为零（DB 已经在上面一把删完了）。
     for (final song in songsToRemove) {
-      await _service.removeSongs(playlistId, [song.id]);
-      processed += 1;
       await onSongRemoved(song);
-      await onProgress(processed, songsToRemove.length);
     }
-    return processed;
+    await onProgress(total, total);
+    return total;
   }
 
   Future<void> reorderSongs(String playlistId, List<String> orderedSongIds) =>

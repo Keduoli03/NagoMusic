@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_cache/media_cache.dart';
 import 'package:path/path.dart' as p;
@@ -14,6 +15,7 @@ import '../log/log.dart';
 import '../db/dao/song_dao.dart';
 import 'webdav_endpoint_resolver.dart';
 import 'webdav_source_repository.dart';
+import 'webdav_url.dart';
 import '../scan_types.dart';
 
 /// Thrown when a WebDAV scan cannot reach/authenticate against the server, so
@@ -58,18 +60,141 @@ class WebDavMusicService {
   static const int _sendTimeoutMs = 15000;
   static const int _receiveTimeoutMs = 30000;
 
-  webdav.Client _newClient(String endpoint, Map<String, String> headers) {
+  // Scheme probing tries up to two candidates back to back, so it uses a much
+  // tighter budget than a real request — otherwise "auto" on an http-only host
+  // makes the user wait out a full 15s https connect before anything happens.
+  static const int _probeTimeoutMs = 6000;
+
+  /// Redirect hops chased while probing. Three is plenty for the real chains
+  /// (http → https, and bare-domain → www), and stops a misconfigured server
+  /// from spinning us.
+  static const int _maxRedirectHops = 3;
+
+  // How many PROPFINDs are in flight at once while walking the tree. Directory
+  // listing is pure latency (one round trip each, tiny payloads), so walking
+  // depth-first one folder at a time meant a 200-folder library cost 200 serial
+  // round trips. 6 is a deliberate ceiling: OpenList and most reverse proxies
+  // start returning 429/503 somewhere above 8-10 concurrent PROPFINDs.
+  static const int _dirConcurrency = 6;
+
+  webdav.Client _newClient(
+    String endpoint,
+    Map<String, String> headers, {
+    int? timeoutMs,
+  }) {
     final client = webdav.newClient(
-      endpoint,
+      normalizeWebDavEndpoint(endpoint),
       user: '',
       password: '',
       debug: kDebugMode,
     );
     client.setHeaders(headers);
-    client.setConnectTimeout(_connectTimeoutMs);
-    client.setSendTimeout(_sendTimeoutMs);
-    client.setReceiveTimeout(_receiveTimeoutMs);
+    client.setConnectTimeout(timeoutMs ?? _connectTimeoutMs);
+    client.setSendTimeout(timeoutMs ?? _sendTimeoutMs);
+    client.setReceiveTimeout(timeoutMs ?? _receiveTimeoutMs);
     return client;
+  }
+
+  /// Finds which concrete URL for [rawEndpoint] actually answers, and returns
+  /// it fully-qualified.
+  ///
+  /// This is what lets the user type a bare `ol.example.com/dav`: with no
+  /// scheme, [webDavEndpointCandidates] expands to https-then-http and each is
+  /// probed in turn. With a scheme present (typed, or picked in the protocol
+  /// row) there is exactly one candidate, so a failure is reported as a
+  /// failure instead of silently downgrading the connection.
+  ///
+  /// Each candidate that fails outright gets a redirect chase before being
+  /// written off — see [_discoverRedirect].
+  ///
+  /// Returns null when nothing answers.
+  Future<String?> resolveEndpoint(
+    WebDavSource source, {
+    String? rawEndpoint,
+    String? forcedScheme,
+  }) async {
+    final candidates = webDavEndpointCandidates(
+      rawEndpoint ?? source.endpoint,
+      forcedScheme: forcedScheme,
+    );
+    final tried = <String>{};
+    for (final candidate in candidates) {
+      if (!tried.add(candidate)) continue;
+      if (await _testEndpoint(source, candidate, timeoutMs: _probeTimeoutMs)) {
+        return candidate;
+      }
+      final redirected = await _discoverRedirect(source, candidate);
+      if (redirected == null || !tried.add(redirected)) continue;
+      if (await _testEndpoint(source, redirected, timeoutMs: _probeTimeoutMs)) {
+        return redirected;
+      }
+    }
+    return null;
+  }
+
+  /// Asks [endpoint] where it would rather send us, following up to
+  /// [_maxRedirectHops] hops, and returns that address.
+  ///
+  /// Needed because nothing in the stack follows a redirect for us:
+  /// webdav_client sets `followRedirects = false`, and Dart's HttpClient only
+  /// auto-follows on GET/HEAD regardless. So against the very common reverse
+  /// proxy that answers plain http with `301 → https://…`, every PROPFIND
+  /// fails outright — which is why picking HTTP for such a host used to look
+  /// like a wrong password rather than a wrong scheme.
+  ///
+  /// The probe is a GET rather than a PROPFIND because the scheme-upgrade
+  /// redirect is issued by the proxy before it ever looks at the method, and a
+  /// GET is the request every server is guaranteed to answer.
+  Future<String?> _discoverRedirect(
+    WebDavSource source,
+    String endpoint,
+  ) async {
+    var current = normalizeWebDavEndpoint(endpoint);
+    if (current.isEmpty) return null;
+    final origin = Uri.tryParse(current);
+    if (origin == null) return null;
+
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(milliseconds: _probeTimeoutMs),
+        sendTimeout: const Duration(milliseconds: _probeTimeoutMs),
+        receiveTimeout: const Duration(milliseconds: _probeTimeoutMs),
+        followRedirects: false,
+        validateStatus: (_) => true,
+        headers: _repo.buildHeaders(source),
+      ),
+    );
+
+    try {
+      for (var hop = 0; hop < _maxRedirectHops; hop++) {
+        final response = await dio.getUri(Uri.parse(current));
+        final status = response.statusCode ?? 0;
+        if (status < 300 || status >= 400) return null;
+
+        final location = response.headers.value('location');
+        if (location == null || location.trim().isEmpty) return null;
+
+        final next = Uri.parse(current).resolve(location.trim());
+        if (next.scheme != 'http' && next.scheme != 'https') return null;
+
+        current = buildWebDavEndpoint(
+          scheme: next.scheme,
+          host: next.host,
+          port: next.hasPort ? next.port : null,
+          path: next.path,
+        );
+        // Landing back where we started means a redirect loop, not a fix.
+        if (current == normalizeWebDavEndpoint(endpoint)) return null;
+        if (next.scheme != origin.scheme || next.host != origin.host) {
+          return current;
+        }
+      }
+    } catch (_) {
+      return null;
+    } finally {
+      dio.close(force: true);
+    }
+    return null;
   }
 
   Future<bool> testConnection(WebDavSource source) async {
@@ -87,12 +212,16 @@ class WebDavMusicService {
     return result;
   }
 
-  Future<bool> _testEndpoint(WebDavSource source, String endpoint) async {
-    final trimmed = endpoint.trim();
+  Future<bool> _testEndpoint(
+    WebDavSource source,
+    String endpoint, {
+    int? timeoutMs,
+  }) async {
+    final trimmed = normalizeWebDavEndpoint(endpoint);
     if (trimmed.isEmpty) return false;
     final headers = _repo.buildHeaders(source);
     try {
-      final client = _newClient(trimmed, headers);
+      final client = _newClient(trimmed, headers, timeoutMs: timeoutMs);
       final searchPath = _normalizeWebDavPath(
         source.path.trim().isEmpty ? '/' : source.path,
       );
@@ -107,13 +236,12 @@ class WebDavMusicService {
     required WebDavSource source,
     required String path,
   }) async {
-    final endpoint = source.endpoint.trim();
+    final endpoint = normalizeWebDavEndpoint(source.endpoint);
     if (endpoint.isEmpty) return const [];
     final headers = _repo.buildHeaders(source);
     final entries = await _listEntriesStrict(
-      endpoint: endpoint,
+      client: _newClient(endpoint, headers),
       path: _normalizeWebDavPath(path),
-      headers: headers,
     );
 
     final dirs =
@@ -143,7 +271,9 @@ class WebDavMusicService {
       source,
       forceRefresh: true,
     );
-    final endpoint = (resolvedEndpoint ?? source.endpoint).trim();
+    final endpoint = normalizeWebDavEndpoint(
+      resolvedEndpoint ?? source.endpoint,
+    );
     if (endpoint.isEmpty) {
       return const ScanResult(processed: 0, added: 0);
     }
@@ -155,84 +285,95 @@ class WebDavMusicService {
     final exclude = source.excludeFolders
         .map((e) => _normalizeWebDavPath(e))
         .toList();
-    final visited = <String>{};
     final headers = _repo.buildHeaders(source);
     final seenFiles = <String>{};
+
+    // One client for the whole scan. The previous code built a fresh
+    // webdav/Dio client per directory, which threw away the connection pool —
+    // every folder paid a new TCP + TLS handshake, and on an https host that
+    // dominated the scan time.
+    final client = _newClient(endpoint, headers);
 
     // Probe the first target path strictly so connection/auth/timeout failures
     // surface as an exception instead of being silently swallowed by the
     // lenient per-directory listing (which would report "added 0" as success).
     try {
       await _listEntriesStrict(
-        endpoint: endpoint,
+        client: client,
         path: _normalizeWebDavPath(pathsToScan.first),
-        headers: headers,
       );
     } catch (e) {
       throw WebDavScanException('无法连接到 WebDAV 服务器，请检查地址、账号或网络', e);
     }
 
     var discovered = 0;
+    var scannedDirs = 0;
     onProgress(const ScanProgress(processed: 0, added: 0, total: 0));
 
     final collected = <SongEntity>[];
-    for (final path in pathsToScan) {
-      if (isCancelled()) break;
-      await _scanRecursive(
-        source: source,
-        endpoint: endpoint,
-        path: _normalizeWebDavPath(path),
-        excludeFolders: exclude,
-        visited: visited,
-        headers: headers,
-        isCancelled: isCancelled,
-        onFile: (href) {
-          var key = href.trim();
-          if (key.isEmpty) return;
+    await _scanTree(
+      client: client,
+      endpoint: endpoint,
+      roots: pathsToScan,
+      excludeFolders: exclude,
+      isCancelled: isCancelled,
+      onDirectoryDone: () {
+        scannedDirs += 1;
+        // Deep libraries can go a long time between audio files. Without this
+        // the dialog sits at 0 and looks hung, which is exactly what a slow
+        // scan used to look like.
+        onProgress(
+          ScanProgress(processed: discovered, added: 0, total: scannedDirs),
+        );
+      },
+      onFile: (href) {
+        var key = href.trim();
+        if (key.isEmpty) return;
+        try {
+          key = Uri.parse(key).toString();
+        } catch (_) {}
+        if (seenFiles.contains(key)) return;
+        seenFiles.add(key);
+
+        discovered += 1;
+
+        // Decode the URI for display/storage if possible
+        var displayUri = href;
+        // Iteratively decode to handle double/triple encoding (e.g. %2520 -> %20 -> space)
+        // We want the stored URI to be human-readable (no percent encoding)
+        for (var i = 0; i < 4; i++) {
           try {
-            key = Uri.parse(key).toString();
-          } catch (_) {}
-          if (seenFiles.contains(key)) return;
-          seenFiles.add(key);
-
-          discovered += 1;
-
-          // Decode the URI for display/storage if possible
-          var displayUri = href;
-          // Iteratively decode to handle double/triple encoding (e.g. %2520 -> %20 -> space)
-          // We want the stored URI to be human-readable (no percent encoding)
-          for (var i = 0; i < 4; i++) {
-            try {
-              final decoded = Uri.decodeFull(displayUri);
-              if (decoded == displayUri) break;
-              displayUri = decoded;
-            } catch (_) {
-              break;
-            }
+            final decoded = Uri.decodeFull(displayUri);
+            if (decoded == displayUri) break;
+            displayUri = decoded;
+          } catch (_) {
+            break;
           }
+        }
 
-          final title = _webDavNameFromHref(displayUri);
-          final album = _webDavAlbumFromHref(displayUri);
+        final title = _webDavNameFromHref(displayUri);
+        final album = _webDavAlbumFromHref(displayUri);
 
-          collected.add(
-            SongEntity(
-              // Path-based, not the raw href — stays stable across the
-              // source's alternate addresses (see webdav_song_id.dart).
-              id: buildWebdavSongId(sourceId: source.id, hrefOrUri: href),
-              title: title.isNotEmpty ? title : '未知标题',
-              artist: source.name.trim().isNotEmpty ? source.name.trim() : '云端',
-              album: album.isNotEmpty ? album : null,
-              uri: displayUri, // Store decoded URI for readability
-              isLocal: false,
-              headersJson: jsonEncode(headers),
-              sourceId: source.id,
-              tagsParsed: false,
-            ),
-          );
-          onProgress(ScanProgress(processed: discovered, added: 0, total: 0));
-        },
-      );
-    }
+        collected.add(
+          SongEntity(
+            // Path-based, not the raw href — stays stable across the
+            // source's alternate addresses (see webdav_song_id.dart).
+            id: buildWebdavSongId(sourceId: source.id, hrefOrUri: href),
+            title: title.isNotEmpty ? title : '未知标题',
+            artist: source.name.trim().isNotEmpty ? source.name.trim() : '云端',
+            album: album.isNotEmpty ? album : null,
+            uri: displayUri, // Store decoded URI for readability
+            isLocal: false,
+            headersJson: jsonEncode(headers),
+            sourceId: source.id,
+            tagsParsed: false,
+          ),
+        );
+        onProgress(
+          ScanProgress(processed: discovered, added: 0, total: scannedDirs),
+        );
+      },
+    );
 
     if (isCancelled()) {
       return ScanResult(processed: discovered, added: 0);
@@ -276,76 +417,79 @@ class WebDavMusicService {
     return ScanResult(processed: discovered, added: added);
   }
 
-  Future<void> _scanRecursive({
-    required WebDavSource source,
+  /// Walks the tree under [roots] breadth-first, listing up to
+  /// [_dirConcurrency] directories at a time.
+  ///
+  /// Breadth-first rather than the old depth-first recursion because it's what
+  /// makes the concurrency usable: every directory at the current depth is
+  /// known up front, so a whole level can go out in parallel batches instead of
+  /// one folder blocking on its own children.
+  Future<void> _scanTree({
+    required webdav.Client client,
     required String endpoint,
-    required String path,
+    required List<String> roots,
     required List<String> excludeFolders,
-    required Set<String> visited,
-    required Map<String, String> headers,
     required ValueGetter<bool> isCancelled,
+    required VoidCallback onDirectoryDone,
     required ValueChanged<String> onFile,
   }) async {
-    if (isCancelled()) return;
-    if (visited.contains(path)) return;
-    visited.add(path);
+    final visited = <String>{};
+    var frontier = <String>[];
+    for (final root in roots) {
+      final normalized = _normalizeWebDavPath(root);
+      if (_shouldExclude(normalized, excludeFolders)) continue;
+      if (visited.add(normalized)) frontier.add(normalized);
+    }
 
-    if (_shouldExclude(path, excludeFolders)) return;
+    while (frontier.isNotEmpty) {
+      if (isCancelled()) return;
+      final next = <String>[];
 
-    await Future.delayed(const Duration(milliseconds: 80));
-
-    final entries = await _listEntries(
-      endpoint: endpoint,
-      path: path,
-      headers: headers,
-    );
-
-    for (final e in entries) {
-      if (isCancelled()) break;
-      if ((e.isDir ?? false) == true) {
-        final childPath = _normalizeWebDavPath(e.path ?? '');
-        if (childPath == path) continue;
-        await _scanRecursive(
-          source: source,
-          endpoint: endpoint,
-          path: childPath,
-          excludeFolders: excludeFolders,
-          visited: visited,
-          headers: headers,
-          isCancelled: isCancelled,
-          onFile: onFile,
+      for (var i = 0; i < frontier.length; i += _dirConcurrency) {
+        if (isCancelled()) return;
+        final batch = frontier.skip(i).take(_dirConcurrency).toList();
+        final listings = await Future.wait(
+          batch.map((path) => _listEntries(client: client, path: path)),
         );
-        continue;
+
+        for (var b = 0; b < batch.length; b++) {
+          final parent = batch[b];
+          onDirectoryDone();
+          for (final entry in listings[b]) {
+            if ((entry.isDir ?? false) == true) {
+              final childPath = _normalizeWebDavPath(entry.path ?? '');
+              if (childPath == parent || childPath.isEmpty) continue;
+              if (_shouldExclude(childPath, excludeFolders)) continue;
+              if (!visited.add(childPath)) continue;
+              next.add(childPath);
+              continue;
+            }
+            final href = _normalizeWebDavHref(entry.path ?? '', endpoint);
+            if (!_isAudioFile(href)) continue;
+            onFile(href);
+          }
+        }
       }
-      final href = _normalizeWebDavHref(e.path ?? '', endpoint);
-      if (!_isAudioFile(href)) continue;
-      onFile(href);
+
+      frontier = next;
     }
   }
 
   Future<List<webdav.File>> _listEntries({
-    required String endpoint,
+    required webdav.Client client,
     required String path,
-    required Map<String, String> headers,
   }) async {
     try {
-      return await _listEntriesStrict(
-        endpoint: endpoint,
-        path: path,
-        headers: headers,
-      );
+      return await _listEntriesStrict(client: client, path: path);
     } catch (_) {
       return const [];
     }
   }
 
   Future<List<webdav.File>> _listEntriesStrict({
-    required String endpoint,
+    required webdav.Client client,
     required String path,
-    required Map<String, String> headers,
   }) async {
-    final client = _newClient(endpoint, headers);
-
     var searchPath = path.trim().isEmpty ? '/' : path.trim();
     if (!searchPath.startsWith('/')) {
       searchPath = '/$searchPath';
@@ -363,7 +507,9 @@ class WebDavMusicService {
     final queue = Queue<SongEntity>.from(songs);
     final results = <SongEntity>[];
     var done = 0;
-    const concurrency = 2;
+    // Tag probing does ranged GETs, so it's heavier per request than a
+    // PROPFIND — kept well below _dirConcurrency on purpose.
+    const concurrency = 4;
 
     Future<void> worker() async {
       while (queue.isNotEmpty) {
