@@ -64,7 +64,9 @@ class _ParticleCoverState extends State<ParticleCover>
   static const int _edgeParticleCount = 3200;
 
   static const Duration _transitionDuration = Duration(milliseconds: 900);
-  static const Duration _motionDuration = Duration(seconds: 9);
+  // 旧值 9 秒且位移只有数个像素，真机上几乎看不出粒子在动。缩短一圈时间，
+  // 配合下面沿封面切线方向的轨迹，让飞舞可辨识但不会像喷射特效一样抢眼。
+  static const Duration _motionDuration = Duration(seconds: 6);
 
   String? _loadedSongId;
   int _loadToken = 0;
@@ -711,30 +713,47 @@ class _CoverPainter extends CustomPainter {
           particle.home +
           (particle.scatter - particle.home) *
               (_outCubic(localProgress) * flightScale);
-      // 频率必须是整数，9 秒循环首尾才不会跳帧。两个不同频率组成轻微的
-      // 椭圆漂移，不是所有粒子一起呼吸。
-      final xCycles = 1 + (particle.seed * 3).floor();
-      final yCycles = 2 + (particle.seed * 4).floor();
-      final xAngle = 2 * math.pi * (motionPhase * xCycles + particle.seed);
-      final yAngle =
-          2 * math.pi * (motionPhase * yCycles + particle.seed * 1.73);
-      final flutterRadius = (0.005 + 0.017 * particle.edgeWeight) * visibility;
+      // 粒子沿封面边缘的切线来回游动，同时在法线方向轻微起伏。旧实现只是
+      // 在原地做 1~4px 的椭圆抖动，9 秒一圈，真机看起来和静态没有区别；
+      // 这里把主要位移放在切线方向，才会形成“绕着封面飞舞”的视觉关系。
+      // cycle 为整数，AnimationController repeat() 回到 0 时轨迹不会跳帧。
+      final outwardLength = math.max(particle.home.distance, 0.0001);
+      final outwardDirection = particle.home / outwardLength;
+      final tangentDirection = Offset(
+        -outwardDirection.dy,
+        outwardDirection.dx,
+      );
+      final orbitCycles = 1 + (particle.seed * 3).floor();
+      final orbitAngle =
+          2 * math.pi * (motionPhase * orbitCycles + particle.seed);
+      final liftAngle =
+          2 *
+          math.pi *
+          (motionPhase * (orbitCycles + 1) + particle.seed * 1.73);
+      final tangentTravel =
+          (0.018 + 0.050 * particle.edgeWeight) *
+          math.sin(orbitAngle) *
+          visibility;
+      final outwardTravel =
+          (0.008 + 0.026 * particle.edgeWeight) *
+          math.cos(liftAngle) *
+          visibility;
       final position =
           basePosition +
-          Offset(
-            math.cos(xAngle) * flutterRadius,
-            math.sin(yAngle) * flutterRadius * 0.78,
-          );
+          tangentDirection * tangentTravel +
+          outwardDirection * outwardTravel;
       final fragmentPos = Offset(
         (position.dx + 1) * 0.5 * size.width,
         (1 - position.dy) * 0.5 * size.height,
       );
+      final sizePulse = 0.94 + 0.10 * math.sin(liftAngle + particle.seed);
       final shardSize =
           _particleLogicalSize(particle, density) *
-          (0.48 + 0.38 * localProgress);
+          (0.48 + 0.38 * localProgress) *
+          sizePulse;
       transforms.add(
         RSTransform.fromComponents(
-          rotation: 0,
+          rotation: math.sin(orbitAngle + particle.seed * 2) * 0.32,
           scale: shardSize,
           anchorX: 0.5,
           anchorY: 0.5,

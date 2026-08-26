@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,56 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nagomusic/pages/player/widgets/particle_cover.dart';
 
 void main() {
+  testWidgets('playing motion phase visibly moves edge particles', (
+    tester,
+  ) async {
+    final cover = File('assets/preview/style_preview_cover.jpg').absolute;
+    expect(cover.existsSync(), isTrue);
+
+    late final ui.Image firstFrame;
+    late final ui.Image laterFrame;
+    await tester.runAsync(() async {
+      final bytes = await cover.readAsBytes();
+      firstFrame = await renderParticleCoverSteadyForTesting(
+        bytes,
+        playbackProgress: 0.72,
+        motionPhase: 0,
+      );
+      laterFrame = await renderParticleCoverSteadyForTesting(
+        bytes,
+        playbackProgress: 0.72,
+        motionPhase: 0.08,
+      );
+    });
+    addTearDown(firstFrame.dispose);
+    addTearDown(laterFrame.dispose);
+
+    late final ByteData firstBytes;
+    late final ByteData laterBytes;
+    await tester.runAsync(() async {
+      firstBytes = (await firstFrame.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!;
+      laterBytes = (await laterFrame.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!;
+    });
+    final first = firstBytes.buffer.asUint8List();
+    final later = laterBytes.buffer.asUint8List();
+    var changedPixels = 0;
+    for (var index = 0; index < first.length; index += 4) {
+      final difference =
+          (first[index] - later[index]).abs() +
+          (first[index + 1] - later[index + 1]).abs() +
+          (first[index + 2] - later[index + 2]).abs() +
+          (first[index + 3] - later[index + 3]).abs();
+      if (difference > 12) changedPixels++;
+    }
+
+    // 防止动画时钟仍在跑、画面却因为位移过小而肉眼等同静态。
+    expect(changedPixels, greaterThan(700));
+  });
+
   testWidgets('playback starts from a complete crisp cover', (tester) async {
     final cover = File('assets/preview/style_preview_cover.jpg').absolute;
     expect(cover.existsSync(), isTrue);
