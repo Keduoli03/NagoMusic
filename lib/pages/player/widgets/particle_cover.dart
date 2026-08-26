@@ -17,8 +17,8 @@ const String _logTag = 'ParticleCover';
 /// **播放过程**：开局是完整高清原封面；播放进度越靠后，最外 5% 越多地剥落为
 /// 粒子。已经剥落的粒子会在封面四周持续缓慢飞舞，暂停时冻结。边缘粒子直接移植自
 /// mica-music 的 `buildEdgeParticles()`：固定 Java Random 序列、同一组 band /
-/// size / scatter 参数；可见数量按 Flutter 实心方块面积折算为 3,200 枚，每枚
-/// 方块只采样自己 UV 的封面颜色。
+/// size / scatter 参数；先生成 3,200 枚候选碎片，再用固定的簇状门控留出疏密与
+/// 空隙，每枚方块只采样自己 UV 的封面颜色。
 ///
 /// **切歌过渡**（900ms）：旧封面先按"离边缘越近越先飞散"的顺序碎成粒子
 /// （前 450ms），新封面的粒子再按同样的顺序从四散状态聚拢回来、边缘的最后
@@ -59,8 +59,8 @@ class _ParticleCoverState extends State<ParticleCover>
   /// 切歌过渡用的粗网格——逐帧重算，密度不能高。
   static const int _transitionGridSize = 44;
 
-  /// 原 OpenGL 的 11,000 点还会经过约 77% 面积的 shard mask 与残影透明度；
-  /// Flutter atlas 是实心方块，因此按实际可见面积折算为约 3,200 枚。
+  /// 原 OpenGL 的 11,000 点还会经过 shard mask；Flutter atlas 是实心方块，
+  /// 因此只生成 3,200 枚候选点，随后再经过簇状门控筛成更稀疏的可见碎片。
   static const int _edgeParticleCount = 3200;
 
   static const Duration _transitionDuration = Duration(milliseconds: 900);
@@ -414,6 +414,19 @@ List<_EdgeParticle> _buildEdgeParticles(int count) {
     random.between(-0.08, 0.16); // scatterZ
     final seed = random.nextFloat();
 
+    // 原始随机池均匀铺满四条边，在 Flutter 的实心方块下很容易形成连续边框。
+    // 用两层沿边波形形成簇与空隙，再以固定哈希抽样；同一封面每次分布一致，
+    // 但不会四边等密度地围成一圈。
+    final edgeTangent = side.isEven ? u : v;
+    final primaryCluster =
+        0.5 + 0.5 * math.sin(2 * math.pi * (edgeTangent * 2.35 + side * 0.17));
+    final secondaryCluster =
+        0.5 + 0.5 * math.sin(2 * math.pi * (edgeTangent * 5.1 + side * 0.31));
+    final clusterStrength =
+        math.pow(primaryCluster, 2.4) * (0.55 + 0.45 * secondaryCluster);
+    final keepChance = 0.08 + 0.72 * clusterStrength;
+    if (_hash(index * 37 + side, index * 53 + 11) > keepChance) continue;
+
     particles.add(
       _EdgeParticle(
         uv: Offset(u, v),
@@ -668,8 +681,8 @@ class _CoverPainter extends CustomPainter {
     );
   }
 
-  /// 用原仓库 buildEdgeParticles() 的分布生成 3,200 枚方块碎片覆盖渐隐区。
-  /// 颜色严格采样各自 UV，不再用白点或黑点替代。
+  /// 用原仓库 buildEdgeParticles() 的分布生成候选碎片，再经簇状门控后覆盖
+  /// 渐隐区。颜色严格采样各自 UV，不再用白点或黑点替代。
   void _drawEdgeParticles(
     Canvas canvas,
     Size size,
@@ -691,11 +704,13 @@ class _CoverPainter extends CustomPainter {
       final visibility = localProgress;
       if (visibility <= 0.002) continue;
 
-      final basePosition = Offset.lerp(
-        particle.home,
-        particle.scatter,
-        _outCubic(localProgress),
-      )!;
+      // 大部分碎片停留在剥落边缘附近，少量碎片飞到更远处形成游离尘屑，
+      // 不再把所有点挤在同一圈宽度里。
+      final flightScale = 0.72 + 2.28 * math.pow(particle.seed, 2.6).toDouble();
+      final basePosition =
+          particle.home +
+          (particle.scatter - particle.home) *
+              (_outCubic(localProgress) * flightScale);
       // 频率必须是整数，9 秒循环首尾才不会跳帧。两个不同频率组成轻微的
       // 椭圆漂移，不是所有粒子一起呼吸。
       final xCycles = 1 + (particle.seed * 3).floor();
@@ -716,7 +731,7 @@ class _CoverPainter extends CustomPainter {
       );
       final shardSize =
           _particleLogicalSize(particle, density) *
-          (0.55 + 0.45 * localProgress);
+          (0.48 + 0.38 * localProgress);
       transforms.add(
         RSTransform.fromComponents(
           rotation: 0,
@@ -729,7 +744,12 @@ class _CoverPainter extends CustomPainter {
       );
       textureRects.add(_particleSourceRect(particle, grid.image));
       // 原仓库 StableEdgeResidueAlpha=0.38。
-      final alpha = 0.38 * (0.72 + 0.28 * particle.edgeWeight) * visibility;
+      final distanceFade = 1 - 0.24 * math.pow(particle.seed, 2).toDouble();
+      final alpha =
+          0.33 *
+          (0.72 + 0.28 * particle.edgeWeight) *
+          visibility *
+          distanceFade;
       colors.add(Color.fromRGBO(255, 255, 255, alpha));
     }
     canvas.drawAtlas(
