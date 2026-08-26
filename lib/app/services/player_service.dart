@@ -104,6 +104,27 @@ class PlayerService with WidgetsBindingObserver {
   int _prefetchTriggeredIndex = -1;
   bool _recoveringCurrentSource = false;
 
+  /// 当前已经并入 just_audio 播放列表的逻辑下标区间（闭区间），null 表示
+  /// 「这个队列没有走增量加载」——要么还没起播，要么走的是随机播放/远跳这类
+  /// 维持整队列一次性装载的老路径。
+  ///
+  /// 核心不变式：只要某个逻辑下标落在这个区间里，它在 just_audio 播放列表里的
+  /// 物理下标就**等于**这个逻辑下标本身——增量加载只往队头/队尾接，不做稀疏乱序
+  /// 拼接。`_indexSub`、播放持久化、`_handlePlayerError` 全都直接拿 `queue.value
+  /// [idx]`，靠的就是这条假设，所以不能破坏它。
+  int? _loadedLo;
+  int? _loadedHi;
+
+  void _setLoadedRange(int lo, int hi) {
+    _loadedLo = lo;
+    _loadedHi = hi;
+  }
+
+  void _clearLoadedRange() {
+    _loadedLo = null;
+    _loadedHi = null;
+  }
+
   bool get hasLoadedAudioSource => _player.audioSource != null;
 
   static const String _logTag = 'PlayerService';
@@ -343,13 +364,20 @@ class PlayerService with WidgetsBindingObserver {
       'playQueue size=${playable.length} startIndex=$startIndex actualIndex=$actualIndex song=${playable[actualIndex].title}',
     );
     _applyLogicalQueue(playable, actualIndex);
+    _clearLoadedRange();
 
     Future<bool> setSourcesOnce() async {
       try {
         final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
           playable,
         );
-        await _loadPlaybackSourceQueue(sourceQueue, initialIndex: actualIndex);
+        final generation = await _loadPlaybackSourceQueue(
+          sourceQueue,
+          initialIndex: actualIndex,
+        );
+        if (generation == _loadGeneration) {
+          _setLoadedRange(0, playable.length - 1);
+        }
         return true;
       } catch (e, s) {
         AppLog.instance.w(_logTag, 'playQueue 装载音源失败，准备重试', e, s);
@@ -380,10 +408,13 @@ class PlayerService with WidgetsBindingObserver {
             playable,
             forceRefreshSongId: current.id,
           );
-          await _loadPlaybackSourceQueue(
+          final generation = await _loadPlaybackSourceQueue(
             sourceQueue,
             initialIndex: actualIndex,
           );
+          if (generation == _loadGeneration) {
+            _setLoadedRange(0, playable.length - 1);
+          }
           return true;
         } catch (e2, s2) {
           AppLog.instance.e(_logTag, 'playQueue 装载音源重试仍失败', e2, s2);
@@ -392,7 +423,14 @@ class PlayerService with WidgetsBindingObserver {
       }
     }
 
-    final ok = await setSourcesOnce();
+    // 随机播放需要对完整播放列表算洗牌顺序，边填充边洗很难保证正确，维持整
+    // 队列一次性装载。其余模式走增量：只建当前这首就能起播，其余交给后台。
+    var ok = playbackMode.value == PlaybackMode.shuffle
+        ? false
+        : await _loadIncremental(playable, actualIndex);
+    if (!ok) {
+      ok = await setSourcesOnce();
+    }
     if (!ok) {
       try {
         await _player.stop();
@@ -535,6 +573,7 @@ class PlayerService with WidgetsBindingObserver {
     queue.value = const [];
     currentIndex.value = -1;
     currentSong.value = null;
+    _clearLoadedRange();
     _emitSnapshot(force: true);
     await _playbackPersistence.clear();
   }
@@ -558,12 +597,19 @@ class PlayerService with WidgetsBindingObserver {
     if (actualIndex >= playable.length) actualIndex = playable.length - 1;
 
     _applyLogicalQueue(playable, actualIndex);
+    _clearLoadedRange();
 
     final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
       playable,
     );
     try {
-      await _loadPlaybackSourceQueue(sourceQueue, initialIndex: actualIndex);
+      final generation = await _loadPlaybackSourceQueue(
+        sourceQueue,
+        initialIndex: actualIndex,
+      );
+      if (generation == _loadGeneration) {
+        _setLoadedRange(0, playable.length - 1);
+      }
     } catch (e, s) {
       await stopAndClear();
       AppLog.instance.e(_logTag, '_reloadQueue 装载音源失败', e, s);
@@ -645,7 +691,13 @@ class PlayerService with WidgetsBindingObserver {
         forceRefreshSongId: failedSong.id,
       );
       _applyLogicalQueue(list, failedIndex);
-      await _loadPlaybackSourceQueue(sourceQueue, initialIndex: failedIndex);
+      final generation = await _loadPlaybackSourceQueue(
+        sourceQueue,
+        initialIndex: failedIndex,
+      );
+      if (generation == _loadGeneration) {
+        _setLoadedRange(0, list.length - 1);
+      }
       if (seekPos > Duration.zero) {
         try {
           await _player.seek(seekPos);
@@ -681,6 +733,10 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> next() async {
     _clearRestoreSession();
+    final targetIndex = currentIndex.value + 1;
+    if (targetIndex < queue.value.length) {
+      await _ensureLogicalIndexLoaded(targetIndex, forward: true);
+    }
     final wasPlaying = _player.playing;
     await _player.seekToNext();
     if (!wasPlaying) {
@@ -690,6 +746,10 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> previous() async {
     _clearRestoreSession();
+    final targetIndex = currentIndex.value - 1;
+    if (targetIndex >= 0) {
+      await _ensureLogicalIndexLoaded(targetIndex, forward: false);
+    }
     final wasPlaying = _player.playing;
     await _player.seekToPrevious();
     if (!wasPlaying) {
@@ -730,6 +790,12 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> skipToIndex(int index) async {
     _clearRestoreSession();
+    final lo = _loadedLo;
+    final hi = _loadedHi;
+    if (lo != null && hi != null && (index < lo || index > hi)) {
+      await _reloadForFarJump(index);
+      return;
+    }
     await _player.seek(Duration.zero, index: index);
   }
 
@@ -961,15 +1027,31 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> _prepareRestoredAudioSource(PlaybackRestoreState session) async {
     try {
-      final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
-        session.queue,
-      );
-      await _loadPlaybackSourceQueue(
-        sourceQueue,
-        initialIndex: session.index,
-        initialPosition: session.position,
-        preload: true,
-      );
+      // 随机播放模式维持整队列一次性装载（原因同 playQueue）；其余模式先把
+      // 上次播放的这首装上——这正是"恢复卡好几秒"最常撞见的场景：上次退出时
+      // 队列可能是整个几千首的 WebDAV 音源。
+      final ok = session.mode == PlaybackMode.shuffle
+          ? false
+          : await _loadIncremental(
+              session.queue,
+              session.index,
+              initialPosition: session.position,
+              preload: true,
+            );
+      if (!ok) {
+        final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
+          session.queue,
+        );
+        final generation = await _loadPlaybackSourceQueue(
+          sourceQueue,
+          initialIndex: session.index,
+          initialPosition: session.position,
+          preload: true,
+        );
+        if (generation == _loadGeneration) {
+          _setLoadedRange(0, session.queue.length - 1);
+        }
+      }
       if (session.position > Duration.zero) {
         await _seekRestoredPosition(session.position);
       }
@@ -1080,12 +1162,18 @@ class PlayerService with WidgetsBindingObserver {
           final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
             list,
           );
-          await _loadPlaybackSourceQueue(
+          final generation = await _loadPlaybackSourceQueue(
             sourceQueue,
             initialIndex: idx,
             initialPosition: pos,
             preload: true,
           );
+          // 整队列重新建源装载完了，不管之前是不是走的增量加载，现在都是
+          // 全量状态——不重置的话 _loadedLo/_loadedHi 还留着旧区间，next/
+          // previous 的按需补齐会以为有些其实已经装好的下标还没加载。
+          if (generation == _loadGeneration) {
+            _setLoadedRange(0, list.length - 1);
+          }
         }
       }
       if (!_player.playing) {
@@ -1236,7 +1324,7 @@ class PlayerService with WidgetsBindingObserver {
   int _loadGeneration = 0;
   Future<void>? _pendingLoad;
 
-  Future<void> _loadPlaybackSourceQueue(
+  Future<int> _loadPlaybackSourceQueue(
     PlaybackSourceQueue sourceQueue, {
     required int initialIndex,
     Duration? initialPosition,
@@ -1250,7 +1338,10 @@ class PlayerService with WidgetsBindingObserver {
       try {
         await previous;
       } catch (_) {}
-      if (generation != _loadGeneration) return;
+      // 等待期间又来了更新的装载请求——这次直接放弃，不调 setAudioSources。
+      // 返回的代号仍然是"我原本申请到的那个"，调用方（增量加载的后台填充）
+      // 靠它发现自己已经过期，不会带着一个作废的代号继续往队列里塞歌。
+      if (generation != _loadGeneration) return generation;
     }
 
     final future = _player.setAudioSources(
@@ -1264,6 +1355,165 @@ class PlayerService with WidgetsBindingObserver {
       await future;
     } finally {
       if (identical(_pendingLoad, future)) _pendingLoad = null;
+    }
+    return generation;
+  }
+
+  // ------------------------------------------------------------ 增量加载队列
+  //
+  // 目标：点一首歌 / 恢复播放的耗时只取决于「这一首歌」能不能建源，跟队列有
+  // 多长无关。只用于 playQueue / 恢复播放这两个冷启动路径，且仅在非随机播放
+  // 模式下生效——理由见 lib 外的方案文档，这里不重复。
+  //
+  // 核心不变式：只要某个逻辑下标已经并入 just_audio 播放列表，它在 just_audio
+  // 里的物理下标就**等于**这个逻辑下标本身——只会往队头/队尾接，不做稀疏乱序
+  // 拼接。`_indexSub`、播放持久化、`_handlePlayerError` 全都直接拿
+  // `queue.value[idx]`，靠的就是这条假设。
+
+  /// 只建目标歌的源、立即装载，队列其余部分交给 [_fillQueueInBackground]
+  /// 异步补上。失败返回 false，调用方应当回退到整队列建源（唯一能保证「这次
+  /// 真的能放」的路径，代价是变慢，但至少正确）。
+  Future<bool> _loadIncremental(
+    List<SongEntity> playable,
+    int actualIndex, {
+    Duration? initialPosition,
+    bool preload = false,
+  }) async {
+    final AudioSource source;
+    try {
+      source = await _sourceResolver.sourceForSong(playable[actualIndex]);
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '增量装载建源失败，回退整队列建源', e, s);
+      return false;
+    }
+
+    final int generation;
+    try {
+      generation = await _loadPlaybackSourceQueue(
+        PlaybackSourceQueue(songs: [playable[actualIndex]], sources: [source]),
+        initialIndex: 0,
+        initialPosition: initialPosition,
+        preload: preload,
+      );
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '增量装载首曲失败，回退整队列建源', e, s);
+      return false;
+    }
+
+    // 这次装载在排队等待期间被更新的请求取代了——不算失败（那个更新的请求会
+    // 自己把播放器带到正确状态），但没必要再为这份已经过期的队列跑后台填充。
+    if (generation == _loadGeneration) {
+      _setLoadedRange(actualIndex, actualIndex);
+      unawaited(_fillQueueInBackground(playable, actualIndex, generation));
+    }
+    return true;
+  }
+
+  /// 按「先补后面、再补前面」的顺序，把 [playable] 里除 [actualIndex] 之外的
+  /// 部分陆续接上 just_audio 播放列表。
+  ///
+  /// 先补后面是因为「下一首」比「上一首」常用得多，优先让顺着往下播不用等。
+  /// 每一步都先并发建源（复用 [PlaybackSourceResolver.buildPlaybackSourceQueue]，
+  /// 跟 playQueue 整队列建源用的是同一套并发逻辑），再一次性 `addAudioSources`/
+  /// `insertAudioSources` 接上，不是一首首插——那样会让 just_audio 的播放列表
+  /// 中途处于「乱序」状态更久，也更容易撞见平台层的重入限制。
+  ///
+  /// [generation] 是这次装载在 [_loadPlaybackSourceQueue] 里拿到的代号：期间
+  /// 只要 [_loadGeneration] 变了（用户切到了别的队列），立刻放弃——不然一个
+  /// 几千首的后台填充任务可能在用户已经在听别的歌之后，还在悄悄往一个已经不
+  /// 相关的播放列表里塞歌。
+  Future<void> _fillQueueInBackground(
+    List<SongEntity> playable,
+    int actualIndex,
+    int generation,
+  ) async {
+    try {
+      if (actualIndex + 1 < playable.length) {
+        final suffixQueue = await _sourceResolver.buildPlaybackSourceQueue(
+          playable.sublist(actualIndex + 1),
+        );
+        if (generation != _loadGeneration) return;
+        await _player.addAudioSources(suffixQueue.sources);
+        if (generation != _loadGeneration) return;
+        _loadedHi = playable.length - 1;
+      }
+      if (actualIndex > 0) {
+        final prefixQueue = await _sourceResolver.buildPlaybackSourceQueue(
+          playable.sublist(0, actualIndex),
+        );
+        if (generation != _loadGeneration) return;
+        await _player.insertAudioSources(0, prefixQueue.sources);
+        if (generation != _loadGeneration) return;
+        _loadedLo = 0;
+      }
+    } catch (e, s) {
+      // 后台补全失败不影响正在播的这首——真播到还没补上的那首时，
+      // _handlePlayerError 会走它自己的整队列重建兜底。
+      AppLog.instance.w(_logTag, '后台补全播放队列失败', e, s);
+    }
+  }
+
+  /// [next] / [previous] 在目标下标还没并入 just_audio 播放列表时的兜底：只有
+  /// 目标正好紧邻已加载区间的边界（`hi+1` 或 `lo-1`）时才处理——单独建这一首
+  /// 的源，跟建当前这首一样快。落在区间外（远跳）的情况不在这里处理，调用方
+  /// 各自决定怎么退化。
+  Future<void> _ensureLogicalIndexLoaded(
+    int index, {
+    required bool forward,
+  }) async {
+    final lo = _loadedLo;
+    final hi = _loadedHi;
+    // null 表示没有走增量加载（随机播放、或远跳之后已经整队列装载完）——
+    // 那种情况下队列要么整段都在，要么整段都不在，不需要这层兜底。
+    if (lo == null || hi == null) return;
+    if (index >= lo && index <= hi) return;
+
+    final list = queue.value;
+    if (index < 0 || index >= list.length) return;
+    if (forward && index != hi + 1) return;
+    if (!forward && index != lo - 1) return;
+
+    final generation = _loadGeneration;
+    try {
+      final source = await _sourceResolver.sourceForSong(list[index]);
+      if (generation != _loadGeneration) return;
+      if (forward) {
+        await _player.addAudioSources([source]);
+        if (generation != _loadGeneration) return;
+        _loadedHi = index;
+      } else {
+        await _player.insertAudioSources(0, [source]);
+        if (generation != _loadGeneration) return;
+        _loadedLo = index;
+      }
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '按需补齐下标 $index 失败', e, s);
+    }
+  }
+
+  /// [skipToIndex] 跳到增量加载区间之外的下标时的兜底：沿用整队列重新建源
+  /// 装载，装载完成后整条队列都在 just_audio 里了，回到「全量加载」状态。
+  ///
+  /// 这类「跳到队列里很远的一首」本次没有做增量化——要正确处理需要支持稀疏
+  /// 区间的物理下标换算，复杂度和收益不成比例，见方案文档。
+  Future<void> _reloadForFarJump(int index) async {
+    final list = queue.value;
+    if (index < 0 || index >= list.length) return;
+    final wasPlaying = _player.playing;
+    try {
+      final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(list);
+      final generation = await _loadPlaybackSourceQueue(
+        sourceQueue,
+        initialIndex: index,
+      );
+      if (generation == _loadGeneration) {
+        _setLoadedRange(0, list.length - 1);
+      }
+      if (wasPlaying) {
+        await _startPlayback();
+      }
+    } catch (e, s) {
+      AppLog.instance.e(_logTag, '跳转到下标 $index 失败', e, s);
     }
   }
 
