@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../app/state/settings_state.dart';
+import '../../pages/player/widgets/particle_cover.dart';
 
 /// Mini preview of the player UI for a given [PlayerStylePreset].
 ///
@@ -34,7 +35,12 @@ class PlayerStylePreview extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final accent = selected ? scheme.primary : scheme.secondary;
     final content = lyricsOnly
-        ? _lyricsPage(context)
+        ? preset == PlayerStylePreset.immersive
+              ? Theme(
+                  data: _immersiveTheme(context, accent),
+                  child: Builder(builder: _lyricsPage),
+                )
+              : _lyricsPage(context)
         : switch (preset) {
             PlayerStylePreset.classic => _classicPreview(context, accent),
             PlayerStylePreset.poster => _posterPreview(context, accent),
@@ -44,9 +50,12 @@ class PlayerStylePreview extends StatelessWidget {
     // Over the real 流光: no own background / aspect / clip (parent provides).
     if (fill) return content;
 
+    final previewScheme = preset == PlayerStylePreset.immersive
+        ? ColorScheme.fromSeed(seedColor: accent, brightness: Brightness.dark)
+        : scheme;
     final bg = Color.alphaBlend(
       accent.withValues(alpha: selected ? 0.20 : 0.12),
-      scheme.surfaceContainerHighest,
+      previewScheme.surfaceContainerHighest,
     );
     final size = MediaQuery.sizeOf(context);
     final portraitRatio = size.shortestSide / size.longestSide;
@@ -59,7 +68,7 @@ class PlayerStylePreview extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [bg, scheme.surface.withValues(alpha: 0.78)],
+              colors: [bg, previewScheme.surface.withValues(alpha: 0.90)],
             ),
           ),
           child: content,
@@ -131,121 +140,99 @@ class PlayerStylePreview extends StatelessWidget {
     );
   }
 
-  /// 「沉浸」样式的缩略图：通栏封面 + 下缘频谱 + 居中歌词 + 一排控制键。
-  /// 刻意不画进度条 —— 这一版没有。
+  /// 「沉浸」样式直接复用真实播放器的粒子封面，并保持同样的标题、歌词、
+  /// 进度条和控制区顺序。这里固定使用深色配色，对应真实播放器不受应用浅色
+  /// 模式影响的行为。
   Widget _immersivePreview(BuildContext context, Color accent) {
-    final scheme = Theme.of(context).colorScheme;
-    final onSurface = scheme.onSurface;
-    return Column(
-      children: [
-        Expanded(
-          flex: 5,
-          child: Stack(
-            fit: StackFit.expand,
+    final darkTheme = _immersiveTheme(context, accent);
+    final darkScheme = darkTheme.colorScheme;
+    return Theme(
+      data: darkTheme,
+      child: Builder(
+        builder: (context) => Padding(
+          padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
+          child: Column(
             children: [
-              Image.asset(
-                _coverAsset,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        accent.withValues(alpha: 0.92),
-                        accent.withValues(alpha: 0.5),
-                      ],
+              Text(
+                _sampleTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: darkScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _sampleArtist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 7,
+                  fontWeight: FontWeight.w600,
+                  color: darkScheme.onSurface.withValues(alpha: 0.82),
+                ),
+              ),
+              const SizedBox(height: 7),
+              Expanded(
+                flex: 5,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => ParticleCover.asset(
+                        assetName: _coverAsset,
+                        side: constraints.maxWidth,
+                        playbackProgress: 0.68,
+                        isPlaying: true,
+                      ),
                     ),
                   ),
                 ),
               ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      for (final level in const [
-                        0.35,
-                        0.62,
-                        0.45,
-                        0.8,
-                        0.55,
-                        0.9,
-                        0.4,
-                        0.7,
-                        0.5,
-                        0.85,
-                        0.42,
-                        0.66,
-                        0.38,
-                        0.74,
-                        0.48,
-                        0.6,
-                      ])
-                        Container(
-                          width: 1.6,
-                          height: 14 * level,
-                          color: Colors.white.withValues(alpha: 0.55),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+              const SizedBox(height: 5),
+              _lyricLine(context, '有一束光 那瞬间', size: 7),
+              const SizedBox(height: 4),
+              _lyricLine(context, '是什么痛得刺眼', active: true, size: 9),
+              const SizedBox(height: 4),
+              _lyricLine(context, '你的视线 是谅解', size: 7),
+              const Spacer(),
+              _progress(context, times: true),
+              const SizedBox(height: 6),
+              _immersiveControls(context),
+              const SizedBox(height: 5),
+              _lyricLine(context, '12/80', size: 6),
             ],
           ),
         ),
-        Expanded(
-          flex: 6,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(9, 6, 9, 9),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _lyricLine(context, 'FLAC · 48kHz', size: 6),
-                    ),
-                    Container(
-                      width: 4,
-                      height: 4,
-                      color: const Color(0xFFD9B45A),
-                    ),
-                    const SizedBox(width: 2),
-                    _lyricLine(context, 'HI-RES', size: 6),
-                  ],
-                ),
-                const Spacer(),
-                _titleText(context, _sampleTitle, size: 11),
-                const SizedBox(height: 2),
-                _titleText(context, _sampleArtist, size: 7, secondary: true),
-                const SizedBox(height: 7),
-                _lyricLine(context, '有一束光 那瞬间', size: 7),
-                const SizedBox(height: 4),
-                _lyricLine(context, '是什么痛得刺眼', active: true, size: 9),
-                const SizedBox(height: 4),
-                _lyricLine(context, '你的视线 是谅解', size: 7),
-                const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Icon(AppIcons.repeat, size: 9, color: onSurface),
-                    Icon(
-                      AppIconsFilled.skipPrevious,
-                      size: 11,
-                      color: onSurface,
-                    ),
-                    Icon(AppIconsFilled.play, size: 14, color: onSurface),
-                    Icon(AppIconsFilled.skipNext, size: 11, color: onSurface),
-                    Icon(AppIcons.queue, size: 9, color: onSurface),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+      ),
+    );
+  }
+
+  ThemeData _immersiveTheme(BuildContext context, Color accent) {
+    return ThemeData.from(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: accent,
+        brightness: Brightness.dark,
+      ),
+      textTheme: Theme.of(context).textTheme,
+      useMaterial3: true,
+    );
+  }
+
+  Widget _immersiveControls(BuildContext context) {
+    final color = Theme.of(context).colorScheme.onSurface;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Icon(AppIcons.repeat, size: 10, color: color),
+        Icon(AppIconsFilled.skipPrevious, size: 14, color: color),
+        Icon(AppIconsFilled.pause, size: 17, color: color),
+        Icon(AppIconsFilled.skipNext, size: 14, color: color),
+        Icon(AppIcons.queue, size: 10, color: color),
       ],
     );
   }

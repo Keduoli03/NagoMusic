@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/services/artwork_service.dart';
 import '../../../app/services/log/log.dart';
@@ -36,9 +36,20 @@ class ParticleCover extends StatefulWidget {
     required this.side,
     required this.playbackProgress,
     required this.isPlaying,
-  });
+  }) : assetName = null;
+
+  /// 设置页预览使用同一个粒子渲染器，只把封面来源替换为打包资源。这样真实
+  /// 播放器调过粒子分布、剥落进度或飞舞轨迹后，预览不会再停留在旧版假效果。
+  const ParticleCover.asset({
+    super.key,
+    required this.assetName,
+    required this.side,
+    required this.playbackProgress,
+    required this.isPlaying,
+  }) : song = null;
 
   final SongEntity? song;
+  final String? assetName;
 
   /// 封面方框的边长（逻辑像素）。解码分辨率按它换算，必须和外层容器的实际
   /// 尺寸一致——两边算错任何一处，都会回到"解码的比显示的小"那个糊的老问题。
@@ -68,9 +79,9 @@ class _ParticleCoverState extends State<ParticleCover>
   // 配合下面沿封面切线方向的轨迹，让飞舞可辨识但不会像喷射特效一样抢眼。
   static const Duration _motionDuration = Duration(seconds: 6);
 
-  String? _loadedSongId;
+  String? _loadedSourceKey;
   int _loadToken = 0;
-  bool _didLoadInitialSong = false;
+  bool _didLoadInitialSource = false;
 
   /// 稳态 / 过渡终点（聚拢目标）用的网格。
   _CoverGrid? _currentGrid;
@@ -91,20 +102,27 @@ class _ParticleCoverState extends State<ParticleCover>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_didLoadInitialSong) return;
-    _didLoadInitialSong = true;
+    if (_didLoadInitialSource) return;
+    _didLoadInitialSource = true;
     _syncMotion();
-    _handleSongChanged(widget.song);
+    _handleSourceChanged();
   }
 
   @override
   void didUpdateWidget(covariant ParticleCover oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isPlaying != oldWidget.isPlaying) _syncMotion();
-    if (widget.song?.id != oldWidget.song?.id) {
+    if (_sourceKey(widget) != _sourceKey(oldWidget)) {
       _motion.value = 0;
-      _handleSongChanged(widget.song);
+      _handleSourceChanged();
     }
+  }
+
+  String? _sourceKey(ParticleCover source) {
+    final assetName = source.assetName;
+    if (assetName != null) return 'asset:$assetName';
+    final songId = source.song?.id;
+    return songId == null ? null : 'song:$songId';
   }
 
   void _syncMotion() {
@@ -124,25 +142,29 @@ class _ParticleCoverState extends State<ParticleCover>
     super.dispose();
   }
 
-  Future<void> _handleSongChanged(SongEntity? song) async {
-    if (song == null || _loadedSongId == song.id) return;
-    _loadedSongId = song.id;
+  Future<void> _handleSourceChanged() async {
+    final sourceKey = _sourceKey(widget);
+    if (sourceKey == null || _loadedSourceKey == sourceKey) return;
+    _loadedSourceKey = sourceKey;
     final token = ++_loadToken;
 
     ui.Image? image;
     try {
       final dpr = MediaQuery.devicePixelRatioOf(context);
       final decodeWidth = (widget.side * dpr).round().clamp(320, 1600);
-      image = await _loadCoverBitmap(song, decodeWidth);
+      final assetName = widget.assetName;
+      image = assetName != null
+          ? await _loadAssetCoverBitmap(assetName, decodeWidth)
+          : await _loadCoverBitmap(widget.song!, decodeWidth);
     } catch (e, s) {
-      AppLog.instance.w(_logTag, '封面解码失败 songId=${song.id}', e, s);
+      AppLog.instance.w(_logTag, '封面解码失败 source=$sourceKey', e, s);
     }
     if (!mounted || token != _loadToken) {
       image?.dispose();
       return;
     }
     if (image == null) {
-      AppLog.instance.d(_logTag, '三级兜底都没拿到封面字节 songId=${song.id}');
+      AppLog.instance.d(_logTag, '没有拿到封面字节 source=$sourceKey');
       return;
     }
 
@@ -150,7 +172,7 @@ class _ParticleCoverState extends State<ParticleCover>
     try {
       grid = await _buildGrid(image, _transitionGridSize, _edgeParticleCount);
     } catch (e, s) {
-      AppLog.instance.w(_logTag, '封面取样网格构建失败 songId=${song.id}', e, s);
+      AppLog.instance.w(_logTag, '封面取样网格构建失败 source=$sourceKey', e, s);
     }
     if (!mounted || token != _loadToken) {
       image.dispose();
@@ -479,6 +501,20 @@ Future<ui.Image?> _loadCoverBitmap(SongEntity song, int targetWidth) async {
   final bytes = await _loadCoverBytes(song);
   if (bytes == null || bytes.isEmpty) return null;
   final codec = await ui.instantiateImageCodec(bytes, targetWidth: targetWidth);
+  final frame = await codec.getNextFrame();
+  codec.dispose();
+  return frame.image;
+}
+
+Future<ui.Image> _loadAssetCoverBitmap(
+  String assetName,
+  int targetWidth,
+) async {
+  final data = await rootBundle.load(assetName);
+  final codec = await ui.instantiateImageCodec(
+    data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    targetWidth: targetWidth,
+  );
   final frame = await codec.getNextFrame();
   codec.dispose();
   return frame.image;

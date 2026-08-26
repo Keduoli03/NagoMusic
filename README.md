@@ -22,19 +22,25 @@
 <table>
   <tr>
     <th>首页</th>
-    <th>侧边栏</th>
+    <th>歌曲</th>
   </tr>
   <tr>
     <td><img src="开发文档/home.jpg" width="220" /></td>
-    <td><img src="开发文档/sidemenu.jpg" width="220" /></td>
+    <td><img src="开发文档/songs.jpg" width="220" /></td>
   </tr>
   <tr>
-    <th>播放器</th>
-    <th>歌词</th>
+    <th>B站</th>
+    <th>我的</th>
   </tr>
   <tr>
-    <td><img src="开发文档/player.jpg" width="220" /></td>
-    <td><img src="开发文档/lyric.jpg" width="220" /></td>
+    <td><img src="开发文档/bili.jpg" width="220" /></td>
+    <td><img src="开发文档/profile.jpg" width="220" /></td>
+  </tr>
+  <tr>
+    <th colspan="2">播放器</th>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="开发文档/player.jpg" width="220" /></td>
   </tr>
 </table>
 
@@ -48,3 +54,13 @@
 flutter pub get
 flutter run
 ```
+
+## 支持项目
+
+如果 NagoMusic 对你有帮助，欢迎通过下面的方式支持项目持续开发：
+
+- [爱发电](https://afdian.com/a/dittowind)
+
+<p align="center">
+  <img src="开发文档/wechat-pay.jpg" width="300" alt="微信收款码" />
+</p>

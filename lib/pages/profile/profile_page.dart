@@ -47,7 +47,6 @@ class ProfilePage extends StatelessWidget {
                     context,
                     icon: AppIconsFilled.heart,
                     title: PlaylistsService.favoritePlaylistName,
-                    subtitle: '所有标记过红心的歌曲',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute<void>(
