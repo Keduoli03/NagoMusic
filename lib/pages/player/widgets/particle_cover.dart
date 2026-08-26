@@ -14,11 +14,11 @@ const String _logTag = 'ParticleCover';
 
 /// 「粒子封面」。
 ///
-/// **稳态**：中心是高清原封面，仅最外 5% 渐隐并碎片化。边缘粒子直接移植自
+/// **播放过程**：开局是完整高清原封面；播放进度越靠后，最外 5% 越多地剥落为
+/// 粒子。已经剥落的粒子会在封面四周持续缓慢飞舞，暂停时冻结。边缘粒子直接移植自
 /// mica-music 的 `buildEdgeParticles()`：固定 Java Random 序列、同一组 band /
 /// size / scatter 参数；可见数量按 Flutter 实心方块面积折算为 3,200 枚，每枚
 /// 方块只采样自己 UV 的封面颜色。
-/// 稳定态是静态效果，不逐帧重绘。
 ///
 /// **切歌过渡**（900ms）：旧封面先按"离边缘越近越先飞散"的顺序碎成粒子
 /// （前 450ms），新封面的粒子再按同样的顺序从四散状态聚拢回来、边缘的最后
@@ -30,7 +30,13 @@ const String _logTag = 'ParticleCover';
 /// 路径在 Flutter 里走不通。这里改成 Dart 端算点的位置（网格采样封面颜色），
 /// `CustomPainter` 批量画出来。
 class ParticleCover extends StatefulWidget {
-  const ParticleCover({super.key, required this.song, required this.side});
+  const ParticleCover({
+    super.key,
+    required this.song,
+    required this.side,
+    required this.playbackProgress,
+    required this.isPlaying,
+  });
 
   final SongEntity? song;
 
@@ -38,12 +44,18 @@ class ParticleCover extends StatefulWidget {
   /// 尺寸一致——两边算错任何一处，都会回到"解码的比显示的小"那个糊的老问题。
   final double side;
 
+  /// 当前播放位置占歌曲总时长的比例，控制边缘实际剥落程度。
+  final double playbackProgress;
+
+  /// 只控制粒子是否继续飞舞；暂停不会改变已经剥落的程度。
+  final bool isPlaying;
+
   @override
   State<ParticleCover> createState() => _ParticleCoverState();
 }
 
 class _ParticleCoverState extends State<ParticleCover>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// 切歌过渡用的粗网格——逐帧重算，密度不能高。
   static const int _transitionGridSize = 44;
 
@@ -52,6 +64,7 @@ class _ParticleCoverState extends State<ParticleCover>
   static const int _edgeParticleCount = 3200;
 
   static const Duration _transitionDuration = Duration(milliseconds: 900);
+  static const Duration _motionDuration = Duration(seconds: 9);
 
   String? _loadedSongId;
   int _loadToken = 0;
@@ -68,25 +81,42 @@ class _ParticleCoverState extends State<ParticleCover>
     duration: _transitionDuration,
   )..addStatusListener(_onTransitionStatus);
 
+  late final AnimationController _motion = AnimationController(
+    vsync: this,
+    duration: _motionDuration,
+  );
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_didLoadInitialSong) return;
     _didLoadInitialSong = true;
+    _syncMotion();
     _handleSongChanged(widget.song);
   }
 
   @override
   void didUpdateWidget(covariant ParticleCover oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) _syncMotion();
     if (widget.song?.id != oldWidget.song?.id) {
+      _motion.value = 0;
       _handleSongChanged(widget.song);
+    }
+  }
+
+  void _syncMotion() {
+    if (widget.isPlaying) {
+      if (!_motion.isAnimating) _motion.repeat();
+    } else {
+      _motion.stop();
     }
   }
 
   @override
   void dispose() {
     _transition.dispose();
+    _motion.dispose();
     _currentGrid?.image.dispose();
     _outgoingGrid?.image.dispose();
     super.dispose();
@@ -172,22 +202,16 @@ class _ParticleCoverState extends State<ParticleCover>
         tintedBackground: true,
       );
     }
-    // 稳态是静态贴图：不挂持续跑的动画，AnimatedBuilder 只在 _transition
-    // 真正播放（切歌那 900ms）时才触发重绘，平时零重绘开销。
-    return AnimatedBuilder(
-      animation: _transition,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _CoverPainter(
-            steady: _currentGrid,
-            outgoing: _outgoingGrid,
-            transitionValue: _transition.value,
-            transitioning: _transition.isAnimating,
-            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-          ),
-          child: const SizedBox.expand(),
-        );
-      },
+    return CustomPaint(
+      painter: _CoverPainter(
+        steady: _currentGrid,
+        outgoing: _outgoingGrid,
+        transition: _transition,
+        motion: _motion,
+        playbackProgress: widget.playbackProgress,
+        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      ),
+      child: const SizedBox.expand(),
     );
   }
 }
@@ -227,6 +251,7 @@ class _EdgeParticle {
     required this.scatter,
     required this.size,
     required this.edgeWeight,
+    required this.seed,
   });
 
   /// 原仓库的 `aUv`：颜色只采样该粒子在封面上的对应像素。
@@ -237,6 +262,9 @@ class _EdgeParticle {
   final Offset scatter;
   final double size;
   final double edgeWeight;
+
+  /// 原仓库每个粒子自带的随机种子，用于错开出现时机和飞舞相位。
+  final double seed;
 }
 
 @immutable
@@ -384,7 +412,7 @@ List<_EdgeParticle> _buildEdgeParticles(int count) {
     final size =
         random.between(2.0, 3.4) + edgeWeight * random.between(1.4, 3.4);
     random.between(-0.08, 0.16); // scatterZ
-    random.nextFloat(); // seed
+    final seed = random.nextFloat();
 
     particles.add(
       _EdgeParticle(
@@ -393,6 +421,7 @@ List<_EdgeParticle> _buildEdgeParticles(int count) {
         scatter: scatter,
         size: size,
         edgeWeight: edgeWeight,
+        seed: seed,
       ),
     );
   }
@@ -487,15 +516,17 @@ class _CoverPainter extends CustomPainter {
   _CoverPainter({
     required this.steady,
     required this.outgoing,
-    required this.transitionValue,
-    required this.transitioning,
+    required this.transition,
+    required this.motion,
+    required this.playbackProgress,
     required this.devicePixelRatio,
-  });
+  }) : super(repaint: Listenable.merge([transition, motion]));
 
   final _CoverGrid? steady;
   final _CoverGrid? outgoing;
-  final double transitionValue;
-  final bool transitioning;
+  final Animation<double> transition;
+  final Animation<double> motion;
+  final double playbackProgress;
   final double devicePixelRatio;
 
   /// 归属阈值的羽化宽度：rank 相差在这个范围内的粒子会同时动，不是严格的
@@ -507,7 +538,8 @@ class _CoverPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (transitioning && outgoing != null && steady != null) {
+    final transitionValue = transition.value;
+    if (transition.isAnimating && outgoing != null && steady != null) {
       if (transitionValue < 0.5) {
         _paintScatter(
           canvas,
@@ -530,22 +562,35 @@ class _CoverPainter extends CustomPainter {
 
   void _paintSteady(Canvas canvas, Size size, _CoverGrid? grid) {
     if (grid == null) return;
-    _drawFeatheredImage(canvas, size, grid.image);
-    _drawEdgeParticles(canvas, size, grid);
+    final dissolve = _smoothstep(0, 1, playbackProgress);
+    _drawFeatheredImage(canvas, size, grid, dissolve);
+    if (dissolve > 0.0001) {
+      _drawEdgeParticles(canvas, size, grid, dissolve, motion.value);
+    }
   }
 
   /// 原图不做像素化，只在原仓库的 EdgeParticleBand=0.05 区间渐隐。
-  void _drawFeatheredImage(Canvas canvas, Size size, ui.Image image) {
+  void _drawFeatheredImage(
+    Canvas canvas,
+    Size size,
+    _CoverGrid grid,
+    double dissolve,
+  ) {
     const edgeBand = 0.050;
     // 原仓库 StableEdgeResidueAlpha=0.38；最外沿仍保留一层原图，不把封面
     // 挖成透明框，再由碎片补满。
-    const edgeResidue = Color.fromARGB(97, 0, 0, 0);
+    final edgeResidue = Color.fromRGBO(0, 0, 0, 1 - 0.62 * dissolve);
     const opaque = Color.fromARGB(255, 0, 0, 0);
     final bounds = Offset.zero & size;
     canvas.saveLayer(bounds, Paint());
     canvas.drawImageRect(
-      image,
-      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      grid.image,
+      Rect.fromLTWH(
+        0,
+        0,
+        grid.image.width.toDouble(),
+        grid.image.height.toDouble(),
+      ),
       bounds,
       Paint()..filterQuality = FilterQuality.high,
     );
@@ -553,23 +598,85 @@ class _CoverPainter extends CustomPainter {
     maskPaint.shader = ui.Gradient.linear(
       Offset.zero,
       Offset(size.width, 0),
-      const [edgeResidue, opaque, opaque, edgeResidue],
+      [edgeResidue, opaque, opaque, edgeResidue],
       const [0, edgeBand, 1 - edgeBand, 1],
     );
     canvas.drawRect(bounds, maskPaint);
     maskPaint.shader = ui.Gradient.linear(
       Offset.zero,
       Offset(0, size.height),
-      const [edgeResidue, opaque, opaque, edgeResidue],
+      [edgeResidue, opaque, opaque, edgeResidue],
       const [0, edgeBand, 1 - edgeBand, 1],
     );
     canvas.drawRect(bounds, maskPaint);
+    _eraseDetachedFragments(canvas, size, grid, dissolve);
     canvas.restore();
   }
 
-  /// 用原仓库 buildEdgeParticles() 的 11,000 枚方块碎片覆盖渐隐区。颜色严格
-  /// 采样各自 UV，不再用白点或黑点替代。
-  void _drawEdgeParticles(Canvas canvas, Size size, _CoverGrid grid) {
+  /// 从原封面上挖走已经飞出的碎片。挖孔与粒子使用同一个 UV、尺寸和出现
+  /// 进度，因此看到的是材质从原位置剥落，而不是完整矩形外另撒一圈点。
+  void _eraseDetachedFragments(
+    Canvas canvas,
+    Size size,
+    _CoverGrid grid,
+    double dissolve,
+  ) {
+    final density = math.min(devicePixelRatio, 1.8);
+    final transforms = <RSTransform>[];
+    final textureRects = <Rect>[];
+    final colors = <Color>[];
+    for (final particle in grid.edgeParticles) {
+      final localProgress = _particleProgress(particle, dissolve);
+      if (localProgress <= 0.002) continue;
+      final home = Offset(
+        (particle.home.dx + 1) * 0.5 * size.width,
+        (1 - particle.home.dy) * 0.5 * size.height,
+      );
+      final shardSize = _particleLogicalSize(particle, density);
+      transforms.add(
+        RSTransform.fromComponents(
+          rotation: 0,
+          scale: shardSize * (0.9 + 0.35 * localProgress),
+          anchorX: 0.5,
+          anchorY: 0.5,
+          translateX: home.dx,
+          translateY: home.dy,
+        ),
+      );
+      textureRects.add(_particleSourceRect(particle, grid.image));
+      colors.add(
+        Color.fromRGBO(
+          255,
+          255,
+          255,
+          localProgress * (0.72 + 0.28 * particle.edgeWeight),
+        ),
+      );
+    }
+    if (transforms.isEmpty) return;
+    canvas.drawAtlas(
+      grid.image,
+      transforms,
+      textureRects,
+      colors,
+      BlendMode.modulate,
+      null,
+      Paint()
+        ..blendMode = BlendMode.dstOut
+        ..isAntiAlias = false
+        ..filterQuality = FilterQuality.none,
+    );
+  }
+
+  /// 用原仓库 buildEdgeParticles() 的分布生成 3,200 枚方块碎片覆盖渐隐区。
+  /// 颜色严格采样各自 UV，不再用白点或黑点替代。
+  void _drawEdgeParticles(
+    Canvas canvas,
+    Size size,
+    _CoverGrid grid,
+    double dissolve,
+    double motionPhase,
+  ) {
     final particles = grid.edgeParticles;
     if (particles.isEmpty) return;
     final density = math.min(devicePixelRatio, 1.8);
@@ -580,23 +687,36 @@ class _CoverPainter extends CustomPainter {
       ..isAntiAlias = false
       ..filterQuality = FilterQuality.none;
     for (final particle in particles) {
-      final position = particle.scatter;
+      final localProgress = _particleProgress(particle, dissolve);
+      final visibility = localProgress;
+      if (visibility <= 0.002) continue;
+
+      final basePosition = Offset.lerp(
+        particle.home,
+        particle.scatter,
+        _outCubic(localProgress),
+      )!;
+      // 频率必须是整数，9 秒循环首尾才不会跳帧。两个不同频率组成轻微的
+      // 椭圆漂移，不是所有粒子一起呼吸。
+      final xCycles = 1 + (particle.seed * 3).floor();
+      final yCycles = 2 + (particle.seed * 4).floor();
+      final xAngle = 2 * math.pi * (motionPhase * xCycles + particle.seed);
+      final yAngle =
+          2 * math.pi * (motionPhase * yCycles + particle.seed * 1.73);
+      final flutterRadius = (0.005 + 0.017 * particle.edgeWeight) * visibility;
+      final position =
+          basePosition +
+          Offset(
+            math.cos(xAngle) * flutterRadius,
+            math.sin(yAngle) * flutterRadius * 0.78,
+          );
       final fragmentPos = Offset(
         (position.dx + 1) * 0.5 * size.width,
         (1 - position.dy) * 0.5 * size.height,
       );
-      final sourceX = (particle.uv.dx * grid.image.width).floor().clamp(
-        0,
-        grid.image.width - 1,
-      );
-      final sourceY = (particle.uv.dy * grid.image.height).floor().clamp(
-        0,
-        grid.image.height - 1,
-      );
-      final shardSize = math.max(
-        1 / devicePixelRatio,
-        particle.size * 0.83 * density / devicePixelRatio,
-      );
+      final shardSize =
+          _particleLogicalSize(particle, density) *
+          (0.55 + 0.45 * localProgress);
       transforms.add(
         RSTransform.fromComponents(
           rotation: 0,
@@ -607,11 +727,9 @@ class _CoverPainter extends CustomPainter {
           translateY: fragmentPos.dy,
         ),
       );
-      textureRects.add(
-        Rect.fromLTWH(sourceX.toDouble(), sourceY.toDouble(), 1, 1),
-      );
+      textureRects.add(_particleSourceRect(particle, grid.image));
       // 原仓库 StableEdgeResidueAlpha=0.38。
-      final alpha = 0.38 * (0.72 + 0.28 * particle.edgeWeight);
+      final alpha = 0.38 * (0.72 + 0.28 * particle.edgeWeight) * visibility;
       colors.add(Color.fromRGBO(255, 255, 255, alpha));
     }
     canvas.drawAtlas(
@@ -623,6 +741,32 @@ class _CoverPainter extends CustomPainter {
       null,
       paint,
     );
+  }
+
+  double _particleProgress(_EdgeParticle particle, double dissolve) {
+    // 外侧先剥落、内侧后剥落；最早阈值仍大于 0，确保开局绝对完整。
+    final revealAt =
+        0.015 + (1 - particle.edgeWeight) * 0.78 + particle.seed * 0.18;
+    return _smoothstep(revealAt, math.min(1, revealAt + 0.12), dissolve);
+  }
+
+  double _particleLogicalSize(_EdgeParticle particle, double density) {
+    return math.max(
+      1 / devicePixelRatio,
+      particle.size * 0.83 * density / devicePixelRatio,
+    );
+  }
+
+  Rect _particleSourceRect(_EdgeParticle particle, ui.Image image) {
+    final sourceX = (particle.uv.dx * image.width).floor().clamp(
+      0,
+      image.width - 1,
+    );
+    final sourceY = (particle.uv.dy * image.height).floor().clamp(
+      0,
+      image.height - 1,
+    );
+    return Rect.fromLTWH(sourceX.toDouble(), sourceY.toDouble(), 1, 1);
   }
 
   void _paintScatter(
@@ -739,8 +883,9 @@ class _CoverPainter extends CustomPainter {
   bool shouldRepaint(_CoverPainter oldDelegate) {
     return steady != oldDelegate.steady ||
         outgoing != oldDelegate.outgoing ||
-        transitionValue != oldDelegate.transitionValue ||
-        transitioning != oldDelegate.transitioning ||
+        transition != oldDelegate.transition ||
+        motion != oldDelegate.motion ||
+        playbackProgress != oldDelegate.playbackProgress ||
         devicePixelRatio != oldDelegate.devicePixelRatio;
   }
 }
@@ -765,6 +910,8 @@ Future<ui.Image> renderParticleCoverSteadyForTesting(
   Uint8List encodedArtwork, {
   int side = 320,
   double devicePixelRatio = 3,
+  double playbackProgress = 1,
+  double motionPhase = 0,
 }) async {
   final codec = await ui.instantiateImageCodec(
     encodedArtwork,
@@ -789,8 +936,9 @@ Future<ui.Image> renderParticleCoverSteadyForTesting(
   _CoverPainter(
     steady: grid,
     outgoing: null,
-    transitionValue: 0,
-    transitioning: false,
+    transition: const AlwaysStoppedAnimation(0),
+    motion: AlwaysStoppedAnimation(motionPhase),
+    playbackProgress: playbackProgress,
     devicePixelRatio: devicePixelRatio,
   ).paint(canvas, size);
   final picture = recorder.endRecording();

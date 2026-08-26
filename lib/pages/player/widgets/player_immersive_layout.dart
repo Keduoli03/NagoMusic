@@ -18,7 +18,8 @@ import 'player_bottom_panel.dart';
 /// 2. **封面边缘是粒子材质**（见 [ParticleCover]）：主体保持高清原图，只有
 ///    最外一圈逐渐碎片化；切歌时旧封面飞散、新封面再聚拢回来。
 /// 3. **不自己画背景**，沿用默认样式那套封面取色流光（`PlayerBackground` 挂在
-///    `player_page.dart` 的 Stack 底层），这一层从头到尾保持透明。
+///    `player_page.dart` 的 Stack 底层），但这一样式始终要求深色亮度，不随应用
+///    的浅色模式变成浅背景。
 ///
 /// 下方保留进度条与时间，可直接拖动定位。
 class PlayerImmersiveLayout extends StatelessWidget {
@@ -44,7 +45,7 @@ class PlayerImmersiveLayout extends StatelessWidget {
             children: [
               _TitleBlock(song: song),
               const Spacer(flex: 2),
-              _CoverStage(song: song),
+              _CoverStage(song: song, player: player),
               const Spacer(flex: 3),
               const _ImmersiveLyrics(),
               const Spacer(flex: 2),
@@ -116,9 +117,10 @@ double _coverSide(double screenWidth) =>
     (screenWidth * 0.72).clamp(200.0, 380.0);
 
 class _CoverStage extends StatelessWidget {
-  const _CoverStage({required this.song});
+  const _CoverStage({required this.song, required this.player});
 
   final SongEntity? song;
+  final PlayerService player;
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +128,25 @@ class _CoverStage extends StatelessWidget {
     return SizedBox(
       width: side,
       height: side,
-      child: ParticleCover(song: song, side: side),
+      child: Watch.builder(
+        builder: (context) {
+          final positionMs = player.positionSignal.value.inMilliseconds;
+          final reportedDurationMs =
+              player.durationSignal.value?.inMilliseconds ?? 0;
+          final durationMs = reportedDurationMs > 0
+              ? reportedDurationMs
+              : song?.durationMs ?? 0;
+          final progress = durationMs > 0
+              ? (positionMs / durationMs).clamp(0.0, 1.0)
+              : 0.0;
+          return ParticleCover(
+            song: song,
+            side: side,
+            playbackProgress: progress,
+            isPlaying: player.isPlayingSignal.value,
+          );
+        },
+      ),
     );
   }
 }

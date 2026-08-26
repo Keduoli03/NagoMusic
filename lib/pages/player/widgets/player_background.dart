@@ -88,6 +88,7 @@ class PlayerBackgroundSettings {
 
 class PlayerBackground extends StatefulWidget {
   final Signal<SongEntity?> songSignal;
+  final Brightness? brightnessOverride;
 
   /// When set, the aurora/fallback base color is derived from this color instead
   /// of the current song's cover. Used by the 流光 settings preview so it follows
@@ -98,6 +99,7 @@ class PlayerBackground extends StatefulWidget {
     super.key,
     required this.songSignal,
     this.dominantColor,
+    this.brightnessOverride,
   });
 
   @override
@@ -106,8 +108,9 @@ class PlayerBackground extends StatefulWidget {
 
 class PlayerTheme extends StatelessWidget {
   final Widget child;
+  final Brightness? brightnessOverride;
 
-  const PlayerTheme({super.key, required this.child});
+  const PlayerTheme({super.key, required this.child, this.brightnessOverride});
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +118,8 @@ class PlayerTheme extends StatelessWidget {
       animation: PlayerBackgroundSettings.playbackThemeMode,
       builder: (context, _) {
         final mode = PlayerBackgroundSettings.playbackThemeMode.value;
-        final brightness = playerBrightnessForMode(context, mode);
+        final brightness =
+            brightnessOverride ?? playerBrightnessForMode(context, mode);
         final base = Theme.of(context);
         if (base.brightness == brightness) {
           return child;
@@ -163,7 +167,7 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final baseTheme = Theme.of(context);
     return Watch.builder(
       builder: (context) {
         final song = widget.songSignal.value;
@@ -183,7 +187,16 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
                 PlayerBackgroundSettings.dynamicGradientEnabled.value;
             final saturation = PlayerBackgroundSettings.saturation.value;
             final hueShift = PlayerBackgroundSettings.hueShift.value;
-            final preferLight = _preferLightBackground(context, playbackMode);
+            final effectiveBrightness =
+                widget.brightnessOverride ??
+                playerBrightnessForMode(context, playbackMode);
+            final scheme = baseTheme.brightness == effectiveBrightness
+                ? baseTheme.colorScheme
+                : ColorScheme.fromSeed(
+                    seedColor: baseTheme.colorScheme.primary,
+                    brightness: effectiveBrightness,
+                  );
+            final preferLight = effectiveBrightness == Brightness.light;
             final surface = _tintSurface(scheme.surface, preferLight);
             final dominant =
                 widget.dominantColor ?? _dominantColor ?? scheme.primary;
@@ -203,10 +216,12 @@ class _PlayerBackgroundState extends State<PlayerBackground> {
                     baseColor: color,
                     saturation: saturation,
                     hueShift: hueShift,
+                    isDark: effectiveBrightness == Brightness.dark,
                   );
                 }
                 return _FallbackBackground(
                   color: Color.lerp(surface, color, 0.58) ?? surface,
+                  scheme: scheme,
                 );
               },
             );
@@ -331,10 +346,6 @@ Future<Color?> dominantColorFromAsset(String assetPath) async {
   }
 }
 
-bool _preferLightBackground(BuildContext context, ThemeMode mode) {
-  return playerBrightnessForMode(context, mode) == Brightness.light;
-}
-
 Brightness playerBrightnessForMode(BuildContext context, ThemeMode mode) {
   if (mode == ThemeMode.system) {
     return Theme.of(context).brightness;
@@ -369,12 +380,12 @@ Color _tintSurface(Color surface, bool preferLight) {
 
 class _FallbackBackground extends StatelessWidget {
   final Color color;
+  final ColorScheme scheme;
 
-  const _FallbackBackground({required this.color});
+  const _FallbackBackground({required this.color, required this.scheme});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -396,11 +407,13 @@ class _DynamicGradientBackground extends StatefulWidget {
   final Color baseColor;
   final double saturation;
   final double hueShift;
+  final bool isDark;
 
   const _DynamicGradientBackground({
     required this.baseColor,
     required this.saturation,
     required this.hueShift,
+    required this.isDark,
   });
 
   @override
@@ -435,7 +448,6 @@ class _DynamicGradientBackgroundState extends State<_DynamicGradientBackground>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,
@@ -449,7 +461,7 @@ class _DynamicGradientBackgroundState extends State<_DynamicGradientBackground>
               base: widget.baseColor,
               saturation: widget.saturation,
               hueShift: widget.hueShift,
-              isDark: isDark,
+              isDark: widget.isDark,
             ),
           );
         },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_lyric/core/lyric_model.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:nagomusic/app/theme/app_icons.dart';
@@ -160,11 +161,41 @@ class _PlayerPageState extends State<PlayerPage>
             child: Stack(
               children: [
                 RepaintBoundary(
-                  child: PlayerBackground(
-                    songSignal: _player.currentSongSignal,
+                  child: ValueListenableBuilder<PlayerStylePreset>(
+                    valueListenable: PlayerStyleSettings.stylePreset,
+                    builder: (context, stylePreset, _) {
+                      return PlayerBackground(
+                        songSignal: _player.currentSongSignal,
+                        brightnessOverride:
+                            stylePreset == PlayerStylePreset.immersive
+                            ? Brightness.dark
+                            : null,
+                      );
+                    },
                   ),
                 ),
-                PlayerTheme(
+                ValueListenableBuilder<PlayerStylePreset>(
+                  valueListenable: PlayerStyleSettings.stylePreset,
+                  builder: (context, outerStylePreset, child) {
+                    final themedPlayer = PlayerTheme(
+                      brightnessOverride:
+                          outerStylePreset == PlayerStylePreset.immersive
+                          ? Brightness.dark
+                          : null,
+                      child: child!,
+                    );
+                    if (outerStylePreset != PlayerStylePreset.immersive) {
+                      return themedPlayer;
+                    }
+                    return AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: SystemUiOverlayStyle.light.copyWith(
+                        statusBarColor: Colors.transparent,
+                        systemNavigationBarColor: Colors.transparent,
+                        systemNavigationBarDividerColor: Colors.transparent,
+                      ),
+                      child: themedPlayer,
+                    );
+                  },
                   child: ValueListenableBuilder<PlayerStylePreset>(
                     valueListenable: PlayerStyleSettings.stylePreset,
                     builder: (context, stylePreset, _) {
