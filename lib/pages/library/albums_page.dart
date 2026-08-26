@@ -97,6 +97,14 @@ class _AlbumsPageState extends State<AlbumsPage>
   void initState() {
     super.initState();
     scheduleDeferredInit();
+    // 常驻 tab（IndexedStack 保活），_init 只在这次 initState 里跑一次。别处
+    // 删了音源之后，只有这个 notifier 能让本页知道数据库变了，主动重新分组。
+    SongDao.libraryVersion.addListener(_handleLibraryVersionChanged);
+  }
+
+  void _handleLibraryVersionChanged() {
+    if (!mounted) return;
+    unawaited(_load());
   }
 
   @override
@@ -109,6 +117,7 @@ class _AlbumsPageState extends State<AlbumsPage>
     _indexPreviewTimer?.cancel();
     _gridController.dispose();
     _yearController.dispose();
+    SongDao.libraryVersion.removeListener(_handleLibraryVersionChanged);
     super.dispose();
   }
 

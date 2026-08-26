@@ -114,6 +114,10 @@ class _SongsPageState extends State<SongsPage>
     scheduleDeferredInit();
     _listController.addListener(_handleScroll);
     PlayerService.instance.currentSong.addListener(_handlePlayerSongChanged);
+    // 常驻 tab（IndexedStack 保活），_loadSongs 本身只在这次 initState 里跑一次。
+    // 别处删了音源之后，只有这个 notifier 能让本页知道数据库变了，主动去重新
+    // 读一遍——不然会一直显示已经不存在的歌，直到整个 App 重启。
+    SongDao.libraryVersion.addListener(_handleLibraryVersionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(const Duration(milliseconds: 220), () {
         if (!mounted) return;
@@ -125,6 +129,11 @@ class _SongsPageState extends State<SongsPage>
         _scheduleMetadataProbeRange(0, end > 11 ? 11 : end, visibleAll);
       });
     });
+  }
+
+  void _handleLibraryVersionChanged() {
+    if (!mounted) return;
+    unawaited(_loadSongs());
   }
 
   @override
@@ -139,6 +148,7 @@ class _SongsPageState extends State<SongsPage>
     _metadataProbeQueue.clear();
     _removeScrapeOverlay();
     PlayerService.instance.currentSong.removeListener(_handlePlayerSongChanged);
+    SongDao.libraryVersion.removeListener(_handleLibraryVersionChanged);
     _listController.removeListener(_handleScroll);
     _listController.dispose();
     _removeProgress.dispose();

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:nagomusic/app/theme/app_icons.dart';
 
 import '../../../app/router/app_page_route.dart';
-import '../../../app/services/db/dao/song_dao.dart';
+import '../../../app/services/source_deletion_service.dart';
 import '../../../app/services/webdav/webdav_music_service.dart';
 import '../../../app/services/webdav/webdav_source_repository.dart';
 import '../../../app/services/webdav/webdav_url.dart';
@@ -45,7 +45,6 @@ class WebDavEditPage extends StatefulWidget {
 class _WebDavEditPageState extends State<WebDavEditPage> {
   final WebDavSourceRepository _repo = WebDavSourceRepository.instance;
   final WebDavMusicService _service = WebDavMusicService();
-  final SongDao _songDao = SongDao();
 
   late WebDavSource _source;
 
@@ -465,7 +464,9 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
     setState(() => _saving = true);
     try {
       await _repo.removeById(_source.id);
-      await _songDao.deleteBySource(_source.id);
+      // deleteBySource 只删数据库行；用编排过的这一条把播放队列/歌单悬空
+      // 引用/歌词封面缓存都一并善后，见 SourceDeletionService 头部注释。
+      await SourceDeletionService.instance.deleteSongsForSource(_source.id);
       if (!mounted) return;
       AppToast.show(context, '已删除', type: ToastType.success);
       Navigator.pop(context, true);

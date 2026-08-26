@@ -236,6 +236,24 @@ class PlaylistsService {
     _bumpCacheVersion();
   }
 
+  /// 清掉所有歌单里指向"数据库里已经不存在的歌"的行。
+  ///
+  /// `playlist_songs` 表没有外键约束（见 db_helper.dart），删歌只删 `songs`
+  /// 表本身，这张关联表不会跟着联动。悬空的行不会报错也不会崩，只是查歌单时
+  /// `fetchByIds` 静默漏掉查不到的 id——用户看到的是"歌单莫名其妙少了几首"，
+  /// 而这些行本身永远留在数据库里，因为它们从不会出现在任何列表里让用户去
+  /// "移除"。用一条 `NOT IN` 直接扫，顺带把过去积累的历史脏数据也一起清掉，
+  /// 不只是这一次的。
+  Future<int> pruneDanglingSongReferences() async {
+    final db = await DbHelper.instance.database;
+    final removed = await db.rawDelete(
+      'DELETE FROM ${DbConstants.tablePlaylistSongs} '
+      'WHERE songId NOT IN (SELECT id FROM ${DbConstants.tableSongs})',
+    );
+    if (removed > 0) _bumpCacheVersion();
+    return removed;
+  }
+
   Future<bool> isSongFavorited(String songId) async {
     final id = songId.trim();
     if (id.isEmpty) return false;

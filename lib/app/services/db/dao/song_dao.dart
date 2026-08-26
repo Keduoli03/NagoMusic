@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db_constants.dart';
@@ -10,6 +11,19 @@ class SongDao {
   static const int _maxIdsPerQuery = 500;
   static List<SongEntity>? _cachedAll;
   static Future<List<SongEntity>>? _cachedAllFuture;
+
+  /// 曲库整体有没有变过（新增/删除歌曲）——只关心"变没变"，不用管变成了什么。
+  ///
+  /// 歌曲页/专辑页/艺术家页都是底部导航的常驻 tab（`IndexedStack` 保活），各自
+  /// 的歌曲列表只在第一次建页面时加载一次，此前删除一个音源后这三个页面完全
+  /// 不知道数据库变了，会一直显示已经不存在的歌，直到整个 App 重启。这几个
+  /// 页面在 `initState` 里订阅这个 notifier，一变就重新加载。
+  static final ValueNotifier<int> libraryVersion = ValueNotifier<int>(0);
+
+  static void _bumpVersion() {
+    CacheVersionStore.instance.bump(cacheVersionScope);
+    libraryVersion.value++;
+  }
 
   Future<int> upsertSongs(List<SongEntity> songs) async {
     if (songs.isEmpty) return 0;
@@ -46,7 +60,7 @@ class SongDao {
       return uniqueIds.length - existingIds.length;
     });
     _cachedAll = null;
-    CacheVersionStore.instance.bump(cacheVersionScope);
+    _bumpVersion();
     return added;
   }
 
@@ -165,7 +179,7 @@ class SongDao {
       );
     }
     _cachedAll = null;
-    CacheVersionStore.instance.bump(cacheVersionScope);
+    _bumpVersion();
     return result;
   }
 
@@ -180,7 +194,7 @@ class SongDao {
       whereArgs: [sourceId, maxDurationMs],
     );
     _cachedAll = null;
-    CacheVersionStore.instance.bump(cacheVersionScope);
+    _bumpVersion();
     return result;
   }
 
@@ -192,7 +206,7 @@ class SongDao {
       whereArgs: [sourceId],
     );
     _cachedAll = null;
-    CacheVersionStore.instance.bump(cacheVersionScope);
+    _bumpVersion();
     return result;
   }
 }
