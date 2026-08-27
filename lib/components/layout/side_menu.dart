@@ -47,7 +47,12 @@ class SideMenu extends StatelessWidget {
               _buildHeader(context),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    4,
+                    12,
+                    AppPageScaffold.scrollableBottomPadding(context),
+                  ),
                   children: [
                     _sectionLabel(context, '资源库'),
                     _MenuItem(

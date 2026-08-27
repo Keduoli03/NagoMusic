@@ -35,6 +35,9 @@ class BiliPage extends StatefulWidget {
 class _BiliPageState extends State<BiliPage> {
   static const String _logTag = 'BiliPage';
 
+  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
+      GlobalKey<AppPageScaffoldState>();
+
   final BiliApi _api = BiliApi.instance;
   final BiliMusicService _music = BiliMusicService.instance;
   final BiliCollectionService _collections = BiliCollectionService.instance;
@@ -193,6 +196,7 @@ class _BiliPageState extends State<BiliPage> {
           hasBottomNav: useBottomNavigation,
         );
         return AppPageScaffold(
+          key: _scaffoldKey,
           extendBodyBehindAppBar: true,
           appBar: AppTopBar(
             // 标题位直接放「头像 + 用户名」：顶栏已经写着 B站 tab 被选中了，
@@ -202,6 +206,12 @@ class _BiliPageState extends State<BiliPage> {
               onTap: _openProfile,
             ),
             showBackButton: false,
+            leading: useBottomNavigation
+                ? null
+                : IconButton(
+                    icon: const Icon(AppIcons.menu),
+                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                  ),
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
@@ -213,6 +223,11 @@ class _BiliPageState extends State<BiliPage> {
               const SizedBox(width: 4),
             ],
           ),
+          drawer: useBottomNavigation
+              ? null
+              : SideMenu(
+                  onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+                ),
           body: RefreshIndicator(
             onRefresh: _refreshAll,
             child: ListView(
