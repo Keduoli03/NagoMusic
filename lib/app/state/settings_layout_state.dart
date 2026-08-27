@@ -11,12 +11,12 @@ class AppLayoutSettings {
   static final navigationStyle = PrefEntry.enumeration<AppNavigationStyle>(
     'setting_navigation_style',
     values: AppNavigationStyle.values,
-    defaultValue: AppNavigationStyle.drawer,
+    defaultValue: AppNavigationStyle.bottomBar,
   );
   static final bottomBarStyle = PrefEntry.enumeration<AppBottomBarStyle>(
     'setting_bottom_bar_style',
     values: AppBottomBarStyle.values,
-    defaultValue: AppBottomBarStyle.standard,
+    defaultValue: AppBottomBarStyle.liquidGlass,
   );
 
   static final _group = PrefGroup([
