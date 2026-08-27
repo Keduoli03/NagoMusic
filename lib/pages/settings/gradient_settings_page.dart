@@ -68,7 +68,12 @@ class _GradientSettingsPageState extends State<GradientSettingsPage>
             elevation: 0,
           ),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              AppPageScaffold.scrollableBottomPadding(context),
+            ),
             children: [
               ValueListenableBuilder<PlayerStylePreset>(
                 valueListenable: PlayerStyleSettings.stylePreset,

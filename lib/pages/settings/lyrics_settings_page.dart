@@ -137,7 +137,12 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
             elevation: 0,
           ),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              AppPageScaffold.scrollableBottomPadding(context),
+            ),
             children: [
               AppSettingSection(
                 title: '在线匹配',

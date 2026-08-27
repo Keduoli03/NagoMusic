@@ -481,13 +481,18 @@ class _WebDavEditPageState extends State<WebDavEditPage> {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final folders = _source.includeFolders;
-    final bottomPadding = AppPageScaffold.scrollableBottomPadding(context);
+    final bottomPadding = AppPageScaffold.scrollableBottomPadding(
+      context,
+      showMiniPlayer: false,
+    );
     final portHint = _protocol.scheme == null
         ? '自动'
         : '${defaultWebDavPort(_protocol.scheme!)}';
 
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
+      // 页面自带固定的底部提交条，迷你播放器再叠一层会盖住「添加/保存」按钮。
+      showMiniPlayer: false,
       appBar: AppTopBar(
         title: widget.isAdd ? '添加 WebDAV' : 'WebDAV 设置',
         backgroundColor: Colors.transparent,
