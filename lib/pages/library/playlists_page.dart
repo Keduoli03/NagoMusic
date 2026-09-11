@@ -23,8 +23,6 @@ class _PlaylistsPageState extends State<PlaylistsPage>
   final PlaylistsActionsController _actionsController =
       PlaylistsActionsController();
   final PlaylistsSortController _sortController = PlaylistsSortController();
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
 
   late final _loading = createSignal(true);
   late final _playlists = createSignal<List<PlaylistEntity>>([]);
@@ -197,10 +195,6 @@ class _PlaylistsPageState extends State<PlaylistsPage>
     await _actionsController.reorderPlaylists(list);
   }
 
-  void _openDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
-  }
-
   void _showSortSheet() {
     showModalBottomSheet(
       context: context,
@@ -238,101 +232,87 @@ class _PlaylistsPageState extends State<PlaylistsPage>
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        key: _scaffoldKey,
-        extendBodyBehindAppBar: true,
-        appBar: AppTopBar(
-          title: '歌单',
-          // 歌单不再是底栏一级页（那一格换成了 B站），现在统一由「我的」推进来，
-          // 所以底栏模式下也要有返回键。侧栏模式仍然用汉堡键打开抽屉。
-          showBackButton: true,
-          leading: useBottomNavigation
-              ? null
-              : IconButton(
-                  icon: const Icon(AppIcons.menu),
-                  onPressed: _openDrawer,
-                ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          actions: [
-            SortActionButton(onTap: _showSortSheet),
-            IconButton(
-              tooltip: '新建歌单',
-              icon: const Icon(AppIcons.add),
-              onPressed: _createPlaylist,
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        drawer: useBottomNavigation
-            ? null
-            : SideMenu(
-                onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
-              ),
-        // 歌单从底栏一级页降级成「我的」里的入口后，跟专辑 / 艺术家一样保留底栏，
-        // 只是选中项归 0 —— 它自己已经不占底栏的格子了。
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
-            ? (index) => navigateToPrimaryDestination(context, index)
-            : null,
-        body: Watch.builder(
-          builder: (context) => RefreshIndicator(
-            onRefresh: _load,
-            child: _loading.value
-                ? const Center(child: CircularProgressIndicator())
-                : _playlists.value.isEmpty
-                ? const Center(child: Text('暂无歌单'))
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
-                    itemCount: _playlists.value.length,
-                    buildDefaultDragHandles: false,
-                    onReorder: _reorderPlaylists,
-                    itemBuilder: (context, index) {
-                      final p = _playlists.value[index];
-                      final isFavorite = p.isFavorite;
-                      final canReorder =
-                          _sortMode.value == 'custom' && !isFavorite;
-                      return Column(
-                        key: ValueKey(p.id),
-                        children: [
-                          ListTile(
-                            leading: Icon(
-                              isFavorite
-                                  ? AppIconsFilled.heart
-                                  : AppIcons.queue,
-                              color: isFavorite ? Colors.red : null,
-                            ),
-                            title: Text(
-                              p.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text('${p.songIds.length} 首歌曲'),
-                            trailing: canReorder
-                                ? ReorderableDragStartListener(
-                                    index: index,
-                                    child: const Icon(AppIcons.dragHandle),
-                                  )
-                                : null,
-                            onTap: () async {
-                              await Navigator.of(context).push(
-                                buildAppPageRoute(
-                                  (_) => PlaylistDetailPage(playlistId: p.id),
-                                ),
-                              );
-                              if (!mounted) return;
-                              await _load();
-                            },
-                            onLongPress: () => _showPlaylistSheet(p),
-                          ),
-                          if (index != _playlists.value.length - 1)
-                            const Divider(height: 1),
-                        ],
-                      );
-                    },
-                  ),
+    return AppPageScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppTopBar(
+        title: '歌单',
+        // 歌单不再是底栏一级页（那一格换成了 B站），现在由「我的」推进来。
+        showBackButton: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          SortActionButton(onTap: _showSortSheet),
+          IconButton(
+            tooltip: '新建歌单',
+            icon: const Icon(AppIcons.add),
+            onPressed: _createPlaylist,
           ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      // 歌单从底栏一级页降级成「我的」里的入口后，跟专辑 / 艺术家一样保留底栏，
+      // 只是选中项归 0 —— 它自己已经不占底栏的格子了。
+      bottomNavIndex: 0,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
+      body: Watch.builder(
+        builder: (context) => RefreshIndicator(
+          onRefresh: _load,
+          child: _loading.value
+              ? const Center(child: CircularProgressIndicator())
+              : _playlists.value.isEmpty
+              ? const Center(child: Text('暂无歌单'))
+              : ReorderableListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 160),
+                  itemCount: _playlists.value.length,
+                  buildDefaultDragHandles: false,
+                  onReorderItem: (oldIndex, newIndex) {
+                    final legacyNewIndex = newIndex > oldIndex
+                        ? newIndex + 1
+                        : newIndex;
+                    _reorderPlaylists(oldIndex, legacyNewIndex);
+                  },
+                  itemBuilder: (context, index) {
+                    final p = _playlists.value[index];
+                    final isFavorite = p.isFavorite;
+                    final canReorder =
+                        _sortMode.value == 'custom' && !isFavorite;
+                    return Column(
+                      key: ValueKey(p.id),
+                      children: [
+                        ListTile(
+                          leading: Icon(
+                            isFavorite ? AppIconsFilled.heart : AppIcons.queue,
+                            color: isFavorite ? Colors.red : null,
+                          ),
+                          title: Text(
+                            p.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text('${p.songIds.length} 首歌曲'),
+                          trailing: canReorder
+                              ? ReorderableDragStartListener(
+                                  index: index,
+                                  child: const Icon(AppIcons.dragHandle),
+                                )
+                              : null,
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              buildAppPageRoute(
+                                (_) => PlaylistDetailPage(playlistId: p.id),
+                              ),
+                            );
+                            if (!mounted) return;
+                            await _load();
+                          },
+                          onLongPress: () => _showPlaylistSheet(p),
+                        ),
+                        if (index != _playlists.value.length - 1)
+                          const Divider(height: 1),
+                      ],
+                    );
+                  },
+                ),
         ),
       ),
     );

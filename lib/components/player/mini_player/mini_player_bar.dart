@@ -2,13 +2,16 @@ import 'dart:ui';
 import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../app/services/lyrics/lyrics_service.dart';
 import '../../../app/services/player_service.dart';
 import '../../../app/router/app_router.dart';
 import '../../../app/state/settings_state.dart';
+import '../../../app/theme/app_glass.dart';
 import '../../../app/state/song_state.dart';
 import '../../common/artwork_widget.dart';
+import '../../layout/bottom_chrome.dart';
 import '../../../pages/player/player_page.dart';
 import '../../../pages/player/widgets/player_bottom_panel.dart';
 
@@ -25,6 +28,13 @@ class MiniPlayerBar extends StatelessWidget {
   final bool enableSwipe;
   final Widget? trailing;
 
+  /// 作为底栏的 `bottomAccessory` 挂在 `GlassTabBar.minimizable` 上。
+  ///
+  /// 这种模式下位置、宽度、高度全由底栏那套布局算（它要让播放器在收起时滑到
+  /// Tab 圆圈旁边去），所以这里不能再自己套 [padding]，也不能让高度跟着内容走 ——
+  /// 一律 [BottomChrome.accessoryHeight]。
+  final bool asAccessory;
+
   MiniPlayerBar({
     super.key,
     PlayerService? player,
@@ -36,10 +46,20 @@ class MiniPlayerBar extends StatelessWidget {
     this.boxShadow,
     this.enableSwipe = true,
     this.trailing,
+    this.asAccessory = false,
   }) : player = player ?? PlayerService.instance;
 
   @override
   Widget build(BuildContext context) {
+    // 底栏收起时，播放器要跟着缩成一条窄条塞进那一行 —— 这时候宽度只剩
+    // 「Tab 圆圈和搜索圆圈之间」那一段，两行字 + 队列按钮塞不下，得换个排法。
+    // 这个状态由底栏通过 InheritedWidget 播下来；不在底栏里（详情页单独浮着的
+    // 那种）读不到 scope，默认就是 expanded。
+    final compact =
+        asAccessory &&
+        GlassTabBarAccessoryPlacementScope.of(context) ==
+            GlassTabBarAccessoryPlacement.inline;
+
     // Only rebuild the bar chrome when the SONG changes — not on every position
     // tick. Position/playing are consumed by the leaf play-button & subtitle
     // widgets, which have their own snapshot listeners.
@@ -52,12 +72,7 @@ class MiniPlayerBar extends StatelessWidget {
         final openPlayer =
             onOpenPlayer ??
             () {
-              final isTabletLayout = AppLayoutSettings.tabletMode.value;
-              final navigator = Navigator.of(
-                context,
-                rootNavigator: isTabletLayout,
-              );
-              navigator.push(_playerRoute());
+              Navigator.of(context).push(_playerRoute());
             };
         final openQueue =
             onOpenQueue ?? () => showPlayerPlaylistSheet(context, player);
@@ -88,6 +103,90 @@ class MiniPlayerBar extends StatelessWidget {
           ),
         ];
 
+        // 挂在底栏上时高度是定死的，封面就按它来算，不用外面传的 artworkSize——
+        // 上下各留 6 的呼吸，剩下的全给封面，正方形。
+        final art = asAccessory
+            ? BottomChrome.accessoryHeight - 12
+            : artworkSize;
+
+        // 行内容三种形态共用同一套零件，只是收起时把「副标题」和「队列按钮」
+        // 摘掉 —— 那一段宽度只够放下封面、歌名和一个播放键。
+        final rowContent = Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 6 : 10,
+            vertical: asAccessory ? 6 : 7,
+          ),
+          child: Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: MiniPlayerArtwork(
+                  song: song,
+                  size: art,
+                  borderRadius: 10,
+                ),
+              ),
+              SizedBox(width: compact ? 8 : 11),
+              Expanded(
+                child: compact
+                    ? Text(
+                        song?.title ?? '未在播放',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: hasSong
+                              ? scheme.onSurface
+                              : scheme.onSurfaceVariant,
+                        ),
+                      )
+                    : MiniPlayerInfo(
+                        song: song,
+                        enableSwipe: enableSwipe,
+                        player: player,
+                        onOpenPlayer: openPlayer,
+                      ),
+              ),
+              SizedBox(width: compact ? 4 : 6),
+              MiniPlayerPlayButton(
+                player: player,
+                size: compact ? 32 : 38,
+                enabled: hasSong,
+              ),
+              if (!compact) ...[
+                const SizedBox(width: 4),
+                trailing ??
+                    MiniPlayerQueueButton(
+                      onPressed: hasSong ? openQueue : null,
+                      color: scheme.onSurface,
+                    ),
+              ],
+              const SizedBox(width: 2),
+            ],
+          ),
+        );
+
+        // 进度条不在这条上。
+        //
+        // 原来是画在播放键外面的一圈环：环只有走过的那一段有颜色，落在磨砂玻璃上
+        // 就是一道孤零零的弧线，读不出是「进度」，还把整条播放器唯一的主操作挤得
+        // 很花。想挪成胶囊底边一条细线也不行 —— 胶囊只有 52 高，封面正好占满内高，
+        // 细线必然压在封面和按钮上。
+        //
+        // 所以干脆不放，和 Apple Music 的迷你播放器一致：这一条的职责是「现在在放
+        // 什么 + 停 / 继续」，要看进度、要拖，点开全屏播放器，那里有完整的进度条。
+        final row = rowContent;
+
         final content = Container(
           decoration: BoxDecoration(
             color: bgColor,
@@ -99,89 +198,71 @@ class MiniPlayerBar extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(borderRadius),
               onTap: openPlayer,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 6,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: MiniPlayerArtwork(
-                        song: song,
-                        size: artworkSize,
-                        borderRadius: 10,
-                      ),
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: MiniPlayerInfo(
-                        song: song,
-                        enableSwipe: enableSwipe,
-                        player: player,
-                        onOpenPlayer: openPlayer,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    MiniPlayerPlayButton(
-                      player: player,
-                      size: 38,
-                      enabled: hasSong,
-                    ),
-                    const SizedBox(width: 4),
-                    trailing ??
-                        MiniPlayerQueueButton(
-                          onPressed: hasSong ? openQueue : null,
-                          color: scheme.onSurface,
-                        ),
-                    const SizedBox(width: 2),
-                  ],
-                ),
-              ),
+              child: row,
             ),
           ),
         );
 
-        return Padding(
-          padding: padding,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(borderRadius),
-              boxShadow: boxShadow ?? defaultShadow,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(borderRadius),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: AppBackgroundSettings.glassEffectEnabled,
-                builder: (context, glassEnabled, _) {
-                  return ValueListenableBuilder<double>(
-                    valueListenable: AppBackgroundSettings.panelBlurStrength,
-                    builder: (context, blurStrength, _) {
-                      if (!glassEnabled || blurStrength <= 0) return content;
-                      return BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: blurStrength,
-                          sigmaY: blurStrength,
-                        ),
-                        child: content,
-                      );
-                    },
-                  );
-                },
+        Widget styled = ValueListenableBuilder<AppBottomBarStyle>(
+          valueListenable: AppLayoutSettings.bottomBarStyle,
+          builder: (context, barStyle, _) {
+            // 材质**只**跟着底栏样式走，判断条件必须和 ModernNavigationBar 里
+            // 那一行一模一样。
+            //
+            // 这里原本还并了一个 AppBackgroundSettings.glassEffectEnabled ——
+            // 那是「毛玻璃质感」功能删掉后留下的遗留 notifier，被钉死在 false
+            // 且没有任何 UI 能打开。并上它的结果是这个分支永远进不去：底栏是
+            // 玻璃、播放器是白卡片，上下贴着两种材质。多判一个开关就多一个
+            // 它俩会不一致的理由。
+            if (barStyle == AppBottomBarStyle.liquidGlass) {
+              // 圆角和玻璃参数都从 AppGlass 取，和底栏是同一份。
+              // 收起后它跟 Tab 圆圈并排，圆角要跟着那个圆圈走，否则一个圆
+              // 一个方角，并排看着就是两件东西。
+              final r = compact
+                  ? BottomChrome.accessoryHeight / 2
+                  : AppGlass.radius;
+              return GlassContainer(
+                shape: LiquidRoundedSuperellipse(borderRadius: r),
+                settings: AppGlass.panel(context),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(r),
+                    onTap: openPlayer,
+                    child: row,
+                  ),
+                ),
+              );
+            }
+            return Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(borderRadius),
+                boxShadow: boxShadow ?? defaultShadow,
               ),
-            ),
-          ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(borderRadius),
+                child: ValueListenableBuilder<double>(
+                  valueListenable: AppBackgroundSettings.panelBlurStrength,
+                  builder: (context, blurStrength, _) {
+                    if (blurStrength <= 0) return content;
+                    return BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: blurStrength,
+                        sigmaY: blurStrength,
+                      ),
+                      child: content,
+                    );
+                  },
+                ),
+              ),
+            );
+          },
         );
+
+        // 挂在底栏上时外面那层 Padding 由底栏的 horizontalPadding 负责，
+        // 这里再加一层就会比底栏窄一圈、左右对不齐。
+        if (asAccessory) return styled;
+        return Padding(padding: padding, child: styled);
       },
     );
   }
@@ -640,46 +721,20 @@ class MiniPlayerPlayButton extends StatelessWidget {
     return ValueListenableBuilder<PlaybackSnapshot>(
       valueListenable: player.snapshot,
       builder: (context, snapshot, child) {
-        final totalMs = snapshot.duration?.inMilliseconds ?? 0;
-        final progress = totalMs <= 0
-            ? 0.0
-            : snapshot.position.inMilliseconds / totalMs;
         final playing = snapshot.isPlaying;
-        return SizedBox(
-          width: size,
-          height: size,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: size,
-                  height: size,
-                  child: CircularProgressIndicator(
-                    value: enabled ? progress.clamp(0.0, 1.0) : 0.0,
-                    strokeWidth: 1.8,
-                    backgroundColor: scheme.outline.withValues(alpha: 0.12),
-                    color: scheme.primary,
-                    strokeCap: StrokeCap.round,
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    playing ? AppIcons.pause : AppIcons.play,
-                    color: scheme.onSurface,
-                    size: 20,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: enabled ? player.togglePlayPause : null,
-                ),
-              ],
-            ),
+        return _MiniPlayerCircleButton(
+          size: size,
+          // 实心三角 / 双竖条。空心描边的图标读起来像装饰，实心才像「一个按钮」，
+          // 而且这颗是整条播放器上唯一的主操作，该比旁边的队列键重。
+          icon: playing ? AppIconsFilled.pause : AppIconsFilled.play,
+          iconSize: size * 0.44,
+          foreground: scheme.primary,
+          background: Color.alphaBlend(
+            scheme.primary.withValues(alpha: 0.14),
+            scheme.surface,
           ),
+          onPressed: enabled ? player.togglePlayPause : null,
+          semanticLabel: playing ? '暂停' : '播放',
         );
       },
     );
@@ -690,22 +745,91 @@ class MiniPlayerQueueButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Color color;
 
+  /// 直径。默认和播放键同一档 —— 它俩是并排的一对，差一点就看着没对齐。
+  final double size;
+
   const MiniPlayerQueueButton({
     super.key,
     required this.onPressed,
     required this.color,
+    this.size = 38,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 36,
-      child: IconButton(
-        icon: Icon(AppIcons.queue, color: color, size: 24),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        onPressed: onPressed,
+    final scheme = Theme.of(context).colorScheme;
+    // 和播放键同一个模子，只有分量不同：底色用中性的 onSurface 而不是主题色，
+    // 图标也保持描边。两颗一样大、一样圆，一眼看过去是一对；主次靠颜色和实心
+    // 与否来分，而不是靠一颗有壳、一颗是光秃秃一个字形 —— 之前就是后者，队列键
+    // 像是飘在旁边没放进控件里。
+    return _MiniPlayerCircleButton(
+      size: size,
+      icon: AppIcons.queue,
+      iconSize: size * 0.5,
+      foreground: onPressed == null ? color.withValues(alpha: 0.38) : color,
+      background: Color.alphaBlend(
+        scheme.onSurface.withValues(alpha: 0.07),
+        scheme.surface,
+      ),
+      onPressed: onPressed,
+      semanticLabel: '播放列表',
+    );
+  }
+}
+
+/// 迷你播放器上那一对圆钮的共同外形。
+///
+/// 单独抽出来是因为「长得一样」本身就是设计意图：两颗按钮任何一处尺寸、圆度、
+/// 底色算法写成两份，改一处忘另一处，它俩就会慢慢错开。
+class _MiniPlayerCircleButton extends StatelessWidget {
+  const _MiniPlayerCircleButton({
+    required this.size,
+    required this.icon,
+    required this.iconSize,
+    required this.foreground,
+    required this.background,
+    required this.onPressed,
+    required this.semanticLabel,
+  });
+
+  final double size;
+  final IconData icon;
+  final double iconSize;
+  final Color foreground;
+  final Color background;
+  final VoidCallback? onPressed;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null;
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Material(
+          // 底色必须是 alphaBlend 出来的**不透明**色。这一对压在磨砂玻璃上，
+          // 玻璃把背后糊成一片浅灰，直接给半透明色会被吃得几乎看不见。
+          color: disabled ? Colors.transparent : background,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: Center(
+              child: Icon(
+                icon,
+                size: iconSize,
+                color: disabled
+                    ? foreground.withValues(alpha: 0.38)
+                    : foreground,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

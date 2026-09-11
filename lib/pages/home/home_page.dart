@@ -9,11 +9,13 @@ import '../../app/state/settings_state.dart';
 import '../../app/router/app_page_route.dart';
 import '../../app/services/app_update_service.dart';
 import '../../app/services/backup/backup_service.dart';
+import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/library_refresh_service.dart';
 import '../../app/services/log/log.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/playlists_service.dart';
+import '../../app/services/source_visibility_repository.dart';
 import '../../app/state/song_state.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
@@ -40,8 +42,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with SignalsMixin {
   static const String _logTag = 'HomePage';
 
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
   final PlayerService _player = PlayerService.instance;
   final LibraryRefreshService _libraryRefreshService =
       LibraryRefreshService.instance;
@@ -68,6 +68,7 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   // library counts in _load.
   late final _playCounts = createSignal<Map<String, int>>({});
   late final _lastPlayedMs = createSignal<Map<String, int>>({});
+  late final _localSourceEnabled = createSignal(true);
 
   late final _webDavNameMap = computed<Map<String, String>>(() {
     final map = <String, String>{};
@@ -108,11 +109,23 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   @override
   void initState() {
     super.initState();
+    SongDao.libraryVersion.addListener(_handleLibraryVersionChanged);
     unawaited(_tryAutoPlayOnAppLaunch());
     unawaited(_tryRefreshLibraryOnLaunch());
     unawaited(_tryCheckUpdateOnLaunch());
     unawaited(BackupService.instance.maybeAutoBackupOnLaunch());
     _load();
+  }
+
+  void _handleLibraryVersionChanged() {
+    if (!mounted) return;
+    unawaited(_load(includeWebDavCounts: true));
+  }
+
+  @override
+  void dispose() {
+    SongDao.libraryVersion.removeListener(_handleLibraryVersionChanged);
+    super.dispose();
   }
 
   Future<void> _tryCheckUpdateOnLaunch() async {
@@ -191,6 +204,10 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   }
 
   Future<void> _load({bool includeWebDavCounts = false}) async {
+    final localSourceEnabled = await SourceVisibilityRepository.instance
+        .isEnabled('local');
+    if (!mounted) return;
+    _localSourceEnabled.value = localSourceEnabled;
     final raw = await _dataController.loadFilterPref();
     final cacheKey = _dataController.currentCacheKey();
 
@@ -383,7 +400,8 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
       builder: (context) {
         final items = [
           const HomeSourceItem(label: '全部', value: 'all'),
-          const HomeSourceItem(label: '本地', value: 'local'),
+          if (_localSourceEnabled.value)
+            const HomeSourceItem(label: '本地', value: 'local'),
           const HomeSourceItem(label: '云端（全部）', value: 'webdav'),
         ];
         final cloudIds = [
@@ -440,21 +458,14 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
   // replace the stack so back from them triggers the double-press-to-exit flow
   // instead of returning here.
   Future<void> _openTopLevel(Widget page) async {
-    if (AppLayoutSettings.navigationStyle.value ==
-        AppNavigationStyle.bottomBar) {
-      await Navigator.of(context).push(buildAppPageRoute<void>((_) => page));
-      return;
-    }
-    await Navigator.of(context).pushAndRemoveUntil(
-      buildAppPageRoute<void>((_) => page),
-      (route) => false,
-    );
+    await Navigator.of(context).push(buildAppPageRoute<void>((_) => page));
   }
 
   List<HomeSourceItem> _topSourceItems() {
     final items = <HomeSourceItem>[
       const HomeSourceItem(label: '综合', value: 'all'),
-      const HomeSourceItem(label: '本地', value: 'local'),
+      if (_localSourceEnabled.value)
+        const HomeSourceItem(label: '本地', value: 'local'),
     ];
     for (final source in _webDavSources.value) {
       items.add(
@@ -477,158 +488,142 @@ class _HomePageState extends State<HomePage> with SignalsMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        key: _scaffoldKey,
-        extendBodyBehindAppBar: true,
-        appBar: AppTopBar(
-          titleWidget: Watch.builder(
-            builder: (context) => HomeSourceTabs(
-              items: _topSourceItems(),
-              selectedValue: _filter.value,
-              onSelected: _setFilter,
-            ),
+    return AppPageScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppTopBar(
+        titleWidget: Watch.builder(
+          builder: (context) => HomeSourceTabs(
+            items: _topSourceItems(),
+            selectedValue: _filter.value,
+            onSelected: _setFilter,
           ),
-          showBackButton: false,
-          centerTitle: false,
-          leading: useBottomNavigation
-              ? null
-              : IconButton(
-                  icon: const Icon(AppIcons.menu),
-                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                ),
-          actions: [
-            IconButton(
-              tooltip: '管理音源',
-              icon: const Icon(AppIcons.sliders),
-              onPressed: _showSourceSheet,
-            ),
-            const SizedBox(width: 4),
-          ],
-          backgroundColor: Colors.transparent,
-          elevation: 0,
         ),
-        drawer: useBottomNavigation
-            ? null
-            : SideMenu(
-                onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+        showBackButton: false,
+        centerTitle: false,
+        actions: [
+          IconButton(
+            tooltip: '管理音源',
+            icon: const Icon(AppIcons.sliders),
+            onPressed: _showSourceSheet,
+          ),
+          const SizedBox(width: 4),
+        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      bottomNavIndex: 0,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
+      body: RefreshIndicator(
+        onRefresh: () => _load(includeWebDavCounts: true),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+          children: [
+            // 每一块各自订阅自己需要的 signal。以前整个 ListView 裹在一个
+            // Watch.builder 里，任何一个 signal 变化都要重建全部内容 ——
+            // 包括六个 ArtworkWidget，而封面重建意味着重新解码。
+            Watch.builder(
+              builder: (context) => HomeSourceSummary(
+                title: _filterTitle.value,
+                count: _filterCount.value,
+                loading: _loading.value,
               ),
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
-            ? (index) => navigateToPrimaryDestination(context, index)
-            : null,
-        body: RefreshIndicator(
-          onRefresh: () => _load(includeWebDavCounts: true),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-            children: [
-              // 每一块各自订阅自己需要的 signal。以前整个 ListView 裹在一个
-              // Watch.builder 里，任何一个 signal 变化都要重建全部内容 ——
-              // 包括六个 ArtworkWidget，而封面重建意味着重新解码。
-              Watch.builder(
-                builder: (context) => HomeSourceSummary(
-                  title: _filterTitle.value,
-                  count: _filterCount.value,
-                  loading: _loading.value,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: DiscoveryCard.height,
-                child: Watch.builder(
-                  builder: (context) {
-                    final covers = _discoveryCovers.value;
-                    final specs = <DiscoverySpec>[
-                      DiscoverySpec(
-                        kind: DiscoveryKind.daily,
-                        eyebrow: '每日推荐',
-                        title: '今日限定好歌推荐',
-                        icon: AppIcons.calendar,
-                        accent: const Color(0xFFEF4444),
-                        cover: covers[0],
-                        songs: _dailySongs.value,
-                      ),
-                      DiscoverySpec(
-                        kind: DiscoveryKind.recommended,
-                        eyebrow: '雷达歌单',
-                        title: '反复聆听你爱的歌',
-                        icon: null,
-                        accent: const Color(0xFF38A3A5),
-                        cover: covers[1],
-                        songs: _recommendedSongs.value,
-                      ),
-                      DiscoverySpec(
-                        kind: DiscoveryKind.heart,
-                        eyebrow: '心动模式',
-                        title: '红心歌曲和相似推荐',
-                        icon: AppIconsFilled.heart,
-                        accent: const Color(0xFF8B7CF6),
-                        cover: covers[2],
-                        songs: _heartModeSongs.value,
-                      ),
-                    ];
-                    return ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: specs.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 10),
-                      itemBuilder: (context, index) {
-                        final spec = specs[index];
-                        // 播放态单独订阅：播放/暂停只重建这三张卡的外框，
-                        // 不会波及封面之外的东西，更不会重跑推荐。
-                        return Watch.builder(
-                          builder: (context) => DiscoveryCard(
-                            eyebrow: spec.eyebrow,
-                            title: spec.title,
-                            icon: spec.icon,
-                            song: spec.cover,
-                            accent: spec.accent,
-                            active: _isDiscoveryQueueActive(
-                              spec.kind,
-                              spec.songs,
-                              _player.queueSignal.value,
-                            ),
-                            playing: _player.isPlayingSignal.value,
-                            onTap: () =>
-                                _playDiscoveryQueue(spec.songs, spec.kind),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 28),
-              Watch.builder(
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: DiscoveryCard.height,
+              child: Watch.builder(
                 builder: (context) {
-                  final recommendedSongs = _recommendedSongs.value;
-                  return HomeRecommendationSection(
-                    songs: recommendedSongs,
-                    onPlayAll: () => _playDiscoveryQueue(
-                      recommendedSongs,
-                      DiscoveryKind.recommended,
+                  final covers = _discoveryCovers.value;
+                  final specs = <DiscoverySpec>[
+                    DiscoverySpec(
+                      kind: DiscoveryKind.daily,
+                      eyebrow: '每日推荐',
+                      title: '今日限定好歌推荐',
+                      icon: AppIcons.calendar,
+                      accent: const Color(0xFFEF4444),
+                      cover: covers[0],
+                      songs: _dailySongs.value,
                     ),
-                    onTapSong: (song) async {
-                      final index = recommendedSongs.indexWhere(
-                        (item) => item.id == song.id,
-                      );
-                      await _player.playQueue(
-                        recommendedSongs,
-                        index < 0 ? 0 : index,
+                    DiscoverySpec(
+                      kind: DiscoveryKind.recommended,
+                      eyebrow: '雷达歌单',
+                      title: '反复聆听你爱的歌',
+                      icon: null,
+                      accent: const Color(0xFF38A3A5),
+                      cover: covers[1],
+                      songs: _recommendedSongs.value,
+                    ),
+                    DiscoverySpec(
+                      kind: DiscoveryKind.heart,
+                      eyebrow: '心动模式',
+                      title: '红心歌曲和相似推荐',
+                      icon: AppIconsFilled.heart,
+                      accent: const Color(0xFF8B7CF6),
+                      cover: covers[2],
+                      songs: _heartModeSongs.value,
+                    ),
+                  ];
+                  return ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: specs.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final spec = specs[index];
+                      // 播放态单独订阅：播放/暂停只重建这三张卡的外框，
+                      // 不会波及封面之外的东西，更不会重跑推荐。
+                      return Watch.builder(
+                        builder: (context) => DiscoveryCard(
+                          eyebrow: spec.eyebrow,
+                          title: spec.title,
+                          icon: spec.icon,
+                          song: spec.cover,
+                          accent: spec.accent,
+                          active: _isDiscoveryQueueActive(
+                            spec.kind,
+                            spec.songs,
+                            _player.queueSignal.value,
+                          ),
+                          playing: _player.isPlayingSignal.value,
+                          onTap: () =>
+                              _playDiscoveryQueue(spec.songs, spec.kind),
+                        ),
                       );
                     },
                   );
                 },
               ),
-              const SizedBox(height: 28),
-              // 不依赖任何 signal —— 放在 Watch 外面就不会跟着重建。
-              HomeQuickLibrary(
-                onArtists: () => _openTopLevel(const ArtistsPage()),
-                onAlbums: () => _openTopLevel(const AlbumsPage()),
-                onFolders: () => _openTopLevel(const FoldersPage()),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 28),
+            Watch.builder(
+              builder: (context) {
+                final recommendedSongs = _recommendedSongs.value;
+                return HomeRecommendationSection(
+                  songs: recommendedSongs,
+                  onPlayAll: () => _playDiscoveryQueue(
+                    recommendedSongs,
+                    DiscoveryKind.recommended,
+                  ),
+                  onTapSong: (song) async {
+                    final index = recommendedSongs.indexWhere(
+                      (item) => item.id == song.id,
+                    );
+                    await _player.playQueue(
+                      recommendedSongs,
+                      index < 0 ? 0 : index,
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+            // 不依赖任何 signal —— 放在 Watch 外面就不会跟着重建。
+            HomeQuickLibrary(
+              onArtists: () => _openTopLevel(const ArtistsPage()),
+              onAlbums: () => _openTopLevel(const AlbumsPage()),
+              onFolders: () => _openTopLevel(const FoldersPage()),
+            ),
+          ],
         ),
       ),
     );

@@ -60,6 +60,7 @@ abstract final class AppIcons {
   static const IconData grid = PhosphorIconsRegular.gridFour;
   static const IconData heart = PhosphorIconsRegular.heart;
   static const IconData history = PhosphorIconsRegular.clockCounterClockwise;
+  static const IconData home = PhosphorIconsRegular.house;
   static const IconData hourglass = PhosphorIconsRegular.hourglass;
   static const IconData image = PhosphorIconsRegular.image;
   static const IconData info = PhosphorIconsRegular.info;
@@ -115,6 +116,12 @@ abstract final class AppIcons {
 /// 选中态图标。不要用颜色代替实心/空心的状态差异。
 abstract final class AppIconsFilled {
   static const IconData heart = PhosphorIconsFill.heart;
+  // 底栏四个 Tab 的选中态。实心 / 空心是这里唯一的状态信号 —— 底栏收起来只剩
+  // 一个圆圈时标签没了，全靠图标本身告诉你停在哪一项。
+  static const IconData home = PhosphorIconsFill.house;
+  static const IconData musicNotes = PhosphorIconsFill.musicNotes;
+  static const IconData video = PhosphorIconsFill.videoCamera;
+  static const IconData person = PhosphorIconsFill.user;
   static const IconData pause = PhosphorIconsFill.pause;
   static const IconData play = PhosphorIconsFill.play;
   static const IconData skipNext = PhosphorIconsFill.skipForward;

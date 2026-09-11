@@ -2,7 +2,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../components/layout/tablet_layout_host.dart';
+import '../components/layout/app_layout_host.dart';
 import 'router/app_page_route.dart';
 import 'router/app_router.dart';
 import 'state/settings_state.dart';
@@ -106,7 +106,7 @@ class NagoMusicApp extends StatelessWidget {
                       darkTheme: darkTheme,
                       themeMode: mode,
                       scrollBehavior: const AppScrollBehavior(),
-                      home: TabletLayoutHost(
+                      home: AppLayoutHost(
                         navigatorKey: baseNavigatorKey,
                         child: Navigator(
                           key: baseNavigatorKey,

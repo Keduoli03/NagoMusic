@@ -42,7 +42,7 @@ class AppReorderableToggleList extends StatelessWidget {
   /// 已经按当前顺序排好的项。
   final List<AppReorderableToggleItem> items;
 
-  /// 语义和 [ReorderableListView.onReorder] 完全一致，包括那个容易踩坑的
+  /// 语义和旧版 `ReorderableListView` 的 `onReorder` 回调完全一致，包括那个容易踩坑的
   /// 「newIndex 在原位置之后时要减一」——调用方自己处理，这个组件不代劳，
   /// 因为它不知道调用方的存储层是怎么应用这个新顺序的。
   final void Function(int oldIndex, int newIndex) onReorder;
@@ -53,7 +53,10 @@ class AppReorderableToggleList extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
-      onReorder: onReorder,
+      onReorderItem: (oldIndex, newIndex) {
+        final legacyNewIndex = newIndex > oldIndex ? newIndex + 1 : newIndex;
+        onReorder(oldIndex, legacyNewIndex);
+      },
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];

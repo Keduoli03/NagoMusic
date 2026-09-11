@@ -6,6 +6,7 @@ import 'local_music_service.dart';
 import 'log/log.dart';
 import 'navidrome/navidrome_music_service.dart';
 import 'navidrome/navidrome_source_repository.dart';
+import 'source_visibility_repository.dart';
 import 'webdav/webdav_music_service.dart';
 import 'webdav/webdav_source_repository.dart';
 
@@ -66,6 +67,9 @@ class LibraryRefreshService {
 
   Future<int> _refreshLocalSilently() async {
     try {
+      if (!await SourceVisibilityRepository.instance.isEnabled('local')) {
+        return 0;
+      }
       final permission = await PhotoManager.getPermissionState(
         requestOption: const PermissionRequestOption(
           androidPermission: AndroidPermission(
@@ -94,8 +98,11 @@ class LibraryRefreshService {
 
   Future<int> _refreshCloudSilently() async {
     try {
-      final sources = await _webDavRepo.loadSources();
-      if (sources.isEmpty) return 0;
+      final visibilityRepo = SourceVisibilityRepository.instance;
+      final sources = await visibilityRepo.filterEnabled(
+        await _webDavRepo.loadSources(),
+        (source) => source.id,
+      );
 
       var added = 0;
       for (final source in sources) {
@@ -116,7 +123,10 @@ class LibraryRefreshService {
           );
         }
       }
-      final navidromeSources = await _navidromeRepo.loadSources();
+      final navidromeSources = await visibilityRepo.filterEnabled(
+        await _navidromeRepo.loadSources(),
+        (source) => source.id,
+      );
       for (final source in navidromeSources) {
         if (source.endpoint.trim().isEmpty) continue;
         try {

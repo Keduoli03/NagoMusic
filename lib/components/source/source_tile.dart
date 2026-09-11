@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nagomusic/app/theme/app_icons.dart';
 
+import '../common/app_switch.dart';
+
 class SourceTileAction {
   final IconData icon;
   final VoidCallback onTap;
@@ -20,6 +22,8 @@ class SourceTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final List<SourceTileAction> actions;
+  final bool? enabled;
+  final ValueChanged<bool>? onEnabledChanged;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -29,6 +33,8 @@ class SourceTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.actions,
+    this.enabled,
+    this.onEnabledChanged,
     required this.onTap,
     this.onLongPress,
   });
@@ -42,6 +48,8 @@ class SourceTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (enabled != null)
+            AppSwitch(value: enabled!, onChanged: onEnabledChanged),
           ...actions.map(
             (action) => IconButton(
               icon: action.isLoading

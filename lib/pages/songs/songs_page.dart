@@ -15,8 +15,8 @@ import '../../app/services/local_music_service.dart';
 import '../../app/services/stats_service.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/player_service.dart';
+import '../../app/services/source_visibility_repository.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
-import '../../app/state/settings_state.dart';
 import '../../app/state/song_state.dart';
 import '../../app/utils/deferred_page_init_mixin.dart';
 import '../../app/utils/multi_select_mixin.dart';
@@ -57,8 +57,6 @@ class _SongsPageState extends State<SongsPage>
   static const double _itemExtent = 64;
   static const int _pageSize = 80;
   final ScrollController _listController = ScrollController();
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
   final SongDao _songDao = SongDao();
   final LocalMusicService _localService = LocalMusicService();
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
@@ -87,6 +85,7 @@ class _SongsPageState extends State<SongsPage>
   int _metadataProbeActive = 0;
   Timer? _rebuildDebounceTimer;
   Timer? _artworkIdlePrefetchTimer;
+  Timer? _initialPrefetchTimer;
   late final _visibleSongs = createSignal<List<SongEntity>>([]);
   late final _visibleSongsAll = createSignal<List<SongEntity>>([]);
   late final _isSequentialPlay = createSignal(false);
@@ -99,6 +98,7 @@ class _SongsPageState extends State<SongsPage>
   late final _sourceFilter = createSignal('all');
   late final _songs = createSignal<List<SongEntity>>([]);
   late final _webDavNameMap = createSignal<Map<String, String>>({});
+  late final _localSourceEnabled = createSignal(true);
 
   late final _isScraping = createSignal(false);
   late final _scrapeTotal = createSignal(0);
@@ -119,7 +119,8 @@ class _SongsPageState extends State<SongsPage>
     // 读一遍——不然会一直显示已经不存在的歌，直到整个 App 重启。
     SongDao.libraryVersion.addListener(_handleLibraryVersionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      _initialPrefetchTimer = Timer(const Duration(milliseconds: 220), () {
         if (!mounted) return;
         _prefetchEnabled = true;
         final visibleAll = _visibleSongsAll.value;
@@ -145,6 +146,7 @@ class _SongsPageState extends State<SongsPage>
   void dispose() {
     _rebuildDebounceTimer?.cancel();
     _artworkIdlePrefetchTimer?.cancel();
+    _initialPrefetchTimer?.cancel();
     _metadataProbeQueue.clear();
     _removeScrapeOverlay();
     PlayerService.instance.currentSong.removeListener(_handlePlayerSongChanged);
@@ -164,8 +166,16 @@ class _SongsPageState extends State<SongsPage>
   }
 
   Future<void> _loadWebDavNames() async {
-    final webDavSources = await _webDavRepo.loadSources();
-    final navidromeSources = await _navidromeRepo.loadSources();
+    final visibilityRepo = SourceVisibilityRepository.instance;
+    final localEnabled = await visibilityRepo.isEnabled('local');
+    final webDavSources = await visibilityRepo.filterEnabled(
+      await _webDavRepo.loadSources(),
+      (source) => source.id,
+    );
+    final navidromeSources = await visibilityRepo.filterEnabled(
+      await _navidromeRepo.loadSources(),
+      (source) => source.id,
+    );
     final map = <String, String>{};
     for (final s in webDavSources) {
       final name = s.name.trim().isEmpty ? 'WebDAV' : s.name.trim();
@@ -178,7 +188,16 @@ class _SongsPageState extends State<SongsPage>
     // B 站是登录制的内置源，不在 PrefsSourceRepository 里，名字写死。
     map[BiliMusicService.sourceId] = 'B站';
     if (!mounted) return;
+    _localSourceEnabled.value = localEnabled;
     _webDavNameMap.value = map;
+    final filter = _sourceFilter.value;
+    if ((filter == 'local' && !localEnabled) ||
+        (filter.startsWith('webdav:') &&
+            !map.containsKey(filter.substring('webdav:'.length)))) {
+      _sourceFilter.value = 'all';
+      unawaited(_saveViewPrefs());
+      unawaited(_updateVisibleSongs());
+    }
   }
 
   Future<void> _restoreViewPrefs() async {
@@ -583,10 +602,6 @@ class _SongsPageState extends State<SongsPage>
     return _showRandomPlaySettings();
   }
 
-  void _openDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
-  }
-
   void _openSearch() {
     Navigator.pushNamed(context, AppRoutes.search);
   }
@@ -807,7 +822,8 @@ class _SongsPageState extends State<SongsPage>
       builder: (context) {
         final items = [
           const _SourceFilterItem(label: '全部', value: 'all'),
-          const _SourceFilterItem(label: '本地', value: 'local'),
+          if (_localSourceEnabled.value)
+            const _SourceFilterItem(label: '本地', value: 'local'),
           const _SourceFilterItem(label: '云端（全部）', value: 'webdav'),
         ];
         final webdavIds =
@@ -874,43 +890,37 @@ class _SongsPageState extends State<SongsPage>
       backgroundColor: Colors.transparent,
       useSafeArea: true,
       builder: (context) {
-        final bottomInset = MediaQuery.paddingOf(context).bottom;
-        final tabletOverlayInset = AppLayoutSettings.tabletMode.value
-            ? MiniPlayerBar.estimatedHeight + bottomInset + 16
-            : 0.0;
-        return Padding(
-          padding: EdgeInsets.only(bottom: tabletOverlayInset),
-          child: SortSheet(
-            options: const [
-              SortOption(key: 'title', label: '歌曲名称', icon: AppIcons.sort),
-              SortOption(key: 'artist', label: '歌手名称', icon: AppIcons.person),
-              SortOption(key: 'album', label: '专辑名称', icon: AppIcons.album),
-              SortOption(
-                key: 'albumTrack',
-                label: '专辑顺序',
-                icon: AppIcons.listNumbers,
-              ),
-              SortOption(key: 'duration', label: '歌曲时长', icon: AppIcons.clock),
-              SortOption(key: 'playCount', label: '播放次数', icon: AppIcons.fire),
-              SortOption(
-                key: 'fileName',
-                label: '文件名称',
-                icon: AppIcons.fileText,
-              ),
-            ],
-            currentKey: _sortKey.value,
-            ascending: _ascending.value,
-            onSelectKey: (value) {
-              _sortKey.value = value;
-              _rebuildVisibleSongs();
-              _saveViewPrefs();
-            },
-            onSelectAscending: (value) {
-              _ascending.value = value;
-              _rebuildVisibleSongs();
-              _saveViewPrefs();
-            },
-          ),
+        return SortSheet(
+          options: const [
+            SortOption(key: 'title', label: '歌曲名称', icon: AppIcons.sort),
+            SortOption(key: 'artist', label: '歌手名称', icon: AppIcons.person),
+            SortOption(key: 'album', label: '专辑名称', icon: AppIcons.album),
+            SortOption(
+              key: 'albumTrack',
+              label: '专辑顺序',
+              icon: AppIcons.listNumbers,
+            ),
+            SortOption(key: 'duration', label: '歌曲时长', icon: AppIcons.clock),
+            SortOption(
+              key: 'modifiedTime',
+              label: '修改时间',
+              icon: AppIcons.calendar,
+            ),
+            SortOption(key: 'playCount', label: '播放次数', icon: AppIcons.fire),
+            SortOption(key: 'fileName', label: '文件名称', icon: AppIcons.fileText),
+          ],
+          currentKey: _sortKey.value,
+          ascending: _ascending.value,
+          onSelectKey: (value) {
+            _sortKey.value = value;
+            _rebuildVisibleSongs();
+            _saveViewPrefs();
+          },
+          onSelectAscending: (value) {
+            _ascending.value = value;
+            _rebuildVisibleSongs();
+            _saveViewPrefs();
+          },
         );
       },
     );
@@ -981,85 +991,20 @@ class _SongsPageState extends State<SongsPage>
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => Watch.builder(
-        builder: (context) {
-          final isTabletLandscape =
-              AppLayoutSettings.tabletMode.value &&
-              MediaQuery.orientationOf(context) == Orientation.landscape;
-          final bottomInset = MediaQuery.paddingOf(context).bottom;
-          final tabletMiniPlayerInset = AppLayoutSettings.tabletMode.value
-              ? MiniPlayerBar.estimatedHeight + bottomInset + 12
-              : 0.0;
-          if (_isLoading.value) {
-            return AppPageScaffold(
-              key: _scaffoldKey,
-              extendBodyBehindAppBar: true,
-              showMiniPlayer: !multiSelect.value,
-              appBar: AppTopBar(
-                title: '歌曲',
-                centerTitle: !isTabletLandscape,
-                showBackButton: !useBottomNavigation,
-                leading: useBottomNavigation
-                    ? null
-                    : IconButton(
-                        icon: const Icon(AppIcons.menu),
-                        onPressed: _openDrawer,
-                      ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(AppIcons.arrowsLeftRight),
-                    onPressed: _showSourceSheet,
-                  ),
-                  IconButton(
-                    icon: const Icon(AppIcons.search),
-                    onPressed: _openSearch,
-                  ),
-                  CompositedTransformTarget(
-                    link: _scrapeLayerLink,
-                    child: IconButton(
-                      icon: _isScraping.value
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(AppIcons.magicWand),
-                      onPressed: _openBatchScrape,
-                    ),
-                  ),
-                ],
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-              ),
-              drawer: useBottomNavigation ? null : const SideMenu(),
-              bottomNavIndex: useBottomNavigation ? 1 : null,
-              onBottomNavTap: useBottomNavigation
-                  ? (index) => navigateToPrimaryDestination(context, index)
-                  : null,
-              body: const Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          final visibleSongs = _visibleSongs.value;
-          final totalCount = _visibleSongsAll.value.length;
-          final selectedCount = this.selectedCount;
-          final isAllSelected = totalCount > 0 && selectedCount == totalCount;
-
+    return Watch.builder(
+      builder: (context) {
+        final isTabletLandscape =
+            MediaQuery.sizeOf(context).width >= 900 &&
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+        final bottomInset = MediaQuery.paddingOf(context).bottom;
+        if (_isLoading.value) {
           return AppPageScaffold(
-            key: _scaffoldKey,
             extendBodyBehindAppBar: true,
             showMiniPlayer: !multiSelect.value,
             appBar: AppTopBar(
               title: '歌曲',
               centerTitle: !isTabletLandscape,
-              showBackButton: !useBottomNavigation,
-              leading: useBottomNavigation
-                  ? null
-                  : IconButton(
-                      icon: const Icon(AppIcons.menu),
-                      onPressed: _openDrawer,
-                    ),
+              showBackButton: false,
               actions: [
                 IconButton(
                   icon: const Icon(AppIcons.arrowsLeftRight),
@@ -1086,220 +1031,245 @@ class _SongsPageState extends State<SongsPage>
               backgroundColor: Colors.transparent,
               elevation: 0,
             ),
-            drawer: useBottomNavigation
-                ? null
-                : SideMenu(
-                    onCloseDrawer: () =>
-                        _scaffoldKey.currentState?.closeDrawer(),
-                  ),
-            bottomNavIndex: useBottomNavigation && !multiSelect.value
-                ? 1
-                : null,
-            onBottomNavTap: useBottomNavigation && !multiSelect.value
-                ? (index) => navigateToPrimaryDestination(context, index)
-                : null,
-            body: Column(
-              children: [
-                MediaListHeader(
-                  multiSelect: multiSelect.value,
-                  isAllSelected: isAllSelected,
-                  selectedCount: selectedCount,
-                  totalCount: totalCount,
-                  playbackCount: _playCountForMode(totalCount),
-                  isSequentialPlay: _isSequentialPlay.value,
-                  onToggleSelectAll: () =>
-                      toggleSelectAll(_visibleSongsAll.value.map((e) => e.id)),
-                  onPlay: () {
-                    if (_visibleSongsAll.value.isEmpty) return;
-                    final queue = _buildPlayQueue(_visibleSongsAll.value);
-                    _openPlayerWithQueue(queue, 0);
-                  },
-                  onConfigurePlay: _showCurrentPlaySettings,
-                  onTogglePlayMode: _togglePlayMode,
-                  onSort: _showSortSheet,
-                  onToggleMultiSelect: toggleMultiSelect,
-                ),
-                Expanded(
-                  child: totalCount == 0
-                      ? const Center(child: Text('暂无歌曲'))
-                      : MediaListView(
-                          controller: _listController,
-                          itemCount: visibleSongs.length,
-                          itemExtent: _itemExtent,
-                          bottomInset:
-                              bottomInset +
-                              tabletMiniPlayerInset +
-                              (multiSelect.value ? 160 : 80) +
-                              (useBottomNavigation && !multiSelect.value
-                                  ? AppPageScaffold.modernNavHeight
-                                  : 0),
-                          indexLabelBuilder: (index) =>
-                              _indexLabelForSong(visibleSongs[index]),
-                          itemBuilder: (context, index) {
-                            final song = visibleSongs[index];
-                            final currentId = _currentId.value;
-                            final selected = selection;
-                            final isPlaying = currentId == song.id;
-                            return MediaListTile(
-                              leading: _SongArtwork(
-                                song: song,
-                                size: 44,
-                                coverPath: song.localCoverPath,
-                                onLoad: () => _loadArtwork(song),
-                              ),
-                              title: song.title,
-                              subtitleLeading: QualityTagBadge(song: song),
-                              subtitle:
-                                  '${song.artist} · ${song.album ?? '未知专辑'} · ${formatDurationMs(song.durationMs)}',
-                              selected: selected.contains(song.id),
-                              multiSelect: multiSelect.value,
-                              isHighlighted: isPlaying,
-                              onTap: () {
-                                if (multiSelect.value) {
-                                  toggleSelected(song.id);
-                                } else {
-                                  _currentId.value = song.id;
-                                  final queue = _buildPlayQueue(
-                                    _visibleSongsAll.value,
-                                    targetSongId: song.id,
-                                  );
-                                  final startIndex = queue.indexWhere(
-                                    (s) => s.id == song.id,
-                                  );
-                                  _openPlayerWithQueue(
-                                    queue,
-                                    startIndex == -1 ? 0 : startIndex,
-                                  );
-                                }
-                              },
-                              onLongPress: () {
-                                if (multiSelect.value) {
-                                  toggleSelected(song.id);
-                                  return;
-                                }
-
-                                showSongDetailSheet(
-                                  context,
-                                  song: song,
-                                  onUpdated: (updated) {
-                                    if (!mounted) return;
-                                    final updatedSongs = _songs.value
-                                        .map(
-                                          (s) =>
-                                              s.id == updated.id ? updated : s,
-                                        )
-                                        .toList();
-                                    _songs.value = updatedSongs;
-                                    _cachedSongs = updatedSongs;
-                                    unawaited(_updateVisibleSongs());
-                                  },
-                                  onDeleted: (id) {
-                                    if (!mounted) return;
-                                    final currentSongs = _songs.value;
-                                    SongEntity? deleted;
-                                    for (final s in currentSongs) {
-                                      if (s.id == id) {
-                                        deleted = s;
-                                        break;
-                                      }
-                                    }
-                                    final nextSongs = currentSongs
-                                        .where((s) => s.id != id)
-                                        .toList();
-                                    _songs.value = nextSongs;
-                                    _cachedSongs = nextSongs;
-                                    if (_currentId.value == id) {
-                                      _currentId.value = null;
-                                    }
-                                    unawaited(_updateVisibleSongs());
-                                    if (deleted != null) {
-                                      Future.microtask(
-                                        () => _actionsController.removeSongs(
-                                          songsToRemove: [deleted!],
-                                          clearArtwork: (song) =>
-                                              _artworkCoordinator.clearSong(
-                                                song.id,
-                                                uri: song.uri,
-                                              ),
-                                          onSongsRemoved: (removed) async {},
-                                          onProgress:
-                                              (processed, total) async {},
-                                        ),
-                                      );
-                                    }
-                                  },
-                                );
-                              },
-                            );
-                          },
-                          floatingButton: _currentId.value == null
-                              ? null
-                              : FloatingActionButton(
-                                  mini: true,
-                                  onPressed: () {
-                                    final targetId = _currentId.value;
-                                    if (targetId == null) return;
-                                    final index = visibleSongs.indexWhere(
-                                      (s) => s.id == targetId,
-                                    );
-                                    if (index == -1) return;
-                                    final offset = index * _itemExtent;
-                                    final max = _listController
-                                        .position
-                                        .maxScrollExtent;
-                                    _listController.animateTo(
-                                      offset.clamp(0.0, max),
-                                      duration: const Duration(
-                                        milliseconds: 240,
-                                      ),
-                                      curve: Curves.easeOut,
-                                    );
-                                  },
-                                  child: const Icon(AppIcons.locate, size: 18),
-                                ),
-                        ),
-                ),
-                if (multiSelect.value)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: tabletMiniPlayerInset),
-                    child: MultiSelectBottomBar(
-                      actions: [
-                        MultiSelectAction(
-                          icon: AppIcons.queue,
-                          label: '下一首播放',
-                          onTap: selectedCount == 0
-                              ? null
-                              : () {
-                                  AppToast.show(
-                                    context,
-                                    '已添加 $selectedCount 首到下一首播放',
-                                  );
-                                  toggleMultiSelect();
-                                },
-                        ),
-                        MultiSelectAction(
-                          icon: AppIcons.playlist,
-                          label: '收藏到歌单',
-                          onTap: selectedCount == 0
-                              ? null
-                              : _openAddToPlaylistSheet,
-                        ),
-                        MultiSelectAction(
-                          icon: AppIcons.trash,
-                          label: '移除',
-                          isDestructive: true,
-                          onTap: selectedCount == 0
-                              ? null
-                              : _removeSelectedSongs,
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+            bottomNavIndex: 1,
+            onBottomNavTap: (index) =>
+                navigateToPrimaryDestination(context, index),
+            body: const Center(child: CircularProgressIndicator()),
           );
-        },
-      ),
+        }
+
+        final visibleSongs = _visibleSongs.value;
+        final totalCount = _visibleSongsAll.value.length;
+        final selectedCount = this.selectedCount;
+        final isAllSelected = totalCount > 0 && selectedCount == totalCount;
+
+        return AppPageScaffold(
+          extendBodyBehindAppBar: true,
+          showMiniPlayer: !multiSelect.value,
+          appBar: AppTopBar(
+            title: '歌曲',
+            centerTitle: !isTabletLandscape,
+            showBackButton: false,
+            actions: [
+              IconButton(
+                icon: const Icon(AppIcons.arrowsLeftRight),
+                onPressed: _showSourceSheet,
+              ),
+              IconButton(
+                icon: const Icon(AppIcons.search),
+                onPressed: _openSearch,
+              ),
+              CompositedTransformTarget(
+                link: _scrapeLayerLink,
+                child: IconButton(
+                  icon: _isScraping.value
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(AppIcons.magicWand),
+                  onPressed: _openBatchScrape,
+                ),
+              ),
+            ],
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          bottomNavIndex: !multiSelect.value ? 1 : null,
+          onBottomNavTap: !multiSelect.value
+              ? (index) => navigateToPrimaryDestination(context, index)
+              : null,
+          body: Column(
+            children: [
+              MediaListHeader(
+                multiSelect: multiSelect.value,
+                isAllSelected: isAllSelected,
+                selectedCount: selectedCount,
+                totalCount: totalCount,
+                playbackCount: _playCountForMode(totalCount),
+                isSequentialPlay: _isSequentialPlay.value,
+                onToggleSelectAll: () =>
+                    toggleSelectAll(_visibleSongsAll.value.map((e) => e.id)),
+                onPlay: () {
+                  if (_visibleSongsAll.value.isEmpty) return;
+                  final queue = _buildPlayQueue(_visibleSongsAll.value);
+                  _openPlayerWithQueue(queue, 0);
+                },
+                onConfigurePlay: _showCurrentPlaySettings,
+                onTogglePlayMode: _togglePlayMode,
+                onSort: _showSortSheet,
+                onToggleMultiSelect: toggleMultiSelect,
+              ),
+              Expanded(
+                child: totalCount == 0
+                    ? const Center(child: Text('暂无歌曲'))
+                    : MediaListView(
+                        controller: _listController,
+                        itemCount: visibleSongs.length,
+                        itemExtent: _itemExtent,
+                        bottomInset:
+                            bottomInset +
+                            (multiSelect.value ? 160 : 80) +
+                            (!multiSelect.value
+                                ? AppPageScaffold.modernNavHeight
+                                : 0),
+                        indexLabelBuilder: (index) =>
+                            _indexLabelForSong(visibleSongs[index]),
+                        itemBuilder: (context, index) {
+                          final song = visibleSongs[index];
+                          final currentId = _currentId.value;
+                          final selected = selection;
+                          final isPlaying = currentId == song.id;
+                          return MediaListTile(
+                            leading: _SongArtwork(
+                              song: song,
+                              size: 44,
+                              coverPath: song.localCoverPath,
+                              onLoad: () => _loadArtwork(song),
+                            ),
+                            title: song.title,
+                            subtitleLeading: QualityTagBadge(song: song),
+                            subtitle:
+                                '${song.artist} · ${song.album ?? '未知专辑'} · ${formatDurationMs(song.durationMs)}',
+                            selected: selected.contains(song.id),
+                            multiSelect: multiSelect.value,
+                            isHighlighted: isPlaying,
+                            onTap: () {
+                              if (multiSelect.value) {
+                                toggleSelected(song.id);
+                              } else {
+                                _currentId.value = song.id;
+                                final queue = _buildPlayQueue(
+                                  _visibleSongsAll.value,
+                                  targetSongId: song.id,
+                                );
+                                final startIndex = queue.indexWhere(
+                                  (s) => s.id == song.id,
+                                );
+                                _openPlayerWithQueue(
+                                  queue,
+                                  startIndex == -1 ? 0 : startIndex,
+                                );
+                              }
+                            },
+                            onLongPress: () {
+                              if (multiSelect.value) {
+                                toggleSelected(song.id);
+                                return;
+                              }
+
+                              showSongDetailSheet(
+                                context,
+                                song: song,
+                                onUpdated: (updated) {
+                                  if (!mounted) return;
+                                  final updatedSongs = _songs.value
+                                      .map(
+                                        (s) => s.id == updated.id ? updated : s,
+                                      )
+                                      .toList();
+                                  _songs.value = updatedSongs;
+                                  _cachedSongs = updatedSongs;
+                                  unawaited(_updateVisibleSongs());
+                                },
+                                onDeleted: (id) {
+                                  if (!mounted) return;
+                                  final currentSongs = _songs.value;
+                                  SongEntity? deleted;
+                                  for (final s in currentSongs) {
+                                    if (s.id == id) {
+                                      deleted = s;
+                                      break;
+                                    }
+                                  }
+                                  final nextSongs = currentSongs
+                                      .where((s) => s.id != id)
+                                      .toList();
+                                  _songs.value = nextSongs;
+                                  _cachedSongs = nextSongs;
+                                  if (_currentId.value == id) {
+                                    _currentId.value = null;
+                                  }
+                                  unawaited(_updateVisibleSongs());
+                                  if (deleted != null) {
+                                    Future.microtask(
+                                      () => _actionsController.removeSongs(
+                                        songsToRemove: [deleted!],
+                                        clearArtwork: (song) =>
+                                            _artworkCoordinator.clearSong(
+                                              song.id,
+                                              uri: song.uri,
+                                            ),
+                                        onSongsRemoved: (removed) async {},
+                                        onProgress: (processed, total) async {},
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            },
+                          );
+                        },
+                        floatingButton: _currentId.value == null
+                            ? null
+                            : FloatingActionButton(
+                                mini: true,
+                                onPressed: () {
+                                  final targetId = _currentId.value;
+                                  if (targetId == null) return;
+                                  final index = visibleSongs.indexWhere(
+                                    (s) => s.id == targetId,
+                                  );
+                                  if (index == -1) return;
+                                  final offset = index * _itemExtent;
+                                  final max =
+                                      _listController.position.maxScrollExtent;
+                                  _listController.animateTo(
+                                    offset.clamp(0.0, max),
+                                    duration: const Duration(milliseconds: 240),
+                                    curve: Curves.easeOut,
+                                  );
+                                },
+                                child: const Icon(AppIcons.locate, size: 18),
+                              ),
+                      ),
+              ),
+              if (multiSelect.value)
+                MultiSelectBottomBar(
+                  actions: [
+                    MultiSelectAction(
+                      icon: AppIcons.queue,
+                      label: '下一首播放',
+                      onTap: selectedCount == 0
+                          ? null
+                          : () {
+                              AppToast.show(
+                                context,
+                                '已添加 $selectedCount 首到下一首播放',
+                              );
+                              toggleMultiSelect();
+                            },
+                    ),
+                    MultiSelectAction(
+                      icon: AppIcons.playlist,
+                      label: '收藏到歌单',
+                      onTap: selectedCount == 0
+                          ? null
+                          : _openAddToPlaylistSheet,
+                    ),
+                    MultiSelectAction(
+                      icon: AppIcons.trash,
+                      label: '移除',
+                      isDestructive: true,
+                      onTap: selectedCount == 0 ? null : _removeSelectedSongs,
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 

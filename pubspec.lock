@@ -518,14 +518,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "6.1.0"
-  liquid_glass_easy:
+  liquid_glass_widgets:
     dependency: "direct main"
     description:
-      name: liquid_glass_easy
-      sha256: ad942ca5da42ad86417f5cf3a760d01ed913088192abc310a781d5513398d1b6
+      name: liquid_glass_widgets
+      sha256: bd767b4b7886350ff84262159572b8dceb91ad588c290e3c43592d160b0eb0dc
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "4.1.1"
+    version: "1.4.3"
   logging:
     dependency: transitive
     description:
@@ -1156,4 +1156,4 @@ packages:
     version: "3.1.3"
 sdks:
   dart: ">=3.10.8 <4.0.0"
-  flutter: ">=3.38.4"
+  flutter: ">=3.41.0"

@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 
 import 'package:nagomusic/app/state/pref_entry.dart';
-import 'package:nagomusic/app/state/settings_layout_state.dart';
 import 'package:nagomusic/app/state/settings_playback_state.dart';
 import 'package:nagomusic/app/state/settings_theme_state.dart';
 
@@ -140,23 +139,6 @@ void main() {
       SharedPreferences.setMockInitialValues({'setting_theme_mode': 'bogus'});
       AppThemeSettings.themeMode.load(await SharedPreferences.getInstance());
       expect(AppThemeSettings.themeMode.value, ThemeMode.system);
-    });
-
-    test('navigation style round-trips by enum name', () async {
-      SharedPreferences.setMockInitialValues({
-        'setting_navigation_style': 'bottomBar',
-      });
-      AppLayoutSettings.navigationStyle.load(
-        await SharedPreferences.getInstance(),
-      );
-      expect(
-        AppLayoutSettings.navigationStyle.value,
-        AppNavigationStyle.bottomBar,
-      );
-
-      await AppLayoutSettings.setNavigationStyle(AppNavigationStyle.drawer);
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('setting_navigation_style'), 'drawer');
     });
 
     test('theme seed color stores ARGB and clears on null', () async {

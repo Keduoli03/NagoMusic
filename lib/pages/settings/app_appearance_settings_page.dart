@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../app/services/haptic_service.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/theme/app_accents.dart';
+import '../../app/theme/tokens.dart';
 import '../../components/index.dart';
 
 class AppAppearanceSettingsPage extends StatefulWidget {
@@ -211,84 +211,14 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
         elevation: 0,
       ),
       body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+        padding: AppSpacing.pageInsets(
+          top: AppSpacing.md,
+          bottom: bottomPadding,
+        ),
         children: [
-          AppSettingSection(
-            title: '导航布局',
-            children: [
-              ValueListenableBuilder<AppNavigationStyle>(
-                valueListenable: AppLayoutSettings.navigationStyle,
-                builder: (context, style, _) {
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '导航方式',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: SegmentedButton<AppNavigationStyle>(
-                            segments: const [
-                              ButtonSegment(
-                                value: AppNavigationStyle.drawer,
-                                icon: Icon(AppIcons.menu),
-                                label: Text('侧边栏'),
-                              ),
-                              ButtonSegment(
-                                value: AppNavigationStyle.bottomBar,
-                                icon: Icon(AppIcons.grid),
-                                label: Text('底部导航'),
-                              ),
-                            ],
-                            selected: {style},
-                            showSelectedIcon: false,
-                            onSelectionChanged: (selection) {
-                              AppLayoutSettings.setNavigationStyle(
-                                selection.first,
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          style == AppNavigationStyle.bottomBar
-                              ? '四个常用入口固定在底部，专辑、艺术家与文件夹仍从音乐库进入'
-                              : '保留当前从左侧菜单访问各页面的方式',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           AppSettingSection(
             title: '外观设置',
             children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: AppLayoutSettings.tabletMode,
-                builder: (context, enabled, _) {
-                  return AppSettingSwitchTile(
-                    title: '平板模式',
-                    subtitle: '优化平板布局',
-                    value: enabled,
-                    onChanged: (value) {
-                      AppLayoutSettings.setTabletMode(value);
-                    },
-                  );
-                },
-              ),
               ValueListenableBuilder<bool>(
                 valueListenable: SongListDisplaySettings.showQualityTag,
                 builder: (context, enabled, _) {

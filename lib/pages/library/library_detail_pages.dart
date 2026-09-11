@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:nagomusic/app/theme/app_icons.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/player_service.dart';
 import '../../app/services/stats_service.dart';
 import '../../app/state/song_state.dart';
+import '../../app/theme/tokens.dart';
 import '../../components/index.dart';
 import '../songs/show_song_detail_sheet.dart';
 
@@ -217,50 +217,38 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        extendBodyBehindAppBar: false,
-        useSafeArea: false,
-        appBar: AppTopBar(
-          title: widget.artistName,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
-        body: Watch.builder(
-          builder: (context) {
-            final theme = Theme.of(context);
-            final isDark = theme.brightness == Brightness.dark;
-            final player = PlayerService.instance;
-            final songs = _songs.value;
-            final albumNames = _albumNames.value;
-            final albums = _albumGroups.value;
-            final representative = _representative.value;
+    return AppPageScaffold(
+      extendBodyBehindAppBar: false,
+      useSafeArea: false,
+      appBar: AppTopBar(
+        title: widget.artistName,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Watch.builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          final player = PlayerService.instance;
+          final songs = _songs.value;
+          final albumNames = _albumNames.value;
+          final albums = _albumGroups.value;
+          final representative = _representative.value;
 
-            return ListView(
-              padding: const EdgeInsets.only(top: 0, bottom: 160),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (representative != null)
-                        ArtworkWidget(
-                          song: representative,
-                          size: 110,
-                          borderRadius: 55,
-                          placeholder: CircleAvatar(
-                            radius: 55,
-                            child: Text(
-                              widget.artistName.isEmpty
-                                  ? '?'
-                                  : widget.artistName.substring(0, 1),
-                              style: const TextStyle(fontSize: 36),
-                            ),
-                          ),
-                        )
-                      else
-                        CircleAvatar(
+          return ListView(
+            padding: const EdgeInsets.only(top: 0, bottom: 160),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (representative != null)
+                      ArtworkWidget(
+                        song: representative,
+                        size: 110,
+                        borderRadius: 55,
+                        placeholder: CircleAvatar(
                           radius: 55,
                           child: Text(
                             widget.artistName.isEmpty
@@ -269,35 +257,151 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                             style: const TextStyle(fontSize: 36),
                           ),
                         ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.artistName,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '专辑：${albumNames.length}  歌曲：${songs.length}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.textTheme.bodySmall?.color
-                                    ?.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
+                      )
+                    else
+                      CircleAvatar(
+                        radius: 55,
+                        child: Text(
+                          widget.artistName.isEmpty
+                              ? '?'
+                              : widget.artistName.substring(0, 1),
+                          style: const TextStyle(fontSize: 36),
                         ),
                       ),
-                    ],
-                  ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.artistName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '专辑：${albumNames.length}  歌曲：${songs.length}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.textTheme.bodySmall?.color
+                                  ?.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                indent: 16,
+                endIndent: 16,
+                color: Colors.grey.withValues(alpha: 0.2),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+                child: Row(
+                  children: [
+                    Text(
+                      '歌曲',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(AppIcons.shuffle),
+                      tooltip: '随机播放',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: songs.isEmpty
+                          ? null
+                          : () async {
+                              final shuffled = List<SongEntity>.from(songs)
+                                ..shuffle();
+                              await player.playQueue(shuffled, 0);
+                            },
+                    ),
+                    IconButton(
+                      icon: const Icon(AppIcons.play),
+                      tooltip: '顺序播放',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: songs.isEmpty
+                          ? null
+                          : () async {
+                              await player.playQueue(songs, 0);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+              ...songs.asMap().entries.map((entry) {
+                final index = entry.key;
+                final song = entry.value;
+                return ValueListenableBuilder<SongEntity?>(
+                  valueListenable: player.currentSong,
+                  builder: (context, current, _) {
+                    final isPlaying = current?.id == song.id;
+                    final titleColor = isPlaying
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface;
+                    final subtitleColor = isPlaying
+                        ? theme.colorScheme.primary
+                        : (isDark
+                              ? Colors.white70
+                              : const Color.fromARGB(255, 100, 100, 100));
+                    return AppListTile(
+                      leading: ArtworkWidget(
+                        song: song,
+                        size: 44,
+                        borderRadius: 8,
+                        placeholder: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: theme.cardColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            song.title.isEmpty
+                                ? '?'
+                                : song.title.substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      title: song.title,
+                      subtitleLeading: QualityTagBadge(song: song),
+                      subtitle: song.album?.trim().isNotEmpty == true
+                          ? song.album!.trim()
+                          : '未知专辑',
+                      titleColor: titleColor,
+                      subtitleColor: subtitleColor,
+                      contentPadding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                      ),
+                      onTap: () async {
+                        await player.playQueue(songs, index);
+                      },
+                      onLongPress: () {
+                        showSongDetailSheet(context, song: song);
+                      },
+                    );
+                  },
+                );
+              }),
+              if (albums.isNotEmpty) ...[
+                const SizedBox(height: 8),
                 Divider(
                   height: 1,
                   thickness: 0.5,
@@ -305,175 +409,67 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> with SignalsMixin {
                   endIndent: 16,
                   color: Colors.grey.withValues(alpha: 0.2),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-                  child: Row(
-                    children: [
-                      Text(
-                        '歌曲',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(AppIcons.shuffle),
-                        tooltip: '随机播放',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: songs.isEmpty
-                            ? null
-                            : () async {
-                                final shuffled = List<SongEntity>.from(songs)
-                                  ..shuffle();
-                                await player.playQueue(shuffled, 0);
-                              },
-                      ),
-                      IconButton(
-                        icon: const Icon(AppIcons.play),
-                        tooltip: '顺序播放',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: songs.isEmpty
-                            ? null
-                            : () async {
-                                await player.playQueue(songs, 0);
-                              },
-                      ),
-                    ],
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  title: Text(
+                    '专辑',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                  trailing: Icon(
+                    _albumsExpanded.value
+                        ? AppIcons.chevronUp
+                        : AppIcons.chevronDown,
+                  ),
+                  onTap: () {
+                    _albumsExpanded.value = !_albumsExpanded.value;
+                  },
                 ),
-                ...songs.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final song = entry.value;
-                  return ValueListenableBuilder<SongEntity?>(
-                    valueListenable: player.currentSong,
-                    builder: (context, current, _) {
-                      final isPlaying = current?.id == song.id;
-                      final titleColor = isPlaying
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface;
-                      final subtitleColor = isPlaying
-                          ? theme.colorScheme.primary
-                          : (isDark
-                                ? Colors.white70
-                                : const Color.fromARGB(255, 100, 100, 100));
-                      return AppListTile(
-                        leading: ArtworkWidget(
-                          song: song,
-                          size: 44,
-                          borderRadius: 8,
-                          placeholder: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: theme.cardColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              song.title.isEmpty
-                                  ? '?'
-                                  : song.title.substring(0, 1).toUpperCase(),
-                              style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        title: song.title,
-                        subtitleLeading: QualityTagBadge(song: song),
-                        subtitle: song.album?.trim().isNotEmpty == true
-                            ? song.album!.trim()
-                            : '未知专辑',
-                        titleColor: titleColor,
-                        subtitleColor: subtitleColor,
-                        contentPadding: const EdgeInsets.only(
-                          left: 16,
-                          right: 16,
-                        ),
-                        onTap: () async {
-                          await player.playQueue(songs, index);
-                        },
-                        onLongPress: () {
-                          showSongDetailSheet(context, song: song);
-                        },
-                      );
-                    },
-                  );
-                }),
-                if (albums.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    indent: 16,
-                    endIndent: 16,
-                    color: Colors.grey.withValues(alpha: 0.2),
-                  ),
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    title: Text(
-                      '专辑',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    trailing: Icon(
-                      _albumsExpanded.value
-                          ? AppIcons.chevronUp
-                          : AppIcons.chevronDown,
-                    ),
-                    onTap: () {
-                      _albumsExpanded.value = !_albumsExpanded.value;
-                    },
-                  ),
-                  if (_albumsExpanded.value)
-                    ...albums.map((album) {
-                      final rep = album.songs.isNotEmpty
-                          ? album.songs.first
-                          : representative;
-                      return ListTile(
-                        leading: rep == null
-                            ? const SizedBox(width: 44, height: 44)
-                            : ArtworkWidget(
-                                song: rep,
-                                size: 44,
-                                borderRadius: 10,
-                                placeholder: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: theme.cardColor,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                if (_albumsExpanded.value)
+                  ...albums.map((album) {
+                    final rep = album.songs.isNotEmpty
+                        ? album.songs.first
+                        : representative;
+                    return ListTile(
+                      leading: rep == null
+                          ? const SizedBox(width: 44, height: 44)
+                          : ArtworkWidget(
+                              song: rep,
+                              size: 44,
+                              borderRadius: 10,
+                              placeholder: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: theme.cardColor,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                        title: Text(
-                          album.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text('${album.songs.length} 首'),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            buildAppPageRoute(
-                              (_) => AlbumDetailPage(albumName: album.name),
                             ),
-                          );
-                        },
-                      );
-                    }),
-                ],
-                const SizedBox(height: 24),
+                      title: Text(
+                        album.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text('${album.songs.length} 首'),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          buildAppPageRoute(
+                            (_) => AlbumDetailPage(albumName: album.name),
+                          ),
+                        );
+                      },
+                    );
+                  }),
               ],
-            );
-          },
-        ),
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
-            ? (index) => navigateToPrimaryDestination(context, index)
-            : null,
+              const SizedBox(height: 24),
+            ],
+          );
+        },
       ),
+      bottomNavIndex: 0,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
     );
   }
 }
@@ -576,70 +572,59 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        extendBodyBehindAppBar: false,
-        useSafeArea: false,
-        appBar: AppTopBar(
-          title: widget.albumName,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          actions: [
-            IconButton(
-              tooltip: '更多',
-              icon: const Icon(AppIcons.moreVertical),
-              onPressed: _showMoreSheet,
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: Watch.builder(
-          builder: (context) {
-            final theme = Theme.of(context);
-            final isDark = theme.brightness == Brightness.dark;
-            final player = PlayerService.instance;
-            final songs = _songs.value;
-            final representative = songs.isNotEmpty ? songs.first : null;
-            final artistLabel = representative != null
-                ? primaryArtistLabel(representative.artist)
-                : '未知艺术家';
-            final year = albumYearFromSongs(songs);
-            final songCountText = '${songs.length}首';
-            final infoText = year.isEmpty
-                ? songCountText
-                : '$songCountText · $year';
+    return AppPageScaffold(
+      extendBodyBehindAppBar: false,
+      useSafeArea: false,
+      appBar: AppTopBar(
+        title: widget.albumName,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: '更多',
+            icon: const Icon(AppIcons.moreVertical),
+            onPressed: _showMoreSheet,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Watch.builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          final player = PlayerService.instance;
+          final songs = _songs.value;
+          final representative = songs.isNotEmpty ? songs.first : null;
+          final artistLabel = representative != null
+              ? primaryArtistLabel(representative.artist)
+              : '未知艺术家';
+          final year = albumYearFromSongs(songs);
+          final songCountText = '${songs.length}首';
+          final infoText = year.isEmpty
+              ? songCountText
+              : '$songCountText · $year';
 
-            final Set<String> participatingArtists = {};
-            for (final song in songs) {
-              participatingArtists.addAll(splitArtists(song.artist));
-            }
-            final sortedArtists = participatingArtists.toList()
-              ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b)));
+          final Set<String> participatingArtists = {};
+          for (final song in songs) {
+            participatingArtists.addAll(splitArtists(song.artist));
+          }
+          final sortedArtists = participatingArtists.toList()
+            ..sort((a, b) => pinyinKey(a).compareTo(pinyinKey(b)));
 
-            return ListView(
-              padding: const EdgeInsets.only(top: 12, bottom: 160),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (representative != null)
-                        ArtworkWidget(
-                          song: representative,
-                          size: 110,
-                          borderRadius: 12,
-                          placeholder: Container(
-                            width: 110,
-                            height: 110,
-                            decoration: BoxDecoration(
-                              color: theme.cardColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        )
-                      else
-                        Container(
+          return ListView(
+            padding: const EdgeInsets.only(top: 12, bottom: 160),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (representative != null)
+                      ArtworkWidget(
+                        song: representative,
+                        size: 110,
+                        borderRadius: 12,
+                        placeholder: Container(
                           width: 110,
                           height: 110,
                           decoration: BoxDecoration(
@@ -647,46 +632,165 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.albumName,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              artistLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: theme.textTheme.bodyMedium?.color
-                                    ?.withValues(alpha: 0.85),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              infoText,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.textTheme.bodySmall?.color
-                                    ?.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
+                      )
+                    else
+                      Container(
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          color: theme.cardColor,
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                    ],
-                  ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.albumName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            artistLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.body.copyWith(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withValues(alpha: 0.85),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            infoText,
+                            style: AppTypography.caption.copyWith(
+                              color: theme.textTheme.bodySmall?.color
+                                  ?.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                indent: 16,
+                endIndent: 16,
+                color: Colors.grey.withValues(alpha: 0.2),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+                child: Row(
+                  children: [
+                    Text(
+                      '歌曲',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(AppIcons.shuffle),
+                      tooltip: '随机播放',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: songs.isEmpty
+                          ? null
+                          : () async {
+                              final shuffled = List<SongEntity>.from(songs)
+                                ..shuffle();
+                              await player.playQueue(shuffled, 0);
+                            },
+                    ),
+                    IconButton(
+                      icon: const Icon(AppIcons.play),
+                      tooltip: '顺序播放',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: songs.isEmpty
+                          ? null
+                          : () async {
+                              await _statsService.recordAlbumPlay(
+                                widget.albumName,
+                              );
+                              await player.playQueue(songs, 0);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+              ...songs.asMap().entries.map((entry) {
+                final index = entry.key;
+                final song = entry.value;
+                return ValueListenableBuilder<SongEntity?>(
+                  valueListenable: player.currentSong,
+                  builder: (context, current, _) {
+                    final isPlaying = current?.id == song.id;
+                    final titleColor = isPlaying
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface;
+                    final subtitleColor = isPlaying
+                        ? theme.colorScheme.primary
+                        : (isDark
+                              ? Colors.white70
+                              : const Color.fromARGB(255, 100, 100, 100));
+                    return AppListTile(
+                      leading: _showCovers.value
+                          ? ArtworkWidget(
+                              song: song,
+                              size: 48,
+                              borderRadius: 6,
+                              placeholder: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: theme.cardColor,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            )
+                          : SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: Center(
+                                child: Text(
+                                  '${index + 1}',
+                                  style: AppTypography.title.copyWith(
+                                    color: subtitleColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                      title: song.title,
+                      subtitleLeading: QualityTagBadge(song: song),
+                      subtitle: song.artist,
+                      titleColor: titleColor,
+                      subtitleColor: subtitleColor,
+                      contentPadding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                      ),
+                      onTap: () async {
+                        await _statsService.recordAlbumPlay(widget.albumName);
+                        await player.playQueue(songs, index);
+                      },
+                      onLongPress: () {
+                        showSongDetailSheet(context, song: song);
+                      },
+                    );
+                  },
+                );
+              }),
+              if (sortedArtists.isNotEmpty) ...[
+                const SizedBox(height: 8),
                 Divider(
                   height: 1,
                   thickness: 0.5,
@@ -695,163 +799,48 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> with SignalsMixin {
                   color: Colors.grey.withValues(alpha: 0.2),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-                  child: Row(
-                    children: [
-                      Text(
-                        '歌曲',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(AppIcons.shuffle),
-                        tooltip: '随机播放',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: songs.isEmpty
-                            ? null
-                            : () async {
-                                final shuffled = List<SongEntity>.from(songs)
-                                  ..shuffle();
-                                await player.playQueue(shuffled, 0);
-                              },
-                      ),
-                      IconButton(
-                        icon: const Icon(AppIcons.play),
-                        tooltip: '顺序播放',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: songs.isEmpty
-                            ? null
-                            : () async {
-                                await _statsService.recordAlbumPlay(
-                                  widget.albumName,
-                                );
-                                await player.playQueue(songs, 0);
-                              },
-                      ),
-                    ],
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    '参与创作的艺术家',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                ...songs.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final song = entry.value;
-                  return ValueListenableBuilder<SongEntity?>(
-                    valueListenable: player.currentSong,
-                    builder: (context, current, _) {
-                      final isPlaying = current?.id == song.id;
-                      final titleColor = isPlaying
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface;
-                      final subtitleColor = isPlaying
-                          ? theme.colorScheme.primary
-                          : (isDark
-                                ? Colors.white70
-                                : const Color.fromARGB(255, 100, 100, 100));
-                      return AppListTile(
-                        leading: _showCovers.value
-                            ? ArtworkWidget(
-                                song: song,
-                                size: 48,
-                                borderRadius: 6,
-                                placeholder: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: theme.cardColor,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                ),
-                              )
-                            : SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: Center(
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: subtitleColor,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                        title: song.title,
-                        subtitleLeading: QualityTagBadge(song: song),
-                        subtitle: song.artist,
-                        titleColor: titleColor,
-                        subtitleColor: subtitleColor,
-                        contentPadding: const EdgeInsets.only(
-                          left: 16,
-                          right: 16,
+                ...sortedArtists.map((artist) {
+                  final artistSong = songs.firstWhere(
+                    (s) => splitArtists(s.artist).contains(artist),
+                    orElse: () => songs.first,
+                  );
+                  final initial = artist.isNotEmpty ? artist[0] : '?';
+                  return ListTile(
+                    leading: ArtworkWidget(
+                      song: artistSong,
+                      size: 44,
+                      borderRadius: 22,
+                      placeholder: CircleAvatar(
+                        radius: 22,
+                        child: Text(initial),
+                      ),
+                    ),
+                    title: Text(artist),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        buildAppPageRoute(
+                          (_) => ArtistDetailPage(artistName: artist),
                         ),
-                        onTap: () async {
-                          await _statsService.recordAlbumPlay(widget.albumName);
-                          await player.playQueue(songs, index);
-                        },
-                        onLongPress: () {
-                          showSongDetailSheet(context, song: song);
-                        },
                       );
                     },
                   );
                 }),
-                if (sortedArtists.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    indent: 16,
-                    endIndent: 16,
-                    color: Colors.grey.withValues(alpha: 0.2),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      '参与创作的艺术家',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  ...sortedArtists.map((artist) {
-                    final artistSong = songs.firstWhere(
-                      (s) => splitArtists(s.artist).contains(artist),
-                      orElse: () => songs.first,
-                    );
-                    final initial = artist.isNotEmpty ? artist[0] : '?';
-                    return ListTile(
-                      leading: ArtworkWidget(
-                        song: artistSong,
-                        size: 44,
-                        borderRadius: 22,
-                        placeholder: CircleAvatar(
-                          radius: 22,
-                          child: Text(initial),
-                        ),
-                      ),
-                      title: Text(artist),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          buildAppPageRoute(
-                            (_) => ArtistDetailPage(artistName: artist),
-                          ),
-                        );
-                      },
-                    );
-                  }),
-                ],
-                const SizedBox(height: 24),
               ],
-            );
-          },
-        ),
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
-            ? (index) => navigateToPrimaryDestination(context, index)
-            : null,
+              const SizedBox(height: 24),
+            ],
+          );
+        },
       ),
+      bottomNavIndex: 0,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
     );
   }
 }

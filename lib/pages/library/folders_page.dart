@@ -39,8 +39,6 @@ class FoldersPage extends StatefulWidget {
 }
 
 class _FoldersPageState extends State<FoldersPage> with SignalsMixin {
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
   final SongDao _songDao = SongDao();
 
   late final _folders = createSignal<List<_FolderGroup>>([]);
@@ -92,10 +90,6 @@ class _FoldersPageState extends State<FoldersPage> with SignalsMixin {
     _loading.value = false;
   }
 
-  void _openDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
-  }
-
   void _openFolder(_FolderGroup folder) {
     Navigator.of(context).push(
       buildAppPageRoute<void>(
@@ -110,56 +104,42 @@ class _FoldersPageState extends State<FoldersPage> with SignalsMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        key: _scaffoldKey,
-        extendBodyBehindAppBar: true,
-        appBar: AppTopBar(
-          title: '文件夹',
-          leading: IconButton(
-            icon: Icon(
-              useBottomNavigation ? AppIcons.arrowLeft : AppIcons.menu,
-            ),
-            onPressed: useBottomNavigation
-                ? () => Navigator.of(context).maybePop()
-                : _openDrawer,
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
+    return AppPageScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppTopBar(
+        title: '文件夹',
+        leading: IconButton(
+          icon: const Icon(AppIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        drawer: useBottomNavigation
-            ? null
-            : SideMenu(
-                onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
-              ),
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
-            ? (index) => navigateToPrimaryDestination(context, index)
-            : null,
-        body: Watch.builder(
-          builder: (context) {
-            if (_loading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final folders = _folders.value;
-            if (folders.isEmpty) {
-              return const Center(child: Text('还没有可显示的文件夹'));
-            }
-            final bottomPadding = AppPageScaffold.scrollableBottomPadding(
-              context,
-            );
-            return ListView.builder(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, bottomPadding),
-              itemCount: folders.length,
-              itemBuilder: (context, index) {
-                return _FolderTile(
-                  folder: folders[index],
-                  onTap: () => _openFolder(folders[index]),
-                );
-              },
-            );
-          },
-        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      bottomNavIndex: 0,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
+      body: Watch.builder(
+        builder: (context) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final folders = _folders.value;
+          if (folders.isEmpty) {
+            return const Center(child: Text('还没有可显示的文件夹'));
+          }
+          final bottomPadding = AppPageScaffold.scrollableBottomPadding(
+            context,
+          );
+          return ListView.builder(
+            padding: EdgeInsets.fromLTRB(12, 8, 12, bottomPadding),
+            itemCount: folders.length,
+            itemBuilder: (context, index) {
+              return _FolderTile(
+                folder: folders[index],
+                onTap: () => _openFolder(folders[index]),
+              );
+            },
+          );
+        },
       ),
     );
   }

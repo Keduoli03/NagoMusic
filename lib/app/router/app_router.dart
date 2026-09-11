@@ -28,7 +28,6 @@ import '../../pages/bili/bili_search_page.dart';
 import '../../pages/bili/bili_recent_page.dart';
 import '../../pages/bili/bili_profile_page.dart';
 import '../../pages/bili/bili_collections_page.dart';
-import '../../app/state/settings_state.dart';
 import '../../app/utils/primary_shell_scope.dart';
 import '../../components/layout/modern_navigation_bar.dart';
 
@@ -180,40 +179,25 @@ class _PrimaryNavigationShellState extends State<_PrimaryNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<AppNavigationStyle>(
-      valueListenable: AppLayoutSettings.navigationStyle,
-      builder: (context, navigationStyle, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: AppLayoutSettings.tabletMode,
-          builder: (context, tabletMode, _) {
-            final useBottomNavigation =
-                navigationStyle == AppNavigationStyle.bottomBar && !tabletMode;
-            if (!useBottomNavigation) return const HomePage();
-
-            _scheduleWarmup();
-
-            return PopScope(
-              canPop: _currentIndex == 0,
-              onPopInvokedWithResult: (didPop, result) {
-                if (!didPop && _currentIndex != 0) _select(0);
-              },
-              child: PrimaryShellMarker(
-                child: PrimaryNavigationScope(
-                  currentIndex: _currentIndex,
-                  onSelected: _select,
-                  child: IndexedStack(
-                    index: _currentIndex,
-                    children: List.generate(
-                      _pages.length,
-                      (index) => _pages[index] ?? const SizedBox.shrink(),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
+    _scheduleWarmup();
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentIndex != 0) _select(0);
       },
+      child: PrimaryShellMarker(
+        child: PrimaryNavigationScope(
+          currentIndex: _currentIndex,
+          onSelected: _select,
+          child: IndexedStack(
+            index: _currentIndex,
+            children: List.generate(
+              _pages.length,
+              (index) => _pages[index] ?? const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

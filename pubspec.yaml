@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.7.5+17
+version: 1.7.6+18
 
 environment:
   sdk: ^3.10.8
@@ -69,7 +69,10 @@ dependencies:
   qr_flutter: ^4.1.0
   # 图标统一入口由 lib/app/theme/app_icons.dart 封装，页面不得直接依赖图标库。
   phosphoricons_flutter: ^1.0.0
-  liquid_glass_easy: ^4.1.1
+  # iOS 风格液态玻璃。换掉了原来的 liquid_glass_easy —— 那个只提供「一块玻璃
+  # 面板」，底栏的 Tab、指示器、按压反馈都得自己拼，效果不好调。这个包直接给
+  # 成品的 GlassTabBar，指示器的液态形变、拖动切换都是它自带的。
+  liquid_glass_widgets: ^1.4.1
 
 dev_dependencies:
   flutter_test:
@@ -99,10 +102,6 @@ flutter:
   assets:
     - 开发文档/NagoAPP图标.png
     - assets/preview/style_preview_cover.jpg
-
-  # 液态玻璃底栏的片元着色器。构建时由 impellerc 编译，运行时需要 Impeller
-  # （非 Impeller 设备上 ImageFilter.shader 会抛 UnsupportedError，
-  # 见 LiquidGlassSupport 的降级处理）。
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

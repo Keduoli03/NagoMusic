@@ -46,6 +46,10 @@ abstract final class AppSpacing {
   static EdgeInsets pageBottom(double bottom) =>
       EdgeInsets.fromLTRB(lg, 0, lg, bottom);
 
+  /// 页面左右边距 + 自定义顶部与底部留白。
+  static EdgeInsets pageInsets({double top = 0, double bottom = 0}) =>
+      EdgeInsets.fromLTRB(lg, top, lg, bottom);
+
   /// 播放页主控键（播放/暂停）的图标尺寸。比两侧的上一首/下一首大一档。
   static const double playGlyph = 44;
 

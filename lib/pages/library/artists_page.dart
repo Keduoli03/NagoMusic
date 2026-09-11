@@ -71,8 +71,6 @@ class _ArtistsPageState extends State<ArtistsPage>
 
   final SongDao _songDao = SongDao();
   final ScrollController _controller = ScrollController();
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
   final PageCacheStore _cacheStore = PageCacheStore.instance;
 
   late final _loading = createSignal(true);
@@ -111,10 +109,6 @@ class _ArtistsPageState extends State<ArtistsPage>
   Future<void> _init() async {
     await _loadPrefs();
     await _load();
-  }
-
-  void _openDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
   }
 
   Future<void> _loadPrefs() async {
@@ -324,151 +318,134 @@ class _ArtistsPageState extends State<ArtistsPage>
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        key: _scaffoldKey,
-        extendBodyBehindAppBar: true,
-        appBar: AppTopBar(
-          title: '艺术家',
-          leading: IconButton(
-            icon: Icon(
-              useBottomNavigation ? AppIcons.arrowLeft : AppIcons.menu,
-            ),
-            onPressed: useBottomNavigation
-                ? () => Navigator.of(context).maybePop()
-                : _openDrawer,
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          actions: [SortActionButton(onTap: _showSortSheet)],
+    return AppPageScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppTopBar(
+        title: '艺术家',
+        leading: IconButton(
+          icon: const Icon(AppIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        drawer: useBottomNavigation
-            ? null
-            : SideMenu(
-                onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
-              ),
-        body: Watch.builder(
-          builder: (context) {
-            final headerCount =
-                (_showBlockedEntry.value && _blockedArtists.value.isNotEmpty)
-                ? 1
-                : 0;
-            final itemCount = _groups.value.length + headerCount;
-            return RefreshIndicator(
-              onRefresh: _load,
-              child: MediaListView(
-                controller: _controller,
-                itemCount: itemCount,
-                itemExtent: _itemExtent,
-                isLoading: false,
-                emptyText: '暂无艺术家',
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 160),
-                indexLabelBuilder: (index) {
-                  if (index < headerCount) return '';
-                  final name = _groups.value[index - headerCount].name;
-                  if (name == '未知艺术家') return '↑';
-                  return IndexUtils.leadingLetter(name);
-                },
-                itemBuilder: (context, index) {
-                  if (headerCount == 1 && index == 0) {
-                    final theme = Theme.of(context);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: SizedBox(
-                        height: 64,
-                        child: Material(
-                          color: theme.cardColor,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [SortActionButton(onTap: _showSortSheet)],
+      ),
+      body: Watch.builder(
+        builder: (context) {
+          final headerCount =
+              (_showBlockedEntry.value && _blockedArtists.value.isNotEmpty)
+              ? 1
+              : 0;
+          final itemCount = _groups.value.length + headerCount;
+          return RefreshIndicator(
+            onRefresh: _load,
+            child: MediaListView(
+              controller: _controller,
+              itemCount: itemCount,
+              itemExtent: _itemExtent,
+              isLoading: false,
+              emptyText: '暂无艺术家',
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 160),
+              indexLabelBuilder: (index) {
+                if (index < headerCount) return '';
+                final name = _groups.value[index - headerCount].name;
+                if (name == '未知艺术家') return '↑';
+                return IndexUtils.leadingLetter(name);
+              },
+              itemBuilder: (context, index) {
+                if (headerCount == 1 && index == 0) {
+                  final theme = Theme.of(context);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SizedBox(
+                      height: 64,
+                      child: Material(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: _showBlockedArtists,
-                            child: Row(
-                              children: [
-                                const SizedBox(width: 16),
-                                Icon(
-                                  AppIcons.personOff,
-                                  color: theme.colorScheme.error,
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(child: Text('已屏蔽的艺术家')),
-                                Text('${_blockedArtists.value.length} 个'),
-                                const SizedBox(width: 8),
-                                const Icon(AppIcons.chevronRight),
-                                const SizedBox(width: 12),
-                              ],
-                            ),
+                          onTap: _showBlockedArtists,
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 16),
+                              Icon(
+                                AppIcons.personOff,
+                                color: theme.colorScheme.error,
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(child: Text('已屏蔽的艺术家')),
+                              Text('${_blockedArtists.value.length} 个'),
+                              const SizedBox(width: 8),
+                              const Icon(AppIcons.chevronRight),
+                              const SizedBox(width: 12),
+                            ],
                           ),
                         ),
                       ),
-                    );
-                  }
-                  final g = _groups.value[index - headerCount];
-                  final initial = g.name.isNotEmpty
-                      ? g.name.characters.first
-                      : '?';
-                  return MediaListTile(
-                    leading: ArtworkWidget(
-                      song: g.representative,
-                      size: 44,
-                      borderRadius: 22,
-                      placeholder: CircleAvatar(
-                        radius: 22,
-                        child: Text(initial),
-                      ),
                     ),
-                    title: g.name,
-                    subtitle: '专辑：${g.albumCount}  歌曲：${g.songCount}',
-                    selected: false,
-                    multiSelect: false,
-                    isHighlighted: false,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        buildAppPageRoute(
-                          (_) => ArtistDetailPage(artistName: g.name),
-                        ),
-                      );
-                    },
-                    onLongPress: () {
-                      showModalBottomSheet(
-                        context: context,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) {
-                          return AppSheetPanel(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ListTile(
-                                  leading: const Icon(
-                                    AppIcons.personOff,
-                                    color: Colors.red,
-                                  ),
-                                  title: const Text('屏蔽艺术家'),
-                                  titleTextStyle: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                                  onTap: () async {
-                                    Navigator.pop(context);
-                                    await _blockArtist(g.name);
-                                  },
-                                ),
-                                const SizedBox(height: 8),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
                   );
-                },
-              ),
-            );
-          },
-        ),
-        bottomNavIndex: useBottomNavigation ? 0 : null,
-        onBottomNavTap: useBottomNavigation
-            ? (index) => navigateToPrimaryDestination(context, index)
-            : null,
+                }
+                final g = _groups.value[index - headerCount];
+                final initial = g.name.isNotEmpty
+                    ? g.name.characters.first
+                    : '?';
+                return MediaListTile(
+                  leading: ArtworkWidget(
+                    song: g.representative,
+                    size: 44,
+                    borderRadius: 22,
+                    placeholder: CircleAvatar(radius: 22, child: Text(initial)),
+                  ),
+                  title: g.name,
+                  subtitle: '专辑：${g.albumCount}  歌曲：${g.songCount}',
+                  selected: false,
+                  multiSelect: false,
+                  isHighlighted: false,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      buildAppPageRoute(
+                        (_) => ArtistDetailPage(artistName: g.name),
+                      ),
+                    );
+                  },
+                  onLongPress: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) {
+                        return AppSheetPanel(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                leading: const Icon(
+                                  AppIcons.personOff,
+                                  color: Colors.red,
+                                ),
+                                title: const Text('屏蔽艺术家'),
+                                titleTextStyle: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                                onTap: () async {
+                                  Navigator.pop(context);
+                                  await _blockArtist(g.name);
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          );
+        },
       ),
+      bottomNavIndex: 0,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
     );
   }
 }

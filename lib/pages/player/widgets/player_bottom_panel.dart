@@ -1082,8 +1082,11 @@ class _PlaylistSheetState extends State<_PlaylistSheet> {
                             child: child,
                           );
                         },
-                        onReorder: (oldIndex, newIndex) {
-                          widget.player.reorderQueue(oldIndex, newIndex);
+                        onReorderItem: (oldIndex, newIndex) {
+                          final legacyNewIndex = newIndex > oldIndex
+                              ? newIndex + 1
+                              : newIndex;
+                          widget.player.reorderQueue(oldIndex, legacyNewIndex);
                         },
                         itemCount: total,
                         itemBuilder: (context, index) {

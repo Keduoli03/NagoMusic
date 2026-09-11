@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'log/log.dart';
+import 'source_visibility_repository.dart';
 
 /// 以 JSON 数组形式存放在 SharedPreferences 中的音乐源仓库基类。
 ///
@@ -86,6 +87,7 @@ abstract class PrefsSourceRepository<T> {
     final list = await loadSources();
     final next = list.where((e) => idOf(e) != id).toList();
     await saveSources(next);
+    await SourceVisibilityRepository.instance.setEnabled(id, true);
   }
 
   String newId() => '$idPrefix-${DateTime.now().millisecondsSinceEpoch}';

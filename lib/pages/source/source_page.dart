@@ -11,6 +11,7 @@ import '../../app/services/log/log.dart';
 import '../../app/router/app_page_route.dart';
 import '../../app/services/navidrome/navidrome_music_service.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
+import '../../app/services/player_service.dart';
 import '../../app/services/webdav/webdav_music_service.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
@@ -22,6 +23,7 @@ import 'source_add_page.dart';
 import 'webdav/webdav_edit_page.dart';
 import 'webdav/webdav_folder_browser.dart';
 import '../../app/services/scan_types.dart';
+import '../../app/services/source_visibility_repository.dart';
 
 enum SourceType { local, webdav, navidrome }
 
@@ -30,12 +32,14 @@ class SourceItem {
   final String name;
   final SourceType type;
   final int songCount;
+  final bool enabled;
 
   const SourceItem({
     required this.id,
     required this.name,
     required this.type,
     required this.songCount,
+    required this.enabled,
   });
 }
 
@@ -70,8 +74,8 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   final NavidromeSourceRepository _navidromeRepo =
       NavidromeSourceRepository.instance;
   final SongDao _songDao = SongDao();
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
+  final SourceVisibilityRepository _visibilityRepo =
+      SourceVisibilityRepository.instance;
   final Map<String, ValueNotifier<_ScanProgress>> _scanNotifiers = {};
   final Set<String> _scanRunning = {};
   final Map<String, bool> _scanCancelSignals = {};
@@ -82,6 +86,7 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   late final _webDavSongCounts = createSignal<Map<String, int>>({});
   late final _navidromeConfigs = createSignal<List<NavidromeSource>>([]);
   late final _navidromeSongCounts = createSignal<Map<String, int>>({});
+  late final _disabledSourceIds = createSignal<Set<String>>({});
 
   late final _sources = computed<List<SourceItem>>(() {
     final localCount = _localSongCount.value;
@@ -89,12 +94,14 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     final webdavCounts = _webDavSongCounts.value;
     final navidromeConfigs = _navidromeConfigs.value;
     final navidromeCounts = _navidromeSongCounts.value;
+    final disabledSourceIds = _disabledSourceIds.value;
     return [
       SourceItem(
         id: 'local',
         name: '本地音乐',
         type: SourceType.local,
         songCount: localCount,
+        enabled: !disabledSourceIds.contains('local'),
       ),
       ...webdavConfigs.map(
         (s) => SourceItem(
@@ -102,6 +109,7 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           name: s.name.trim().isNotEmpty ? s.name.trim() : 'WebDAV',
           type: SourceType.webdav,
           songCount: webdavCounts[s.id] ?? 0,
+          enabled: !disabledSourceIds.contains(s.id),
         ),
       ),
       ...navidromeConfigs.map(
@@ -110,6 +118,7 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           name: s.name.trim().isNotEmpty ? s.name.trim() : 'Navidrome',
           type: SourceType.navidrome,
           songCount: navidromeCounts[s.id] ?? 0,
+          enabled: !disabledSourceIds.contains(s.id),
         ),
       ),
     ];
@@ -141,9 +150,48 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   }
 
   Future<void> _load() async {
+    final disabledSourceIds = await _visibilityRepo.loadDisabledSourceIds();
+    if (!mounted) return;
+    _disabledSourceIds.value = disabledSourceIds;
     await _loadLocalCount();
     await _loadWebDavSourcesAndCounts();
     await _loadNavidromeSourcesAndCounts();
+  }
+
+  Future<void> _setSourceEnabled(SourceItem source, bool enabled) async {
+    final previous = _disabledSourceIds.value;
+    final next = {...previous};
+    if (enabled) {
+      next.remove(source.id);
+    } else {
+      next.add(source.id);
+    }
+    _disabledSourceIds.value = next;
+
+    try {
+      await _visibilityRepo.setEnabled(source.id, enabled);
+    } catch (e, s) {
+      AppLog.instance.w(_logTag, '保存音源启用状态失败，sourceId=${source.id}', e, s);
+      if (!mounted) return;
+      _disabledSourceIds.value = previous;
+      AppToast.show(context, '保存音源状态失败', type: ToastType.error);
+      return;
+    }
+
+    SongDao.notifySourceVisibilityChanged();
+    if (!enabled) {
+      try {
+        final songIds = await _songDao.fetchIdsBySource(source.id);
+        await PlayerService.instance.removeSongsById(songIds.toList());
+      } catch (e, s) {
+        AppLog.instance.w(
+          _logTag,
+          '从播放队列移除已停用音源失败，sourceId=${source.id}',
+          e,
+          s,
+        );
+      }
+    }
   }
 
   Future<void> _loadLocalCount() async {
@@ -606,131 +654,127 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) => AppPageScaffold(
-        key: _scaffoldKey,
-        extendBodyBehindAppBar: true,
-        appBar: AppTopBar(
-          title: '音源',
-          // Bottom-nav mode reaches this page via a push from 「我的」, so it
-          // shows the default back button; only drawer mode gets the hamburger.
-          leading: useBottomNavigation
-              ? null
-              : IconButton(
-                  icon: const Icon(AppIcons.menu),
-                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+    return AppPageScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppTopBar(
+        title: '音源',
+        actions: [
+          IconButton(icon: const Icon(AppIcons.add), onPressed: _openSourceAdd),
+        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Watch.builder(
+        builder: (context) {
+          final localSources = _localSources.value;
+          final webDavSources = _webDavSourceItems.value;
+          final navidromeSources = _navidromeSourceItems.value;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            children: [
+              if (localSources.isNotEmpty)
+                SourceSectionCard(
+                  title: '本地',
+                  children: localSources
+                      .map(
+                        (source) => SourceTile(
+                          icon: AppIcons.folderOpen,
+                          title: source.name,
+                          subtitle: source.enabled
+                              ? '${source.songCount} 首歌曲'
+                              : '${source.songCount} 首歌曲 · 已停用',
+                          enabled: source.enabled,
+                          onEnabledChanged: (enabled) =>
+                              _setSourceEnabled(source, enabled),
+                          actions: [
+                            SourceTileAction(
+                              icon: AppIcons.arrowsClockwise,
+                              isLoading: _isScanning(source),
+                              tooltip: '扫描本地音乐',
+                              onTap: () => _startScan(source),
+                            ),
+                            SourceTileAction(
+                              icon: AppIcons.settings,
+                              tooltip: '设置',
+                              onTap: _openLocalSetting,
+                            ),
+                          ],
+                          onTap: () => _openSource(source),
+                        ),
+                      )
+                      .toList(),
                 ),
-          actions: [
-            IconButton(
-              icon: const Icon(AppIcons.add),
-              onPressed: _openSourceAdd,
-            ),
-          ],
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
-        drawer: useBottomNavigation
-            ? null
-            : SideMenu(
-                onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
-              ),
-        body: Watch.builder(
-          builder: (context) {
-            final localSources = _localSources.value;
-            final webDavSources = _webDavSourceItems.value;
-            final navidromeSources = _navidromeSourceItems.value;
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-              children: [
-                if (localSources.isNotEmpty)
-                  SourceSectionCard(
-                    title: '本地',
-                    children: localSources
-                        .map(
-                          (source) => SourceTile(
-                            icon: AppIcons.folderOpen,
-                            title: source.name,
-                            subtitle: '${source.songCount} 首歌曲',
-                            actions: [
-                              SourceTileAction(
-                                icon: AppIcons.arrowsClockwise,
-                                isLoading: _isScanning(source),
-                                tooltip: '扫描本地音乐',
-                                onTap: () => _startScan(source),
-                              ),
-                              SourceTileAction(
-                                icon: AppIcons.settings,
-                                tooltip: '设置',
-                                onTap: _openLocalSetting,
-                              ),
-                            ],
-                            onTap: () => _openSource(source),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                if (webDavSources.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  SourceSectionCard(
-                    title: '云端',
-                    children: webDavSources
-                        .map(
-                          (source) => SourceTile(
-                            icon: AppIcons.cloud,
-                            title: source.name,
-                            subtitle: '${source.songCount} 首歌曲',
-                            actions: [
-                              SourceTileAction(
-                                icon: AppIcons.arrowsClockwise,
-                                isLoading: _isScanning(source),
-                                tooltip: '扫描云端音乐',
-                                onTap: () => _startScan(source),
-                              ),
-                              SourceTileAction(
-                                icon: AppIcons.settings,
-                                tooltip: '设置',
-                                onTap: () => _openWebDavSetting(source),
-                              ),
-                            ],
-                            onTap: () => _openSource(source),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-                if (navidromeSources.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  SourceSectionCard(
-                    title: 'Navidrome',
-                    children: navidromeSources
-                        .map(
-                          (source) => SourceTile(
-                            icon: AppIcons.musicNotes,
-                            title: source.name,
-                            subtitle: '${source.songCount} 首歌曲',
-                            actions: [
-                              SourceTileAction(
-                                icon: AppIcons.arrowsClockwise,
-                                isLoading: _isScanning(source),
-                                tooltip: '扫描 Navidrome 音乐',
-                                onTap: () => _startScan(source),
-                              ),
-                              SourceTileAction(
-                                icon: AppIcons.settings,
-                                tooltip: '设置',
-                                onTap: () => _openNavidromeSetting(source),
-                              ),
-                            ],
-                            onTap: () => _openSource(source),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
+              if (webDavSources.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                SourceSectionCard(
+                  title: '云端',
+                  children: webDavSources
+                      .map(
+                        (source) => SourceTile(
+                          icon: AppIcons.cloud,
+                          title: source.name,
+                          subtitle: source.enabled
+                              ? '${source.songCount} 首歌曲'
+                              : '${source.songCount} 首歌曲 · 已停用',
+                          enabled: source.enabled,
+                          onEnabledChanged: (enabled) =>
+                              _setSourceEnabled(source, enabled),
+                          actions: [
+                            SourceTileAction(
+                              icon: AppIcons.arrowsClockwise,
+                              isLoading: _isScanning(source),
+                              tooltip: '扫描云端音乐',
+                              onTap: () => _startScan(source),
+                            ),
+                            SourceTileAction(
+                              icon: AppIcons.settings,
+                              tooltip: '设置',
+                              onTap: () => _openWebDavSetting(source),
+                            ),
+                          ],
+                          onTap: () => _openSource(source),
+                        ),
+                      )
+                      .toList(),
+                ),
               ],
-            );
-          },
-        ),
+              if (navidromeSources.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                SourceSectionCard(
+                  title: 'Navidrome',
+                  children: navidromeSources
+                      .map(
+                        (source) => SourceTile(
+                          icon: AppIcons.musicNotes,
+                          title: source.name,
+                          subtitle: source.enabled
+                              ? '${source.songCount} 首歌曲'
+                              : '${source.songCount} 首歌曲 · 已停用',
+                          enabled: source.enabled,
+                          onEnabledChanged: (enabled) =>
+                              _setSourceEnabled(source, enabled),
+                          actions: [
+                            SourceTileAction(
+                              icon: AppIcons.arrowsClockwise,
+                              isLoading: _isScanning(source),
+                              tooltip: '扫描 Navidrome 音乐',
+                              onTap: () => _startScan(source),
+                            ),
+                            SourceTileAction(
+                              icon: AppIcons.settings,
+                              tooltip: '设置',
+                              onTap: () => _openNavidromeSetting(source),
+                            ),
+                          ],
+                          onTap: () => _openSource(source),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }

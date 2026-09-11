@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:media_cache/media_cache.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,7 +53,17 @@ Future<void> _startApp() async {
   // 这条必须在首帧之前生效——它改的是 padding，等首帧画完再切会让整个布局跳一下。
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  runApp(const NagoMusicApp());
+  // 液态玻璃的着色器要预热一次，否则第一次切底栏 Tab 会卡一下。
+  // 放在 runApp 之前是因为底栏在首帧就要画；它只是编译着色器，很快。
+  await LiquidGlassWidgets.initialize(enablePerformanceMonitor: false);
+
+  runApp(
+    // 玻璃组件要靠这层拿到当前亮度（决定高光和阴影的方向），不包就取不到。
+    LiquidGlassWidgets.wrap(
+      brightnessResolver: Theme.maybeBrightnessOf,
+      child: const NagoMusicApp(),
+    ),
+  );
 
   // 以下都不是首帧需要的东西，全部放到 runApp 之后，和第一帧的光栅化并行跑。
   //
@@ -70,7 +81,7 @@ Future<void> _startApp() async {
   BiliCollectionService.instance.ensureLoaded();
   SongDao().fetchAllCached();
   // Pre-compute Albums/Artists groupings in the background so opening those
-  // library pages from the drawer / "我的" is instant instead of triggering a
+  // library pages from "我的" is instant instead of triggering a
   // fresh isolate spawn.
   LibraryWarmupService.scheduleAppStartWarmup();
 }

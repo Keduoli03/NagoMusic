@@ -5,6 +5,7 @@ import '../db_constants.dart';
 import '../db_helper.dart';
 import '../../../state/song_state.dart';
 import '../../../utils/cache_version_store.dart';
+import '../../source_visibility_repository.dart';
 
 class SongDao {
   static const String cacheVersionScope = 'song_library';
@@ -23,6 +24,22 @@ class SongDao {
   static void _bumpVersion() {
     CacheVersionStore.instance.bump(cacheVersionScope);
     libraryVersion.value++;
+  }
+
+  /// Makes every library surface reload after a source is enabled or disabled.
+  static void notifySourceVisibilityChanged() {
+    _cachedAll = null;
+    _cachedAllFuture = null;
+    _bumpVersion();
+  }
+
+  Future<Set<String>> _disabledSourceIds() =>
+      SourceVisibilityRepository.instance.loadDisabledSourceIds();
+
+  String _enabledSourcesWhere(Set<String> disabled) {
+    if (disabled.isEmpty) return '';
+    final placeholders = List.filled(disabled.length, '?').join(',');
+    return '(sourceId IS NULL OR sourceId NOT IN ($placeholders))';
   }
 
   Future<int> upsertSongs(List<SongEntity> songs) async {
@@ -78,8 +95,12 @@ class SongDao {
 
   Future<int> countAll() async {
     final db = await DbHelper.instance.database;
+    final disabled = await _disabledSourceIds();
+    final where = _enabledSourcesWhere(disabled);
     final result = await db.rawQuery(
-      'SELECT COUNT(*) as total FROM ${DbConstants.tableSongs}',
+      'SELECT COUNT(*) as total FROM ${DbConstants.tableSongs}'
+      '${where.isEmpty ? '' : ' WHERE $where'}',
+      disabled.toList(),
     );
     if (result.isEmpty) return 0;
     final value = result.first['total'];
@@ -88,14 +109,21 @@ class SongDao {
   }
 
   Future<int> countLocal() async {
+    if (!await SourceVisibilityRepository.instance.isEnabled('local')) {
+      return 0;
+    }
     return countBySource('local');
   }
 
   Future<int> countRemote() async {
     final db = await DbHelper.instance.database;
+    final disabled = await _disabledSourceIds();
+    final enabledWhere = _enabledSourcesWhere(disabled);
     final result = await db.rawQuery(
-      'SELECT COUNT(*) as total FROM ${DbConstants.tableSongs} WHERE sourceId != ?',
-      ['local'],
+      'SELECT COUNT(*) as total FROM ${DbConstants.tableSongs} '
+      'WHERE sourceId != ?'
+      '${enabledWhere.isEmpty ? '' : ' AND $enabledWhere'}',
+      ['local', ...disabled],
     );
     if (result.isEmpty) return 0;
     final value = result.first['total'];
@@ -105,10 +133,16 @@ class SongDao {
 
   Future<List<SongEntity>> fetchAll({String? sourceId}) async {
     final db = await DbHelper.instance.database;
+    final disabled = sourceId == null
+        ? await _disabledSourceIds()
+        : const <String>{};
+    final where = sourceId == null
+        ? _enabledSourcesWhere(disabled)
+        : 'sourceId = ?';
     final rows = await db.query(
       DbConstants.tableSongs,
-      where: sourceId == null ? null : 'sourceId = ?',
-      whereArgs: sourceId == null ? null : [sourceId],
+      where: where.isEmpty ? null : where,
+      whereArgs: sourceId == null ? disabled.toList() : [sourceId],
       orderBy: 'title COLLATE NOCASE',
     );
     return rows.map(SongEntity.fromMap).toList();
@@ -119,17 +153,28 @@ class SongDao {
     if (cached != null) return cached;
     final inflight = _cachedAllFuture;
     if (inflight != null) return inflight;
+    final versionAtStart = libraryVersion.value;
     final future = fetchAll();
     _cachedAllFuture = future;
     final list = await future;
+    if (versionAtStart != libraryVersion.value) {
+      if (identical(_cachedAllFuture, future)) {
+        _cachedAllFuture = null;
+      }
+      return fetchAllCached();
+    }
     _cachedAll = list;
-    _cachedAllFuture = null;
+    if (identical(_cachedAllFuture, future)) {
+      _cachedAllFuture = null;
+    }
     return list;
   }
 
   Future<List<SongEntity>> fetchByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
     final db = await DbHelper.instance.database;
+    final disabled = await _disabledSourceIds();
+    final enabledWhere = _enabledSourcesWhere(disabled);
     final map = <String, SongEntity>{};
     // 按 _maxIdsPerQuery 切批，理由和 upsertSongs 一样：Android 自带的 SQLite
     // 默认 SQLITE_MAX_VARIABLE_NUMBER 是 999，一条 `IN (?,?,…)` 塞满整份
@@ -140,8 +185,10 @@ class SongDao {
       final placeholders = List.filled(chunk.length, '?').join(',');
       final rows = await db.query(
         DbConstants.tableSongs,
-        where: 'id IN ($placeholders)',
-        whereArgs: chunk,
+        where:
+            'id IN ($placeholders)'
+            '${enabledWhere.isEmpty ? '' : ' AND $enabledWhere'}',
+        whereArgs: [...chunk, ...disabled],
       );
       for (final row in rows) {
         final song = SongEntity.fromMap(row);

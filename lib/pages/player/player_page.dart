@@ -354,33 +354,26 @@ class _PlayerView extends StatelessWidget {
     return ValueListenableBuilder<PlayerStylePreset>(
       valueListenable: PlayerStyleSettings.stylePreset,
       builder: (context, stylePreset, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: AppLayoutSettings.tabletMode,
-          builder: (context, tabletMode, _) {
-            final mq = MediaQuery.of(context);
-            final isTabletLandscape =
-                tabletMode &&
-                mq.orientation == Orientation.landscape &&
-                mq.size.width >= 900;
-            if (!isTabletLandscape) {
-              if (stylePreset == PlayerStylePreset.poster) {
-                return _PosterPlayerLayout(player: player);
-              }
-              if (stylePreset == PlayerStylePreset.immersive) {
-                return PlayerImmersiveLayout(player: player);
-              }
-              return _MobilePlayerLayout(
-                player: player,
-                stylePreset: stylePreset,
-                onTapLyrics: onTapLyrics,
-              );
-            }
-            return _TabletLandscapePlayerLayout(
-              player: player,
-              stylePreset: stylePreset,
-              onTapLyrics: onTapLyrics,
-            );
-          },
+        final mq = MediaQuery.of(context);
+        final isTabletLandscape =
+            mq.orientation == Orientation.landscape && mq.size.width >= 900;
+        if (!isTabletLandscape) {
+          if (stylePreset == PlayerStylePreset.poster) {
+            return _PosterPlayerLayout(player: player);
+          }
+          if (stylePreset == PlayerStylePreset.immersive) {
+            return PlayerImmersiveLayout(player: player);
+          }
+          return _MobilePlayerLayout(
+            player: player,
+            stylePreset: stylePreset,
+            onTapLyrics: onTapLyrics,
+          );
+        }
+        return _TabletLandscapePlayerLayout(
+          player: player,
+          stylePreset: stylePreset,
+          onTapLyrics: onTapLyrics,
         );
       },
     );
@@ -1060,68 +1053,62 @@ class _PlayerArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppLayoutSettings.tabletMode,
-      builder: (context, tabletMode, _) {
-        final isTabletLayout =
-            tabletMode && MediaQuery.sizeOf(context).width >= 720;
-        return Watch.builder(
-          builder: (context) {
-            final song = songSignal.value;
-            final spec = _ArtworkSpec.fromPreset(stylePreset, isTabletLayout);
-            final border = BorderRadius.circular(spec.borderRadius);
-            final maxSize = spec.maxSize;
-            if (song == null) {
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: spec.horizontalInset),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final size = constraints.maxWidth;
-                    final boxSize = size < maxSize ? size : maxSize;
-                    return Center(
-                      child: SizedBox(
-                        width: boxSize,
-                        height: boxSize,
-                        child: _ArtworkShadowContainer(
-                          border: border,
-                          child: _ArtworkPlaceholder(border: border, label: ''),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            }
-            return Padding(
-              padding: EdgeInsets.symmetric(horizontal: spec.horizontalInset),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final size = constraints.maxWidth;
-                  final boxSize = size < maxSize ? size : maxSize;
-                  return Center(
-                    child: SizedBox(
-                      width: boxSize,
-                      height: boxSize,
-                      child: _ArtworkShadowContainer(
+    final isTabletLayout = MediaQuery.sizeOf(context).width >= 720;
+    return Watch.builder(
+      builder: (context) {
+        final song = songSignal.value;
+        final spec = _ArtworkSpec.fromPreset(stylePreset, isTabletLayout);
+        final border = BorderRadius.circular(spec.borderRadius);
+        final maxSize = spec.maxSize;
+        if (song == null) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: spec.horizontalInset),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = constraints.maxWidth;
+                final boxSize = size < maxSize ? size : maxSize;
+                return Center(
+                  child: SizedBox(
+                    width: boxSize,
+                    height: boxSize,
+                    child: _ArtworkShadowContainer(
+                      border: border,
+                      child: _ArtworkPlaceholder(border: border, label: ''),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: spec.horizontalInset),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final size = constraints.maxWidth;
+              final boxSize = size < maxSize ? size : maxSize;
+              return Center(
+                child: SizedBox(
+                  width: boxSize,
+                  height: boxSize,
+                  child: _ArtworkShadowContainer(
+                    border: border,
+                    child: ArtworkWidget(
+                      song: song,
+                      size: boxSize,
+                      borderRadius: 12,
+                      preferOriginal: true,
+                      keepPreviousUntilLoaded: true,
+                      placeholder: _ArtworkPlaceholder(
                         border: border,
-                        child: ArtworkWidget(
-                          song: song,
-                          size: boxSize,
-                          borderRadius: 12,
-                          preferOriginal: true,
-                          keepPreviousUntilLoaded: true,
-                          placeholder: _ArtworkPlaceholder(
-                            border: border,
-                            label: song.title,
-                          ),
-                        ),
+                        label: song.title,
                       ),
                     ),
-                  );
-                },
-              ),
-            );
-          },
+                  ),
+                ),
+              );
+            },
+          ),
         );
       },
     );

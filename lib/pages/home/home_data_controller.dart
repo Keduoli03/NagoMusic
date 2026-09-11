@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
+import '../../app/services/source_visibility_repository.dart';
 import '../../app/services/playlists_service.dart';
 import '../../app/services/stats_service.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
@@ -79,6 +80,7 @@ class HomeDataController {
   final StatsService _statsService;
   final WebDavSourceRepository _webDavRepo;
   final NavidromeSourceRepository _navidromeRepo;
+  final SourceVisibilityRepository _visibilityRepo;
   final PageCacheStore _cacheStore;
 
   HomeDataController({
@@ -87,6 +89,7 @@ class HomeDataController {
     StatsService? statsService,
     WebDavSourceRepository? webDavRepository,
     NavidromeSourceRepository? navidromeRepository,
+    SourceVisibilityRepository? visibilityRepository,
     PageCacheStore? cacheStore,
   }) : _songDao = songDao ?? SongDao(),
        _playlistsService = playlistsService ?? PlaylistsService.instance,
@@ -94,6 +97,8 @@ class HomeDataController {
        _webDavRepo = webDavRepository ?? WebDavSourceRepository.instance,
        _navidromeRepo =
            navidromeRepository ?? NavidromeSourceRepository.instance,
+       _visibilityRepo =
+           visibilityRepository ?? SourceVisibilityRepository.instance,
        _cacheStore = cacheStore ?? PageCacheStore.instance;
 
   /// 按歌曲库版本号算出来的缓存 key —— 曲库没变就复用上一份计数。
@@ -144,8 +149,14 @@ class HomeDataController {
     final lastPlayedFuture = _statsService.fetchLastPlayedTimestamps();
 
     final counts = await countsFuture;
-    final sources = await sourcesFuture;
-    final navidromeSources = await navidromeSourcesFuture;
+    final sources = await _visibilityRepo.filterEnabled(
+      await sourcesFuture,
+      (source) => source.id,
+    );
+    final navidromeSources = await _visibilityRepo.filterEnabled(
+      await navidromeSourcesFuture,
+      (source) => source.id,
+    );
     final recentSongs = await recentSongsFuture;
     final playlists = await playlistsFuture;
     final librarySongs = await librarySongsFuture;
@@ -180,6 +191,8 @@ class HomeDataController {
       if (!exists) {
         filter = 'webdav';
       }
+    } else if (filter == 'local' && !await _visibilityRepo.isEnabled('local')) {
+      filter = 'all';
     } else if (filter != 'local' && filter != 'webdav' && filter != 'all') {
       filter = 'all';
     }
@@ -204,8 +217,14 @@ class HomeDataController {
   }
 
   Future<HomeWebDavCountsRefresh> refreshWebDavCounts() async {
-    final sources = await _webDavRepo.loadSources();
-    final navidromeSources = await _navidromeRepo.loadSources();
+    final sources = await _visibilityRepo.filterEnabled(
+      await _webDavRepo.loadSources(),
+      (source) => source.id,
+    );
+    final navidromeSources = await _visibilityRepo.filterEnabled(
+      await _navidromeRepo.loadSources(),
+      (source) => source.id,
+    );
     return _fetchWebDavCounts(sources, navidromeSources);
   }
 

@@ -233,6 +233,9 @@ List<Map<String, dynamic>> _buildVisibleSongsIsolate(
       case 'duration':
         result = (a.durationMs ?? 0).compareTo(b.durationMs ?? 0);
         break;
+      case 'modifiedTime':
+        result = (a.fileModifiedMs ?? 0).compareTo(b.fileModifiedMs ?? 0);
+        break;
       case 'fileName':
         result = naturalCompare(fileNameOf(a), fileNameOf(b));
         break;

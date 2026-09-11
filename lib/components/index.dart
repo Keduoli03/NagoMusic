@@ -29,7 +29,6 @@ export 'list/sort_sheet.dart';
 export 'layout/base/app_bottom_bar.dart';
 export 'layout/base/app_background.dart';
 export 'layout/base/app_page_scaffold.dart';
-export 'layout/side_menu.dart';
 export 'player/mini_player/mini_player_bar.dart';
 export 'dialog/app_dialog.dart';
 export 'dialog/remove_progress_dialog.dart';

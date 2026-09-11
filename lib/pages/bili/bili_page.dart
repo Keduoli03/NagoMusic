@@ -35,9 +35,6 @@ class BiliPage extends StatefulWidget {
 class _BiliPageState extends State<BiliPage> {
   static const String _logTag = 'BiliPage';
 
-  final GlobalKey<AppPageScaffoldState> _scaffoldKey =
-      GlobalKey<AppPageScaffoldState>();
-
   final BiliApi _api = BiliApi.instance;
   final BiliMusicService _music = BiliMusicService.instance;
   final BiliCollectionService _collections = BiliCollectionService.instance;
@@ -189,64 +186,43 @@ class _BiliPageState extends State<BiliPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AppNavigationModeBuilder(
-      builder: (context, useBottomNavigation) {
-        final bottomPadding = AppPageScaffold.scrollableBottomPadding(
-          context,
-          hasBottomNav: useBottomNavigation,
-        );
-        return AppPageScaffold(
-          key: _scaffoldKey,
-          extendBodyBehindAppBar: true,
-          appBar: AppTopBar(
-            // 标题位直接放「头像 + 用户名」：顶栏已经写着 B站 tab 被选中了，
-            // 再写一遍 “B站” 是重复信息，位置留给账号更有用。
-            titleWidget: BiliAccountChip(
-              account: _account,
-              onTap: _openProfile,
-            ),
-            showBackButton: false,
-            leading: useBottomNavigation
-                ? null
-                : IconButton(
-                    icon: const Icon(AppIcons.menu),
-                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                  ),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            actions: [
-              IconButton(
-                tooltip: '搜索',
-                icon: const Icon(AppIcons.search),
-                onPressed: _openSearch,
-              ),
-              const SizedBox(width: 4),
-            ],
+    final bottomPadding = AppPageScaffold.scrollableBottomPadding(
+      context,
+      hasBottomNav: true,
+    );
+    return AppPageScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppTopBar(
+        // 标题位直接放「头像 + 用户名」：顶栏已经写着 B站 tab 被选中了，
+        // 再写一遍 “B站” 是重复信息，位置留给账号更有用。
+        titleWidget: BiliAccountChip(account: _account, onTap: _openProfile),
+        showBackButton: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: '搜索',
+            icon: const Icon(AppIcons.search),
+            onPressed: _openSearch,
           ),
-          drawer: useBottomNavigation
-              ? null
-              : SideMenu(
-                  onCloseDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
-                ),
-          body: RefreshIndicator(
-            onRefresh: _refreshAll,
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-              children: [
-                _buildCollectionsSection(),
-                AppSpacing.gapXl,
-                _buildFoldersSection(),
-                AppSpacing.gapXl,
-                _buildRecentSection(),
-              ],
-            ),
-          ),
-          bottomNavIndex: useBottomNavigation ? 2 : null,
-          onBottomNavTap: useBottomNavigation
-              ? (index) => navigateToPrimaryDestination(context, index)
-              : null,
-        );
-      },
+          const SizedBox(width: 4),
+        ],
+      ),
+      bottomNavIndex: 2,
+      onBottomNavTap: (index) => navigateToPrimaryDestination(context, index),
+      body: RefreshIndicator(
+        onRefresh: _refreshAll,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+          children: [
+            _buildCollectionsSection(),
+            AppSpacing.gapXl,
+            _buildFoldersSection(),
+            AppSpacing.gapXl,
+            _buildRecentSection(),
+          ],
+        ),
+      ),
     );
   }
 

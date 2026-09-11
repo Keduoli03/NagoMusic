@@ -1,11 +1,13 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_easy/liquid_glass_easy.dart' as lg;
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../app/router/app_router.dart';
 import '../../app/state/settings_state.dart';
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_glass.dart';
+import '../../app/theme/app_icons.dart';
+import '../player/mini_player/mini_player_bar.dart';
+import 'bottom_chrome.dart';
 
 const _primaryNavigationRoutes = <String>[
   AppRoutes.home,
@@ -24,8 +26,7 @@ void navigateToPrimaryDestination(BuildContext context, int index) {
     scope.onSelected(index);
     return;
   }
-  if (primaryNavigationShellActive &&
-      AppLayoutSettings.navigationStyle.value == AppNavigationStyle.bottomBar) {
+  if (primaryNavigationShellActive) {
     primaryNavigationIndex.value = index;
     Navigator.of(context).popUntil(
       (route) => route.settings.name == AppRoutes.home || route.isFirst,
@@ -70,101 +71,36 @@ class PrimaryNavigationScope extends InheritedWidget {
   }
 }
 
-class AppNavigationModeBuilder extends StatelessWidget {
-  final Widget Function(BuildContext context, bool useBottomNavigation) builder;
-
-  const AppNavigationModeBuilder({super.key, required this.builder});
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<AppNavigationStyle>(
-      valueListenable: AppLayoutSettings.navigationStyle,
-      builder: (context, style, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: AppLayoutSettings.tabletMode,
-          builder: (context, tabletMode, _) {
-            return builder(
-              context,
-              style == AppNavigationStyle.bottomBar && !tabletMode,
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class ModernNavigationBar extends StatefulWidget {
+class ModernNavigationBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+
+  /// 迷你播放器是否由这条底栏承载。
+  ///
+  /// 玻璃模式下播放器是底栏的 `bottomAccessory` —— 它要跟着底栏一起收起、
+  /// 滑到 Tab 圆圈旁边去，所以必须长在底栏里面，不能是外面单独浮的一层。
+  final bool showMiniPlayer;
 
   const ModernNavigationBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.showMiniPlayer = true,
   });
 
-  @override
-  State<ModernNavigationBar> createState() => _ModernNavigationBarState();
-}
-
-class _ModernNavigationBarState extends State<ModernNavigationBar>
-    with SingleTickerProviderStateMixin {
   static const List<String> _labels = ['首页', '歌曲', 'B站', '我的'];
-
-  late final AnimationController _slide = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 420),
-    value: 1,
-  );
-
-  /// 指示器这一趟的起点和终点（以 tab 下标为单位，可以是小数）。
-  late double _from = widget.currentIndex.toDouble();
-  late double _to = widget.currentIndex.toDouble();
-
-  /// 上一次全局选中的 tab。
-  int _prevGlobal = primaryNavigationIndex.value;
-
-  @override
-  void initState() {
-    super.initState();
-    primaryNavigationIndex.addListener(_onGlobalIndexChanged);
-  }
-
-  /// 动画必须由**全局选中项**驱动，不能靠 `widget.currentIndex`。
-  ///
-  /// 每个页面都写死自己的下标（`bottomNavIndex: 0/1/2/3`），而 IndexedStack 让四个
-  /// 页面的底栏同时存在。切 tab 实际上是换了一个「已经处于终态」的底栏实例 ——
-  /// 对任何一个实例来说 `currentIndex` 从头到尾没变过，`didUpdateWidget` 永远不会
-  /// 触发，指示器就只能「闪」过去。
-  ///
-  /// 这里每个实例只关心「我这一页刚被选中」这一个事件，起点取全局的上一个下标，
-  /// 也就是指示器在**上一个底栏**上的视觉位置，接力下来正好连续。
-  void _onGlobalIndexChanged() {
-    final next = primaryNavigationIndex.value;
-    final prev = _prevGlobal;
-    _prevGlobal = next;
-    if (next != widget.currentIndex || prev == next) return;
-    _from = prev.toDouble();
-    _to = next.toDouble();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _slide.value = 1;
-      return;
-    }
-    _slide.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    primaryNavigationIndex.removeListener(_onGlobalIndexChanged);
-    _slide.dispose();
-    super.dispose();
-  }
-
-  double get _indicatorPos {
-    final t = Curves.easeOutCubic.transform(_slide.value);
-    return _from + (_to - _from) * t;
-  }
+  static const List<IconData> _icons = [
+    AppIcons.home,
+    AppIcons.musicNotes,
+    AppIcons.video,
+    AppIcons.person,
+  ];
+  static const List<IconData> _activeIcons = [
+    AppIconsFilled.home,
+    AppIconsFilled.musicNotes,
+    AppIconsFilled.video,
+    AppIconsFilled.person,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -190,119 +126,25 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
             // hairline of its own to stay readable against scrolling content.
             final edgeColor = AppColors.of(context).line;
 
-            Widget buildItems({required bool glass, required double height}) {
-              final row = SizedBox(
-                height: height,
-                child: Row(
-                  children: List.generate(_labels.length, (index) {
-                    final selected = widget.currentIndex == index;
-                    return Expanded(
-                      child: _NavItem(
-                        label: _labels[index],
-                        selected: selected,
-                        glass: glass,
-                        onTap: () => widget.onTap(index),
-                      ),
-                    );
-                  }),
-                ),
-              );
-              if (!glass) return row;
-              return SizedBox(
-                height: height,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: _LiquidIndicator(
-                        animation: _slide,
-                        positionOf: () => _indicatorPos,
-                        travel: (_to - _from).abs(),
-                        itemCount: _labels.length,
-                        color: scheme.primary,
-                      ),
-                    ),
-                    row,
-                  ],
-                ),
-              );
-            }
-
             if (barStyle == AppBottomBarStyle.liquidGlass) {
-              final glassRadius = BorderRadius.circular(24);
-              final glassBase = Color.alphaBlend(
-                scheme.primary.withValues(alpha: isDark ? 0.08 : 0.04),
-                scheme.surface,
-              );
-              // 不是一层均匀白蒙版：顶部反光、中部透景、底部轻微主题色回光
-              // 分开绘制，背景通过高模糊参与颜色，但不会把文字原样透出来。
-              // 悬浮胶囊，不是贴边通铺的方条 —— 这是玻璃能不能被看见的关键。
-              // 贴边方条的背后只有页面底色，没东西可折射；留出左右边距和大圆角之后，
-              // 内容从胶囊两侧和四个角穿过去，折射才有内容可弯。
+              // 玻璃底栏整个交给 liquid_glass_widgets 的 GlassTabBar。
               //
-              // 高度刻意凑成和标准底栏一样的 52（48 胶囊 + 4 间距），
-              // 这样 AppPageScaffold.modernNavHeight 不用改，
-              // mini player 的位置和列表底部留白都不会错位。
+              // 原来用的是 liquid_glass_easy：它只给「一块玻璃面板」，Tab、
+              // 指示器、按压反馈全得自己拼（这个文件里原先那个挤压-拉伸的
+              // _LiquidIndicator 就是自己写的），调不出满意的效果。
+              //
+              // 用 minimizable 而不是 bottom：往下滚页面时整条栏收成「当前 Tab
+              // 一个圆圈」，迷你播放器同时缩短挪到它右边，和搜索圆圈并成一行 ——
+              // Apple Music 那个形态。高度、收起状态见 BottomChrome。
               return SafeArea(
                 top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: glassRadius,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.24 : 0.14,
-                          ),
-                          blurRadius: 28,
-                          spreadRadius: -2,
-                          offset: const Offset(0, 8),
-                        ),
-                        BoxShadow(
-                          color: Colors.white.withValues(
-                            alpha: isDark ? 0.08 : 0.32,
-                          ),
-                          blurRadius: 7,
-                          spreadRadius: -1,
-                          offset: const Offset(-1, -2),
-                        ),
-                      ],
-                    ),
-                    // 玻璃本体交给 liquid_glass_easy。
-                    //
-                    // 自己写的那版（着色器还在仓库里）在真机上折不出效果：
-                    // `ImageFilter.shader` 只肯采样**原始未过滤**的背景，compose 和
-                    // 嵌套都绕不过去，所以模糊永远进不到折射里。这个包的做法是把
-                    // 模糊和着色器两个 BackdropFilter 作为 Stack 里的**兄弟节点**
-                    // 前后绘制 —— 下面那个先把模糊结果画进图层，上面那个才采样得到。
-                    child: lg.LiquidGlassLens(
-                      style: lg.LiquidGlassStyle(
-                        shape: lg.LiquidGlassShape.continuousRoundedRectangle(
-                          cornerRadius: 24,
-                        ),
-                        appearance: lg.LiquidGlassAppearance(
-                          blur: const lg.LiquidGlassBlur(
-                            sigmaX: 12,
-                            sigmaY: 12,
-                          ),
-                          // 提饱和度抵消模糊的灰雾感。
-                          saturation: 1.4,
-                          // 材质层刻意压得很淡：折射才是主角，盖一层奶白就全糊了。
-                          color: glassBase.withValues(
-                            alpha: isDark ? 0.28 : 0.20,
-                          ),
-                        ),
-                        refraction: const lg.LiquidGlassRefraction(
-                          distortion: 0.5,
-                          // 折射带宽度，和圆角同量级。
-                          distortionWidth: 24,
-                          magnification: 1.02,
-                          chromaticAberration: 0.006,
-                        ),
-                      ),
-                      child: buildItems(glass: true, height: 48),
-                    ),
-                  ),
+                child: _GlassBar(
+                  currentIndex: currentIndex,
+                  labels: _labels,
+                  icons: _icons,
+                  activeIcons: _activeIcons,
+                  onTap: onTap,
+                  showMiniPlayer: showMiniPlayer,
                 ),
               );
             }
@@ -316,7 +158,20 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
                 ),
                 child: SafeArea(
                   top: false,
-                  child: buildItems(glass: false, height: 52),
+                  child: SizedBox(
+                    height: 52,
+                    child: Row(
+                      children: List.generate(_labels.length, (index) {
+                        return Expanded(
+                          child: _NavItem(
+                            label: _labels[index],
+                            selected: currentIndex == index,
+                            onTap: () => onTap(index),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
                 ),
               ),
             );
@@ -327,135 +182,143 @@ class _ModernNavigationBarState extends State<ModernNavigationBar>
   }
 }
 
-/// 选中项底下那颗会流动的指示器 —— 玻璃底栏「液态」感的主要来源。
-///
-/// 单纯让指示器平移过去只是个滑块，看不出液体。这里做的是**挤压-拉伸**
-/// （squash & stretch）：飞行途中横向拉长、纵向变扁，落位时回弹成圆胶囊。
-/// 拉伸量在中途最大、两端归零，用 `sin(pi * t)` 得到；跨的 tab 越多拉得越夸张。
-/// 纵向按 `1/sqrt(横向)` 收缩，让它看起来像体积守恒的一坨液体而不是被拉变形的图片。
-class _LiquidIndicator extends StatelessWidget {
-  const _LiquidIndicator({
-    required this.animation,
-    required this.positionOf,
-    required this.travel,
-    required this.itemCount,
-    required this.color,
+/// 液态玻璃底栏。视觉参数和 notebook 项目那套是同一份，调过的结论都在注释里。
+class _GlassBar extends StatelessWidget {
+  const _GlassBar({
+    required this.currentIndex,
+    required this.labels,
+    required this.icons,
+    required this.activeIcons,
+    required this.onTap,
+    required this.showMiniPlayer,
   });
 
-  final Animation<double> animation;
-
-  /// 当前位置（tab 下标，含小数）。用回调而不是传值，是因为它依赖控制器的实时值。
-  final double Function() positionOf;
-
-  /// 这一趟跨了几个 tab，决定拉伸的夸张程度。
-  final double travel;
-
-  final int itemCount;
-  final Color color;
+  final int currentIndex;
+  final List<String> labels;
+  final List<IconData> icons;
+  final List<IconData> activeIcons;
+  final ValueChanged<int> onTap;
+  final bool showMiniPlayer;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final selectedTint = Color.alphaBlend(
-      color.withValues(alpha: isDark ? 0.30 : 0.22),
-      scheme.surface,
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final slotWidth = constraints.maxWidth / itemCount;
-        final maxHeight = constraints.maxHeight;
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, _) {
-            final p = animation.value;
-            final center = (positionOf() + 0.5) * slotWidth;
+    final c = AppColors.of(context);
 
-            // 跨得越远拉得越狠，最多按 3 个 tab 封顶。
-            final amount = (travel / 3.0).clamp(0.0, 1.0);
-            final stretch = 1 + 0.85 * amount * math.sin(math.pi * p);
-            // 体积守恒：横向拉长多少，纵向就收窄多少。
-            final squash = 1 / math.sqrt(stretch);
-
-            final baseWidth = slotWidth * 0.66;
-            final baseHeight = math.min(34.0, maxHeight - 8);
-            final w = baseWidth * stretch;
-            final h = baseHeight * squash;
-
-            return Stack(
-              children: [
-                Positioned(
-                  left: center - w / 2,
-                  top: (maxHeight - h) / 2,
-                  width: w,
-                  height: h,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          selectedTint.withValues(alpha: isDark ? 0.72 : 0.78),
-                          selectedTint.withValues(alpha: isDark ? 0.62 : 0.68),
-                          color.withValues(alpha: isDark ? 0.42 : 0.34),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(h / 2),
-                      border: Border.all(
-                        color: Colors.white.withValues(
-                          alpha: isDark ? 0.20 : 0.52,
-                        ),
-                        width: 0.7,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.22 : 0.12,
-                          ),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
+    // 选中项要盯着**全局**下标，不能只看 widget.currentIndex。
+    //
+    // 每个页面写死自己的下标（bottomNavIndex: 0/1/2/3），而 IndexedStack 让四个
+    // 页面的底栏同时存在 —— 对任何一个实例来说 currentIndex 从头到尾没变过，
+    // GlassTabBar 收不到 selectedIndex 的变化，指示器就只会「闪」过去而不是滑。
+    // 盯全局的话四个实例同步动，切到哪个都是接着上一个的位置往下演。
+    //
+    // 非外壳模式（深链直接 push 路由）下全局值不更新，那时才用自己的下标。
+    return ValueListenableBuilder<int>(
+      valueListenable: primaryNavigationIndex,
+      builder: (context, globalIndex, _) {
+        final selected = primaryNavigationShellActive
+            ? globalIndex
+            : currentIndex;
+        return GlassTabBar.minimizable(
+          selectedIndex: selected.clamp(0, labels.length - 1),
+          onTabSelected: (index) {
+            // 切页时先把栏放回展开态：新页面是从头开始看的，没有理由还保持着
+            // 上一页滚到一半时收起来的样子。
+            BottomChrome.minimize.expand();
+            if (index == selected) return;
+            onTap(index);
           },
+          // 收起状态由全局控制器管，滚动事件在 AppPageScaffold 里喂给它。
+          minimizeController: BottomChrome.minimize,
+          // 收起后点那个圆圈就是「把我的 Tab 还回来」。
+          onMinimizedTabTap: BottomChrome.minimize.expand,
+          trailingButton: GlassTabBarTrailingButton(
+            icon: const Icon(AppIcons.search),
+            label: '搜索',
+            onTap: () => Navigator.of(context).pushNamed(AppRoutes.search),
+          ),
+          bottomAccessory: showMiniPlayer
+              ? MiniPlayerBar(asAccessory: true)
+              : null,
+          bottomAccessoryHeight: BottomChrome.accessoryHeight,
+          bottomAccessorySpacing: BottomChrome.accessorySpacing,
+          barHeight: BottomChrome.barHeight,
+          minimizedBarHeight: BottomChrome.minimizedBarHeight,
+          verticalPadding: BottomChrome.verticalPadding,
+          horizontalPadding: AppGlass.inset,
+          barBorderRadius: AppGlass.radius,
+          tabPadding: const EdgeInsets.symmetric(horizontal: 2),
+          iconSize: 22,
+          iconLabelSpacing: 2,
+          labelFontSize: 11,
+          magnification: 1.05,
+          indicatorExpansion: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          selectedIconColor: scheme.primary,
+          unselectedIconColor: c.text.withValues(alpha: 0.62),
+          selectedLabelColor: scheme.primary,
+          unselectedLabelColor: c.text.withValues(alpha: 0.62),
+          selectedLabelStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.2,
+          ),
+          // 玻璃材质从 AppGlass 取，和迷你播放器共用同一份 —— 它俩上下贴着，
+          // 材质差一点就看得出来「不搭」。
+          settings: AppGlass.panel(context),
+          // 静止时画的实心色块。不能直接给半透明色 —— 玻璃会把背后糊掉，
+          // 低透明度的色铺上去基本被吃干净，选中态就看不见了。
+          indicatorColor: Color.alphaBlend(
+            scheme.primary.withValues(alpha: 0.14),
+            scheme.surface,
+          ),
+          indicatorSettings: AppGlass.indicator(context),
+          indicatorPinchStrength: 0.4,
+          // 按压光晕关掉：32px 模糊 + 8px 扩散糊开之后是一大片比指示器还大的
+          // 白晕，在浅色栏上很脏。触感反馈已经有 Haptics，不差这一下视觉。
+          interactionGlowColor: Colors.transparent,
+          // 长按拖动时默认会让整条栏物理形变、文字跟着扭，拖到一半看不清停在
+          // 哪一项。glowOnly 只在触点处亮一下、栏本身不动。
+          interactionBehavior: GlassInteractionBehavior.glowOnly,
+          tabs: [
+            for (var i = 0; i < labels.length; i++)
+              GlassTab(
+                icon: Icon(icons[i]),
+                activeIcon: Icon(activeIcons[i]),
+                label: labels[i],
+                semanticLabel: labels[i],
+              ),
+          ],
         );
       },
     );
   }
 }
 
+/// 标准底栏的一个 Tab。玻璃底栏的 Tab 由 GlassTabBar 自己画，不走这里。
 class _NavItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  /// 玻璃底栏下为 true：选中态改用主题色文字，和底下那颗液态指示器同色。
-  /// 指示器负责「液态」的动感，文字只负责可读性，两者不要互相抢戏。
-  final bool glass;
-
   const _NavItem({
     required this.label,
     required this.selected,
     required this.onTap,
-    this.glass = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final c = AppColors.of(context);
-    final activeColor = glass ? scheme.primary : scheme.onSurface;
-    // 玻璃底栏是透明的，背后是深浅不定的页面内容 —— 未选中项**不能**用
-    // `onSurfaceVariant @ 0.7` 那种浅灰，背景亮一点它就整个消失
-    // （表现为「后两个 tab 没有文字，点一下才出来」）。改用不透明的主文字色
-    // 压到 0.62，在亮底上仍然读得出，暗底上又不会喧宾夺主。
-    final inactiveColor = glass
-        ? c.text.withValues(alpha: 0.62)
-        : scheme.onSurfaceVariant.withValues(alpha: 0.7);
+    final activeColor = scheme.onSurface;
+    final inactiveColor = scheme.onSurfaceVariant.withValues(alpha: 0.7);
 
     return Semantics(
       button: true,
