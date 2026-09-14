@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nagomusic/app/services/navidrome/navidrome_source_repository.dart';
+import 'package:nagomusic/app/services/cloud_drive/cloud_drive_music_service.dart';
+import 'package:nagomusic/app/services/cloud_drive/cloud_drive_source_repository.dart';
+import 'package:nagomusic/app/services/cloud_drive/cloud_drive_types.dart';
 import 'package:nagomusic/app/services/webdav/webdav_source_repository.dart';
 
 const _navidrome = NavidromeSource(
@@ -21,6 +24,7 @@ void main() {
     // 测试留下的数据。
     NavidromeSourceRepository.instance.resetCacheForTest();
     WebDavSourceRepository.instance.resetCacheForTest();
+    CloudDriveSourceRepository.instance.resetCacheForTest();
   });
 
   group('shared prefs-backed CRUD', () {
@@ -80,6 +84,42 @@ void main() {
         startsWith('navidrome-'),
       );
       expect(WebDavSourceRepository.instance.newId(), startsWith('webdav-'));
+      expect(
+        CloudDriveSourceRepository.instance.newIdFor(CloudDriveProvider.baidu),
+        startsWith('baidu-'),
+      );
+    });
+
+    test('cloud drive config excludes credentials and round-trips', () async {
+      const source = CloudDriveSource(
+        id: 'baidu-1',
+        name: '百度音乐',
+        provider: CloudDriveProvider.baidu,
+        root: '/音乐',
+        appKey: 'public-app-key',
+      );
+      await CloudDriveSourceRepository.instance.upsert(source);
+
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getString('cloud_drive_sources_v1') ?? '';
+      expect(stored, contains('public-app-key'));
+      expect(stored, isNot(contains('accessToken')));
+      expect(stored, isNot(contains('cookie')));
+
+      final loaded = await CloudDriveSourceRepository.instance.loadSources();
+      expect(loaded.single.provider, CloudDriveProvider.baidu);
+      expect(loaded.single.root, '/音乐');
+    });
+  });
+
+  group('cloud drive playback identity', () {
+    test('placeholder keeps provider and round-trips an opaque file id', () {
+      final uri = CloudDriveMusicService.placeholderUri(
+        CloudDriveProvider.quark,
+        'file id/with symbols',
+      );
+      expect(uri, startsWith('quark://'));
+      expect(CloudDriveMusicService.fileIdFromUri(uri), 'file id/with symbols');
     });
   });
 

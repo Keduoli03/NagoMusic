@@ -4,6 +4,7 @@ import 'package:media_cache/media_cache.dart';
 
 import '../state/song_state.dart';
 import 'artwork_cache_helper.dart';
+import 'cloud_drive/cloud_drive_music_service.dart';
 import 'db/dao/song_dao.dart';
 import 'lyrics/lyrics_repository.dart';
 import 'player_service.dart';
@@ -65,8 +66,19 @@ class SourceDeletionService {
     await ArtworkCacheHelper.removeCachedArtwork(key: song.id);
 
     final uri = (song.uri ?? '').trim();
-    if (song.isLocal || uri.isEmpty || !uri.startsWith('http')) return;
-    final headers = _headersFromSong(song);
+    if (song.isLocal || uri.isEmpty) return;
+    final isCloudDrive = CloudDriveMusicService.isCloudDriveSong(song);
+    if (!isCloudDrive && !uri.startsWith('http')) return;
+    Map<String, String> headers;
+    if (isCloudDrive) {
+      try {
+        headers = await CloudDriveMusicService.instance.playbackHeaders(song);
+      } catch (_) {
+        headers = const {};
+      }
+    } else {
+      headers = _headersFromSong(song);
+    }
     await _audioCache.removeCachedFiles(
       uri: uri,
       headers: headers.isEmpty ? null : headers,

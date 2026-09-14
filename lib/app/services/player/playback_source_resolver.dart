@@ -6,6 +6,7 @@ import 'package:media_cache/media_cache.dart';
 
 import '../../state/song_state.dart';
 import '../bili/bili_music_service.dart';
+import '../cloud_drive/cloud_drive_music_service.dart';
 import '../log/log.dart';
 import '../webdav/webdav_endpoint_resolver.dart';
 import '../webdav/webdav_source_repository.dart';
@@ -33,6 +34,7 @@ class PlaybackSourceResolver {
   final AudioCacheService _audioCache;
   final AudioProxyServer _proxy;
   final BiliMusicService _biliService;
+  final CloudDriveMusicService _cloudDriveService;
   final WebDavSourceRepository _webdavSourceRepo;
   final WebDavEndpointResolver _webdavEndpointResolver;
 
@@ -43,11 +45,14 @@ class PlaybackSourceResolver {
     AudioCacheService? audioCache,
     AudioProxyServer? proxy,
     BiliMusicService? biliService,
+    CloudDriveMusicService? cloudDriveService,
     WebDavSourceRepository? webdavSourceRepo,
     WebDavEndpointResolver? webdavEndpointResolver,
   }) : _audioCache = audioCache ?? AudioCacheService.instance,
        _proxy = proxy ?? AudioProxyServer.instance,
        _biliService = biliService ?? BiliMusicService.instance,
+       _cloudDriveService =
+           cloudDriveService ?? CloudDriveMusicService.instance,
        _webdavSourceRepo = webdavSourceRepo ?? WebDavSourceRepository.instance,
        _webdavEndpointResolver =
            webdavEndpointResolver ?? WebDavEndpointResolver.instance;
@@ -113,6 +118,7 @@ class PlaybackSourceResolver {
     final rawUri = (song.uri ?? '').trim();
     // B 站曲目的 uri 在库里通常是空的（直链有时效，不落库），得先走解析。
     if (!BiliMusicService.isBiliSong(song) &&
+        !CloudDriveMusicService.isCloudDriveSong(song) &&
         (song.isLocal || !rawUri.startsWith('http'))) {
       return AudioSource.file(rawUri);
     }
@@ -142,6 +148,16 @@ class PlaybackSourceResolver {
             .then((url) => url == null ? null : Uri.parse(url)),
       );
     }
+    if (CloudDriveMusicService.isCloudDriveSong(song)) {
+      return _registerRemoteSource(
+        song,
+        rawUri: storedUri,
+        headers: await _cloudDriveService.playbackHeaders(song),
+        forceRefresh: forceRefresh,
+        resolveUri: (fresh) =>
+            _cloudDriveService.resolvePlaybackUri(song, forceRefresh: fresh),
+      );
+    }
     if (song.isLocal || !storedUri.startsWith('http')) {
       return Uri.file(storedUri);
     }
@@ -167,6 +183,7 @@ class PlaybackSourceResolver {
   Future<void> _warmupSource(SongEntity song) async {
     final rawUri = (song.uri ?? '').trim();
     if (!BiliMusicService.isBiliSong(song) &&
+        !CloudDriveMusicService.isCloudDriveSong(song) &&
         (song.isLocal || !rawUri.startsWith('http'))) {
       return;
     }

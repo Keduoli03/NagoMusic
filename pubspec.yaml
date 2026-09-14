@@ -73,6 +73,7 @@ dependencies:
   # 面板」，底栏的 Tab、指示器、按压反馈都得自己拼，效果不好调。这个包直接给
   # 成品的 GlassTabBar，指示器的液态形变、拖动切换都是它自带的。
   liquid_glass_widgets: ^1.4.1
+  flutter_secure_storage: 9.2.4
 
 dev_dependencies:
   flutter_test:
