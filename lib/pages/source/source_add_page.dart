@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:nagomusic/app/theme/app_icons.dart';
+import 'package:nagomusic/app/theme/tokens.dart';
 
 import '../../app/router/app_page_route.dart';
+import '../../app/services/cloud_drive/cloud_drive_source_repository.dart';
+import '../../app/services/cloud_drive/cloud_drive_types.dart';
 import '../../app/services/navidrome/navidrome_source_repository.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
+import 'cloud_drive/cloud_drive_edit_page.dart';
 import 'navidrome/navidrome_edit_page.dart';
 import 'webdav/webdav_edit_page.dart';
 
 class _SourceAddOption {
+  final _SourceAddKind kind;
   final String title;
   final IconData icon;
-  final Color color;
 
   const _SourceAddOption({
+    required this.kind,
     required this.title,
     required this.icon,
-    required this.color,
   });
 }
+
+enum _SourceAddKind { webdav, navidrome, baidu, quark }
 
 class SourceAddPage extends StatelessWidget {
   SourceAddPage({super.key});
@@ -26,6 +31,8 @@ class SourceAddPage extends StatelessWidget {
   final WebDavSourceRepository _webDavRepo = WebDavSourceRepository.instance;
   final NavidromeSourceRepository _navidromeRepo =
       NavidromeSourceRepository.instance;
+  final CloudDriveSourceRepository _cloudDriveRepo =
+      CloudDriveSourceRepository.instance;
 
   Future<void> _openWebDavAdd(BuildContext context) async {
     final draft = WebDavSource(
@@ -45,6 +52,24 @@ class SourceAddPage extends StatelessWidget {
     if (changed == true) {
       Navigator.of(context).pop(true);
     }
+  }
+
+  Future<void> _openCloudDriveAdd(
+    BuildContext context,
+    CloudDriveProvider provider,
+  ) async {
+    final draft = CloudDriveSource(
+      id: _cloudDriveRepo.newIdFor(provider),
+      name: provider.displayName,
+      provider: provider,
+      root: provider.defaultRoot,
+    );
+    final changed = await Navigator.push<bool>(
+      context,
+      buildAppPageRoute((_) => CloudDriveEditPage(source: draft, isAdd: true)),
+    );
+    if (!context.mounted) return;
+    if (changed == true) Navigator.of(context).pop(true);
   }
 
   Future<void> _openNavidromeAdd(BuildContext context) async {
@@ -84,22 +109,41 @@ class SourceAddPage extends StatelessWidget {
             title: '网络存储',
             options: const [
               _SourceAddOption(
+                kind: _SourceAddKind.webdav,
                 title: 'WebDAV',
                 icon: AppIcons.arrowsClockwise,
-                color: Color(0xFF27B5D8),
               ),
               _SourceAddOption(
+                kind: _SourceAddKind.navidrome,
                 title: 'Navidrome / Subsonic',
                 icon: AppIcons.musicNotes,
-                color: Color(0xFF6D7CF6),
+              ),
+              _SourceAddOption(
+                kind: _SourceAddKind.baidu,
+                title: '百度网盘',
+                icon: AppIcons.cloud,
+              ),
+              _SourceAddOption(
+                kind: _SourceAddKind.quark,
+                title: '夸克网盘',
+                icon: AppIcons.cloudDownload,
               ),
             ],
             onTap: (option) {
-              if (option.title == 'WebDAV') {
-                _openWebDavAdd(context);
-                return;
+              switch (option.kind) {
+                case _SourceAddKind.webdav:
+                  _openWebDavAdd(context);
+                  break;
+                case _SourceAddKind.navidrome:
+                  _openNavidromeAdd(context);
+                  break;
+                case _SourceAddKind.baidu:
+                  _openCloudDriveAdd(context, CloudDriveProvider.baidu);
+                  break;
+                case _SourceAddKind.quark:
+                  _openCloudDriveAdd(context, CloudDriveProvider.quark);
+                  break;
               }
-              _openNavidromeAdd(context);
             },
           ),
         ],
@@ -139,9 +183,10 @@ class _SourceAddTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final accent = colors.primary;
     return ListTile(
       minVerticalPadding: 16,
-      leading: _SourceAddIcon(icon: option.icon, color: option.color),
+      leading: _SourceAddIcon(icon: option.icon, color: accent),
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -174,7 +219,7 @@ class _SourceAddIcon extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.rPanel,
       ),
       child: Icon(icon, color: color, size: 30),
     );

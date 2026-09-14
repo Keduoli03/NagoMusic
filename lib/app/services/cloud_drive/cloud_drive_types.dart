@@ -35,6 +35,8 @@ class CloudDriveLoginChallenge {
   final String id;
   final String qrValue;
   final bool qrValueIsImageUrl;
+  final String verificationUrl;
+  final String userCode;
   final Duration expiresIn;
   final Duration pollInterval;
 
@@ -42,6 +44,8 @@ class CloudDriveLoginChallenge {
     required this.id,
     required this.qrValue,
     required this.qrValueIsImageUrl,
+    this.verificationUrl = '',
+    this.userCode = '',
     required this.expiresIn,
     required this.pollInterval,
   });

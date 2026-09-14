@@ -50,7 +50,10 @@ class BaiduNetdiskClient {
     required String appSecret,
   }) async {
     final appKey = source.appKey.trim();
-    final secret = appSecret.trim();
+    final currentCredentials = await _credentials.read(source.id);
+    final secret = appSecret.trim().isEmpty
+        ? currentCredentials.appSecret.trim()
+        : appSecret.trim();
     if (appKey.isEmpty || secret.isEmpty) {
       throw const CloudDriveException('请先填写百度网盘 App Key 和 Secret Key');
     }
@@ -74,6 +77,8 @@ class BaiduNetdiskClient {
       id: deviceCode,
       qrValue: qrUrl,
       qrValueIsImageUrl: true,
+      verificationUrl: _string(data['verification_url']),
+      userCode: _string(data['user_code']),
       expiresIn: Duration(seconds: _int(data['expires_in']) ?? 300),
       pollInterval: Duration(seconds: _int(data['interval']) ?? 5),
     );

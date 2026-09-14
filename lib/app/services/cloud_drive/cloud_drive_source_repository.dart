@@ -6,6 +6,7 @@ class CloudDriveSource {
   final String name;
   final CloudDriveProvider provider;
   final String root;
+  final String rootLabel;
   final String appKey;
 
   const CloudDriveSource({
@@ -13,6 +14,7 @@ class CloudDriveSource {
     required this.name,
     required this.provider,
     required this.root,
+    this.rootLabel = '/',
     this.appKey = '',
   });
 
@@ -21,6 +23,7 @@ class CloudDriveSource {
     String? name,
     CloudDriveProvider? provider,
     String? root,
+    String? rootLabel,
     String? appKey,
   }) {
     return CloudDriveSource(
@@ -28,6 +31,7 @@ class CloudDriveSource {
       name: name ?? this.name,
       provider: provider ?? this.provider,
       root: root ?? this.root,
+      rootLabel: rootLabel ?? this.rootLabel,
       appKey: appKey ?? this.appKey,
     );
   }
@@ -37,6 +41,7 @@ class CloudDriveSource {
     'name': name,
     'provider': provider.name,
     'root': root,
+    'rootLabel': rootLabel,
     'appKey': appKey,
   };
 
@@ -51,6 +56,7 @@ class CloudDriveSource {
       name: (json['name'] ?? provider.displayName).toString(),
       provider: provider,
       root: (json['root'] ?? provider.defaultRoot).toString(),
+      rootLabel: (json['rootLabel'] ?? json['root'] ?? '/').toString(),
       appKey: (json['appKey'] ?? '').toString(),
     );
   }

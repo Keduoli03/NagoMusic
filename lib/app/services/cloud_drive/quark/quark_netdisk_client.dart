@@ -79,6 +79,7 @@ class QuarkNetdiskClient {
       id: token,
       qrValue: qrUri.toString(),
       qrValueIsImageUrl: false,
+      verificationUrl: qrUri.toString(),
       expiresIn: const Duration(minutes: 5),
       pollInterval: const Duration(seconds: 2),
     );

@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'package:nagomusic/app/theme/app_icons.dart';
+import 'package:nagomusic/app/theme/app_spacing.dart';
 
 import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
 import 'package:signals_flutter/signals_flutter.dart' hide computed;
 
 import '../../app/services/local_music_service.dart';
+import '../../app/services/cloud_drive/cloud_drive_music_service.dart';
+import '../../app/services/cloud_drive/cloud_drive_source_repository.dart';
+import '../../app/services/cloud_drive/cloud_drive_types.dart';
 import '../../app/services/db/dao/song_dao.dart';
 import '../../app/services/log/log.dart';
 import '../../app/router/app_page_route.dart';
@@ -16,6 +20,7 @@ import '../../app/services/webdav/webdav_music_service.dart';
 import '../../app/services/webdav/webdav_source_repository.dart';
 import '../../components/index.dart';
 import 'folder_songs_page.dart';
+import 'cloud_drive/cloud_drive_edit_page.dart';
 import 'local/local_folder_browser.dart';
 import 'local_source_settings_page.dart';
 import 'navidrome/navidrome_edit_page.dart';
@@ -25,7 +30,7 @@ import 'webdav/webdav_folder_browser.dart';
 import '../../app/services/scan_types.dart';
 import '../../app/services/source_visibility_repository.dart';
 
-enum SourceType { local, webdav, navidrome }
+enum SourceType { local, webdav, navidrome, cloudDrive }
 
 class SourceItem {
   final String id;
@@ -73,6 +78,10 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   final NavidromeMusicService _navidromeService = NavidromeMusicService();
   final NavidromeSourceRepository _navidromeRepo =
       NavidromeSourceRepository.instance;
+  final CloudDriveMusicService _cloudDriveService =
+      CloudDriveMusicService.instance;
+  final CloudDriveSourceRepository _cloudDriveRepo =
+      CloudDriveSourceRepository.instance;
   final SongDao _songDao = SongDao();
   final SourceVisibilityRepository _visibilityRepo =
       SourceVisibilityRepository.instance;
@@ -86,6 +95,8 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   late final _webDavSongCounts = createSignal<Map<String, int>>({});
   late final _navidromeConfigs = createSignal<List<NavidromeSource>>([]);
   late final _navidromeSongCounts = createSignal<Map<String, int>>({});
+  late final _cloudDriveConfigs = createSignal<List<CloudDriveSource>>([]);
+  late final _cloudDriveSongCounts = createSignal<Map<String, int>>({});
   late final _disabledSourceIds = createSignal<Set<String>>({});
 
   late final _sources = computed<List<SourceItem>>(() {
@@ -94,6 +105,8 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     final webdavCounts = _webDavSongCounts.value;
     final navidromeConfigs = _navidromeConfigs.value;
     final navidromeCounts = _navidromeSongCounts.value;
+    final cloudDriveConfigs = _cloudDriveConfigs.value;
+    final cloudDriveCounts = _cloudDriveSongCounts.value;
     final disabledSourceIds = _disabledSourceIds.value;
     return [
       SourceItem(
@@ -121,6 +134,17 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           enabled: !disabledSourceIds.contains(s.id),
         ),
       ),
+      ...cloudDriveConfigs.map(
+        (s) => SourceItem(
+          id: s.id,
+          name: s.name.trim().isNotEmpty
+              ? s.name.trim()
+              : s.provider.displayName,
+          type: SourceType.cloudDrive,
+          songCount: cloudDriveCounts[s.id] ?? 0,
+          enabled: !disabledSourceIds.contains(s.id),
+        ),
+      ),
     ];
   });
 
@@ -132,6 +156,9 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
   );
   late final _navidromeSourceItems = computed<List<SourceItem>>(
     () => _sources.value.where((s) => s.type == SourceType.navidrome).toList(),
+  );
+  late final _cloudDriveSourceItems = computed<List<SourceItem>>(
+    () => _sources.value.where((s) => s.type == SourceType.cloudDrive).toList(),
   );
 
   @override
@@ -156,6 +183,7 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     await _loadLocalCount();
     await _loadWebDavSourcesAndCounts();
     await _loadNavidromeSourcesAndCounts();
+    await _loadCloudDriveSourcesAndCounts();
   }
 
   Future<void> _setSourceEnabled(SourceItem source, bool enabled) async {
@@ -228,6 +256,23 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     _navidromeSongCounts.value = counts;
   }
 
+  Future<void> _loadCloudDriveSourcesAndCounts() async {
+    final sources = await _cloudDriveRepo.loadSources();
+    final entries = await Future.wait(
+      sources.map(
+        (source) async => MapEntry<String, int>(
+          source.id,
+          await _songDao.countBySource(source.id),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _cloudDriveConfigs.value = sources;
+    _cloudDriveSongCounts.value = {
+      for (final entry in entries) entry.key: entry.value,
+    };
+  }
+
   ValueNotifier<_ScanProgress> _notifierFor(SourceItem source) {
     return _scanNotifiers.putIfAbsent(
       source.id,
@@ -291,6 +336,10 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     }
     if (source.type == SourceType.navidrome) {
       _startNavidromeScan(source);
+      return;
+    }
+    if (source.type == SourceType.cloudDrive) {
+      _startCloudDriveScan(source);
       return;
     }
     _startWebDavScan(source);
@@ -545,6 +594,102 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     AppToast.show(context, '成功添加 ${result.added} 首歌', type: ToastType.success);
   }
 
+  Future<void> _startCloudDriveScan(SourceItem sourceItem) async {
+    if (_scanRunning.contains(sourceItem.id)) {
+      _showScanDialog(sourceItem);
+      return;
+    }
+    CloudDriveSource? source;
+    for (final item in _cloudDriveConfigs.value) {
+      if (item.id == sourceItem.id) {
+        source = item;
+        break;
+      }
+    }
+    if (source == null) return;
+    if (!await _cloudDriveService.isAuthenticated(source)) {
+      if (!mounted) return;
+      AppToast.show(context, '请先登录${source.provider.displayName}');
+      await _openCloudDriveSetting(sourceItem);
+      return;
+    }
+
+    _scanRunning.add(sourceItem.id);
+    _scanCancelSignals[sourceItem.id] = false;
+    final notifier = _notifierFor(sourceItem);
+    notifier.value = const _ScanProgress(
+      processed: 0,
+      added: 0,
+      total: 0,
+      isScanning: true,
+    );
+    _showScanDialog(sourceItem);
+
+    late final ScanResult result;
+    try {
+      result = await _cloudDriveService.scan(
+        source: source,
+        isCancelled: () => _scanCancelSignals[sourceItem.id] == true,
+        onProgress: (progress) {
+          notifier.value = _ScanProgress(
+            processed: progress.processed,
+            added: progress.added,
+            total: progress.total,
+            isScanning: true,
+          );
+        },
+      );
+    } catch (e, s) {
+      AppLog.instance.w(
+        _logTag,
+        '${source.provider.displayName}扫描失败，sourceId=${sourceItem.id}',
+        e,
+        s,
+      );
+      _scanRunning.remove(sourceItem.id);
+      _scanCancelSignals.remove(sourceItem.id);
+      if (!mounted) return;
+      notifier.value = _ScanProgress(
+        processed: notifier.value.processed,
+        added: notifier.value.added,
+        total: notifier.value.total,
+        isScanning: false,
+      );
+      AppToast.show(
+        context,
+        e is CloudDriveException
+            ? e.message
+            : '${source.provider.displayName}扫描失败',
+        type: ToastType.error,
+      );
+      return;
+    }
+
+    final cancelled = _scanCancelSignals[sourceItem.id] == true;
+    _scanRunning.remove(sourceItem.id);
+    _scanCancelSignals.remove(sourceItem.id);
+    if (!mounted) return;
+    if (cancelled) {
+      notifier.value = _ScanProgress(
+        processed: notifier.value.processed,
+        added: notifier.value.added,
+        total: notifier.value.total,
+        isScanning: false,
+      );
+      AppToast.show(context, '已取消扫描');
+      return;
+    }
+    await _loadCloudDriveSourcesAndCounts();
+    if (!mounted) return;
+    notifier.value = _ScanProgress(
+      processed: result.processed,
+      added: result.added,
+      total: notifier.value.total,
+      isScanning: false,
+    );
+    AppToast.show(context, '成功添加 ${result.added} 首歌', type: ToastType.success);
+  }
+
   void _cancelScan(SourceItem source) {
     final notifier = _notifierFor(source);
     _scanCancelSignals[source.id] = true;
@@ -610,6 +755,23 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
     }
   }
 
+  Future<void> _openCloudDriveSetting(SourceItem source) async {
+    CloudDriveSource? raw;
+    for (final item in _cloudDriveConfigs.value) {
+      if (item.id == source.id) {
+        raw = item;
+        break;
+      }
+    }
+    if (raw == null) return;
+    final changed = await Navigator.push<bool>(
+      context,
+      buildAppPageRoute((_) => CloudDriveEditPage(source: raw!)),
+    );
+    if (!mounted) return;
+    if (changed == true) await _loadCloudDriveSourcesAndCounts();
+  }
+
   Future<void> _openSourceAdd() async {
     final changed = await Navigator.push<bool>(
       context,
@@ -627,7 +789,8 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
         context,
         buildAppPageRoute((_) => const LocalFolderBrowser()),
       );
-    } else if (source.type == SourceType.navidrome) {
+    } else if (source.type == SourceType.navidrome ||
+        source.type == SourceType.cloudDrive) {
       await Navigator.push(
         context,
         buildAppPageRoute(
@@ -669,6 +832,7 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
           final localSources = _localSources.value;
           final webDavSources = _webDavSourceItems.value;
           final navidromeSources = _navidromeSourceItems.value;
+          final cloudDriveSources = _cloudDriveSourceItems.value;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
             children: [
@@ -705,7 +869,7 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
                       .toList(),
                 ),
               if (webDavSources.isNotEmpty) ...[
-                const SizedBox(height: 24),
+                AppSpacing.gapXl,
                 SourceSectionCard(
                   title: '云端',
                   children: webDavSources
@@ -738,8 +902,42 @@ class _SourcePageState extends State<SourcePage> with SignalsMixin {
                       .toList(),
                 ),
               ],
+              if (cloudDriveSources.isNotEmpty) ...[
+                AppSpacing.gapXl,
+                SourceSectionCard(
+                  title: '网盘',
+                  children: cloudDriveSources
+                      .map(
+                        (source) => SourceTile(
+                          icon: AppIcons.cloudDownload,
+                          title: source.name,
+                          subtitle: source.enabled
+                              ? '${source.songCount} 首歌曲'
+                              : '${source.songCount} 首歌曲 · 已停用',
+                          enabled: source.enabled,
+                          onEnabledChanged: (enabled) =>
+                              _setSourceEnabled(source, enabled),
+                          actions: [
+                            SourceTileAction(
+                              icon: AppIcons.arrowsClockwise,
+                              isLoading: _isScanning(source),
+                              tooltip: '扫描网盘音乐',
+                              onTap: () => _startScan(source),
+                            ),
+                            SourceTileAction(
+                              icon: AppIcons.settings,
+                              tooltip: '设置',
+                              onTap: () => _openCloudDriveSetting(source),
+                            ),
+                          ],
+                          onTap: () => _openSource(source),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
               if (navidromeSources.isNotEmpty) ...[
-                const SizedBox(height: 24),
+                AppSpacing.gapXl,
                 SourceSectionCard(
                   title: 'Navidrome',
                   children: navidromeSources

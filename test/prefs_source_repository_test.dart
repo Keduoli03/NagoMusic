@@ -96,6 +96,7 @@ void main() {
         name: '百度音乐',
         provider: CloudDriveProvider.baidu,
         root: '/音乐',
+        rootLabel: '/音乐',
         appKey: 'public-app-key',
       );
       await CloudDriveSourceRepository.instance.upsert(source);
@@ -109,6 +110,7 @@ void main() {
       final loaded = await CloudDriveSourceRepository.instance.loadSources();
       expect(loaded.single.provider, CloudDriveProvider.baidu);
       expect(loaded.single.root, '/音乐');
+      expect(loaded.single.rootLabel, '/音乐');
     });
   });
 
