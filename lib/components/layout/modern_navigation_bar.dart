@@ -273,6 +273,9 @@ class _GlassBar extends StatelessWidget {
           // 玻璃材质从 AppGlass 取，和迷你播放器共用同一份 —— 它俩上下贴着，
           // 材质差一点就看得出来「不搭」。
           settings: AppGlass.panel(context),
+          // 歌曲封面和页面背景深浅变化很大，不能让单张深色图片把浅色主题下的
+          // 整条导航切成深色；材质维持主题亮度，只让背景参与折射。
+          adaptiveBrightness: false,
           // 静止时画的实心色块。不能直接给半透明色 —— 玻璃会把背后糊掉，
           // 低透明度的色铺上去基本被吃干净，选中态就看不见了。
           indicatorColor: Color.alphaBlend(

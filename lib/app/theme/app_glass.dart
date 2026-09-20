@@ -18,27 +18,41 @@ abstract final class AppGlass {
 
   /// 玻璃本体。
   ///
-  /// 底色给淡、模糊调大：页面内容能透过来还被糊开，这才是磨砂。
-  /// 底色太浓就成了一块不透光的白板，玻璃感全没；完全不给又会在浅色页面上
-  /// 看不见（包的默认值就是全透明的白）。
-  ///
-  /// 菲涅尔和高光归零 —— 它们会在胶囊外沿描出一圈白边，在浅色页面上很脏。
-  /// 层次交给底色和阴影，不靠那圈亮边。
+  /// 与小野草底栏共用同一套稳定浅白玻璃参数。背景仍能透出大轮廓和颜色，
+  /// 但浅色模式始终保留约 38% 的白色基底，深色封面不会吃掉导航内容。
   static LiquidGlassSettings panel(BuildContext context) {
     final c = AppColors.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return LiquidGlassSettings(
-      glassColor: c.surface.withValues(alpha: 0.30),
-      blur: 18,
-      shadow: const [
-        BoxShadow(
-          color: Color(0x1A000000),
-          blurRadius: 20,
-          offset: Offset(0, 6),
-        ),
-      ],
-      fresnelStrength: 0,
-      lightIntensity: 0,
-      glowIntensity: 0,
+      thickness: 18,
+      blur: 3,
+      chromaticAberration: 0,
+      refractiveIndex: 1.16,
+      saturation: 1.02,
+      fresnelStrength: 0.72,
+      ambientStrength: 0.08,
+      ambientRim: 0.16,
+      lightIntensity: 0.58,
+      glowIntensity: 0.9,
+      shadow: dark
+          ? const <BoxShadow>[]
+          : <BoxShadow>[
+              BoxShadow(
+                color: c.text.withValues(alpha: 0.12),
+                blurRadius: 18,
+                offset: const Offset(0, 5),
+              ),
+              BoxShadow(
+                color: c.text.withValues(alpha: 0.08),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+      whitenGated: false,
+      whitenStrength: dark ? 0.04 : 0.18,
+      backerColor: dark
+          ? c.bg.withValues(alpha: 0.09)
+          : c.surface.withValues(alpha: 0.24),
     );
   }
 
