@@ -44,6 +44,7 @@ class PlaybackStatePersistence {
   final Duration Function() positionForPersistence;
 
   Timer? _persistTimer;
+  Future<void>? _pendingWrite;
   DateTime _lastPersistTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   PlaybackStatePersistence({
@@ -105,29 +106,48 @@ class PlaybackStatePersistence {
   Future<void> persist() async {
     _lastPersistTime = DateTime.now();
     final list = queue();
-    if (list.isEmpty || currentIndex() < 0) {
+    final index = currentIndex();
+    if (list.isEmpty || index < 0) {
       await clear();
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
+    // Capture one session before any await: switching tracks during a write
+    // must not pair the old position with the new song ID.
     final serialized = jsonEncode(list.map((e) => e.toMap()).toList());
-    await prefs.setString(prefsQueueKey, serialized);
-    await prefs.setInt(prefsIndexKey, currentIndex());
-    await prefs.setInt(
-      prefsPositionKey,
-      positionForPersistence().inMilliseconds,
-    );
-    await prefs.setString(prefsModeKey, mode().name);
-    await prefs.setBool(prefsWasPlayingKey, isPlaying());
+    final positionMs = positionForPersistence().inMilliseconds;
+    final modeName = mode().name;
+    final wasPlaying = isPlaying();
     final songId = currentSongId();
-    if (songId == null || songId.isEmpty) {
-      await prefs.remove(prefsSongIdKey);
-    } else {
-      await prefs.setString(prefsSongIdKey, songId);
-    }
+    await _serializeWrite(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(prefsQueueKey, serialized);
+      await prefs.setInt(prefsIndexKey, index);
+      await prefs.setInt(prefsPositionKey, positionMs);
+      await prefs.setString(prefsModeKey, modeName);
+      await prefs.setBool(prefsWasPlayingKey, wasPlaying);
+      if (songId == null || songId.isEmpty) {
+        await prefs.remove(prefsSongIdKey);
+      } else {
+        await prefs.setString(prefsSongIdKey, songId);
+      }
+    });
   }
 
-  Future<void> clear() async {
+  Future<void> _serializeWrite(Future<void> Function() write) {
+    final previous = _pendingWrite;
+    final next = () async {
+      if (previous != null) {
+        try {
+          await previous;
+        } catch (_) {}
+      }
+      await write();
+    }();
+    _pendingWrite = next;
+    return next;
+  }
+
+  Future<void> clear() => _serializeWrite(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(prefsQueueKey);
     await prefs.remove(prefsIndexKey);
@@ -135,7 +155,7 @@ class PlaybackStatePersistence {
     await prefs.remove(prefsModeKey);
     await prefs.remove(prefsWasPlayingKey);
     await prefs.remove(prefsSongIdKey);
-  }
+  });
 
   /// 从 prefs 还原出上次的播放会话；没有或损坏返回 null。
   Future<PlaybackRestoreState?> read() async {
@@ -215,6 +235,8 @@ class PlaybackRestoreState {
   bool sourcePrepared;
   bool seekApplied;
   bool prepareFailed;
+  Future<void>? preparation;
+  bool _cancelled = false;
 
   PlaybackRestoreState({
     required this.queue,
@@ -229,5 +251,16 @@ class PlaybackRestoreState {
 
   SongEntity get currentSong => queue[index];
 
-  bool get protectPosition => !seekApplied && position > Duration.zero;
+  bool get isCancelled => _cancelled;
+
+  bool get protectPosition =>
+      !_cancelled && !seekApplied && position > Duration.zero;
+
+  Future<void> cancel() async {
+    _cancelled = true;
+    // An in-flight source load/seek must finish before another track can seek.
+    try {
+      await preparation;
+    } catch (_) {}
+  }
 }

@@ -92,7 +92,6 @@ class PlayerService with WidgetsBindingObserver {
       );
   Timer? _backgroundAudioKeepAliveTimer;
   PlaybackRestoreState? _restoreSession;
-  Future<void>? _restorePrepareFuture;
   bool _restoringState = false;
   bool _isSeeking = false;
   Duration? _seekTarget;
@@ -348,7 +347,7 @@ class PlayerService with WidgetsBindingObserver {
   }
 
   Future<void> playQueue(List<SongEntity> songs, int startIndex) async {
-    _clearRestoreSession();
+    await _clearRestoreSession();
     final playable = songs
         .where((s) => (s.uri ?? '').trim().isNotEmpty)
         .toList();
@@ -560,7 +559,7 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> stopAndClear() async {
     _debugLog('stopAndClear');
-    _clearRestoreSession();
+    await _clearRestoreSession();
     _stopBackgroundAudioKeepAlive();
     try {
       await _player.stop();
@@ -584,7 +583,7 @@ class PlayerService with WidgetsBindingObserver {
     required bool play,
     Duration? initialPosition,
   }) async {
-    _clearRestoreSession();
+    await _clearRestoreSession();
     final playable = songs
         .where((s) => (s.uri ?? '').trim().isNotEmpty)
         .toList();
@@ -732,7 +731,7 @@ class PlayerService with WidgetsBindingObserver {
   }
 
   Future<void> next() async {
-    _clearRestoreSession();
+    await _clearRestoreSession();
     final targetIndex = currentIndex.value + 1;
     if (targetIndex < queue.value.length) {
       await _ensureLogicalIndexLoaded(targetIndex, forward: true);
@@ -745,7 +744,7 @@ class PlayerService with WidgetsBindingObserver {
   }
 
   Future<void> previous() async {
-    _clearRestoreSession();
+    await _clearRestoreSession();
     final targetIndex = currentIndex.value - 1;
     if (targetIndex >= 0) {
       await _ensureLogicalIndexLoaded(targetIndex, forward: false);
@@ -758,7 +757,7 @@ class PlayerService with WidgetsBindingObserver {
   }
 
   Future<void> seek(Duration position) async {
-    _clearRestoreSession();
+    await _clearRestoreSession();
     _seekSeq++;
     final currentSeq = _seekSeq;
     _isSeeking = true;
@@ -789,7 +788,7 @@ class PlayerService with WidgetsBindingObserver {
   }
 
   Future<void> skipToIndex(int index) async {
-    _clearRestoreSession();
+    await _clearRestoreSession();
     final lo = _loadedLo;
     final hi = _loadedHi;
     if (lo != null && hi != null && (index < lo || index > hi)) {
@@ -993,8 +992,9 @@ class PlayerService with WidgetsBindingObserver {
     final shouldAutoPlayOnLaunch =
         AppLaunchPlaybackSettings.autoPlayOnAppLaunch.value;
     _restorePlaybackUiState(session);
-    _restorePrepareFuture = _prepareRestoredAudioSource(session);
-    await _restorePrepareFuture;
+    session.preparation = _prepareRestoredAudioSource(session);
+    await session.preparation;
+    if (session.isCancelled) return;
 
     if (shouldAutoPlayOnLaunch) {
       try {
@@ -1038,10 +1038,12 @@ class PlayerService with WidgetsBindingObserver {
               initialPosition: session.position,
               preload: true,
             );
+      if (session.isCancelled) return;
       if (!ok) {
         final sourceQueue = await _sourceResolver.buildPlaybackSourceQueue(
           session.queue,
         );
+        if (session.isCancelled) return;
         final generation = await _loadPlaybackSourceQueue(
           sourceQueue,
           initialIndex: session.index,
@@ -1052,10 +1054,13 @@ class PlayerService with WidgetsBindingObserver {
           _setLoadedRange(0, session.queue.length - 1);
         }
       }
+      if (session.isCancelled) return;
       if (session.position > Duration.zero) {
         await _seekRestoredPosition(session.position);
       }
+      if (session.isCancelled) return;
       await _applyPlaybackMode(session.mode);
+      if (session.isCancelled) return;
       session
         ..sourcePrepared = true
         ..seekApplied = true;
@@ -1188,12 +1193,12 @@ class PlayerService with WidgetsBindingObserver {
 
   Future<void> _ensureRestoredPlaybackReady() async {
     final session = _restoreSession;
-    if (session == null || session.prepareFailed) return;
-    final preparing = _restorePrepareFuture;
+    if (session == null || session.prepareFailed || session.isCancelled) return;
+    final preparing = session.preparation;
     if (preparing != null) {
       await preparing;
     }
-    if (session.seekApplied) return;
+    if (session.isCancelled || session.seekApplied) return;
     await _seekRestoredPosition(session.position);
     session.seekApplied = true;
   }
@@ -1220,12 +1225,13 @@ class PlayerService with WidgetsBindingObserver {
     if (session == null) return;
     if (!session.seekApplied) return;
     _restoreSession = null;
-    _restorePrepareFuture = null;
   }
 
-  void _clearRestoreSession() {
-    _restoreSession = null;
-    _restorePrepareFuture = null;
+  Future<void> _clearRestoreSession() async {
+    final session = _restoreSession;
+    if (session == null) return;
+    await session.cancel();
+    if (identical(_restoreSession, session)) _restoreSession = null;
   }
 
   Future<bool> _setAudioSessionActive(bool active) async {
@@ -1308,6 +1314,13 @@ class PlayerService with WidgetsBindingObserver {
     // Clamp defensively: callers can pass an index derived from a since-changed
     // queue (e.g. error handling after the queue shrank), which would throw.
     final safeIndex = currentQueueIndex.clamp(0, songs.length - 1);
+    if (currentSong.value?.id != songs[safeIndex].id) {
+      position.value = Duration.zero;
+      bufferedPosition.value = Duration.zero;
+      duration.value = songs[safeIndex].durationMs == null
+          ? null
+          : Duration(milliseconds: songs[safeIndex].durationMs!);
+    }
     currentIndex.value = safeIndex;
     currentSong.value = songs[safeIndex];
     _metadataPersister.maybeProbe(songs[safeIndex]);
